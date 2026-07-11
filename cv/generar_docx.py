@@ -8,10 +8,11 @@ from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-NOMBRE = "[Nombre y Apellidos]"
+NOMBRE = "Pablo Montes Soriano"
 CONTACTO = ("Morón de la Frontera (Sevilla) · Disponibilidad: Sevilla capital y "
             "Torrox Costa (Málaga) · Carnet B y vehículo propio\n"
-            "[Teléfono] · pablossmontes1155@icloud.com · [LinkedIn]")
+            "633 786 374 · pablossmontes1155@icloud.com · "
+            "linkedin.com/in/pablo-montes-soriano-017b70308")
 
 TITULARES = {
     "A": "Técnico Superior en Comercio Internacional | Export Front & Back Office | Inglés B2",
@@ -72,25 +73,25 @@ BULLETS_FRONTOFFICE = [
 
 PROYECTOS = {
     "compacto": [
-        ("Sorwebs — Diseño web para negocios locales · [año] – actualidad",
+        ("Sorwebs — Diseño web para negocios locales · 2026 – actualidad",
          ["Marca propia de creación de webs profesionales para restaurantes y negocios de la "
           "Costa del Sol: ciclo completo con el cliente — captación, propuesta, diseño y "
           "desarrollo (HTML/CSS/JavaScript), SEO local y entrega."]),
-        ("Publicidad digital y e-commerce · [año] – [año/actualidad]",
+        ("Publicidad digital y e-commerce · 2024 – 2025",
          ["Creación y gestión de tiendas online propias (selección de producto, proveedores "
           "internacionales y logística) y campañas de Meta Ads en Facebook/Instagram: "
           "segmentación de audiencias, creativos y optimización por resultados."]),
     ],
     "ampliado": [
-        ("Sorwebs — Diseño web para negocios locales · [año] – actualidad",
+        ("Sorwebs — Diseño web para negocios locales · 2026 – actualidad",
          ["Marca propia de creación de webs profesionales para restaurantes y negocios de la "
           "Costa del Sol.",
           "Ciclo comercial completo: captación de clientes, propuestas y presupuestos, entrega y "
           "mantenimiento recurrente. Diseño y desarrollo con HTML/CSS/JavaScript y SEO local."]),
-        ("Meta Ads (Facebook/Instagram) · [año] – [año/actualidad]",
+        ("Meta Ads (Facebook/Instagram) · 2024 – 2025",
          ["Planificación, creación y optimización de campañas: segmentación de audiencias, "
           "creativos y análisis de resultados por métricas."]),
-        ("E-commerce · [año] – [año/actualidad]",
+        ("E-commerce · 2024 – 2025",
          ["Creación y gestión de tiendas online propias: selección de producto, negociación con "
           "proveedores internacionales y coordinación logística."]),
     ],
@@ -119,8 +120,8 @@ IDIOMAS = [
      "nivel B2)."),
 ]
 
-FORMACION = ("Técnico Superior en Comercio Internacional (FP de Grado Superior) — [Centro], "
-             "[ciudad] · [año] – [año]")
+FORMACION = ("Técnico Superior en Comercio Internacional (FP de Grado Superior) — "
+             "IES Cristóbal de Monroy, Alcalá de Guadaíra (Sevilla) · 2023 – 2025")
 
 
 def estilo_base(doc):

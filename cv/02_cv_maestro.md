@@ -7,14 +7,14 @@
 
 ## CABECERA (común)
 
-**[Nombre y Apellidos]**
+**Pablo Montes Soriano**
 
 【A】 Técnico Superior en Comercio Internacional | Export Front & Back Office | Inglés B2
 【B】 Comercio Internacional y Marketing Digital | Export Ops · Meta Ads · Desarrollo Web
 【C】 Comercio Internacional | Operaciones + Automatización de Procesos con IA (Python · APIs)
 
 Morón de la Frontera (Sevilla) · Disponibilidad: Sevilla capital y Torrox Costa (Málaga) · Carnet B y vehículo propio
-[Teléfono] · pablossmontes1155@icloud.com · [LinkedIn]
+633 786 374 · pablossmontes1155@icloud.com · linkedin.com/in/pablo-montes-soriano-017b70308
 
 ---
 
@@ -56,11 +56,11 @@ Perfil híbrido negocio + tecnología: Técnico Superior en Comercio Internacion
 
 ## PROYECTOS PROPIOS 【B: esta sección sube justo debajo del extracto y se amplía; A y C: aquí, versión compacta】
 
-**Sorwebs — Diseño web para negocios locales** · [año inicio] – actualidad
+**Sorwebs — Diseño web para negocios locales** · 2026 – actualidad
 Marca propia de creación de webs profesionales para restaurantes y negocios de la Costa del Sol: ciclo completo con el cliente — captación, propuesta, diseño y desarrollo (HTML/CSS/JavaScript), SEO local y entrega.
 【B añade: captación de clientes puerta a puerta/online, elaboración de propuestas y presupuestos, mantenimiento recurrente.】
 
-**Publicidad digital y e-commerce** · [año inicio] – [año/actualidad]
+**Publicidad digital y e-commerce** · 2024 – 2025
 Creación y gestión de tiendas online propias (selección de producto, proveedores internacionales y logística) y campañas de Meta Ads en Facebook/Instagram: segmentación de audiencias, creativos y optimización por resultados.
 【B: separar en dos entradas, una para e-commerce y otra para Meta Ads, con un bullet extra cada una.】
 【C añade: integración de herramientas de IA en los flujos de trabajo (generación de creativos, análisis).】
@@ -70,7 +70,7 @@ Creación y gestión de tiendas online propias (selección de producto, proveedo
 ## FORMACIÓN
 
 **Técnico Superior en Comercio Internacional** (FP de Grado Superior)
-[Centro de estudios], [ciudad] · [año inicio] – [año fin]
+IES Cristóbal de Monroy, Alcalá de Guadaíra (Sevilla) · 2023 – 2025
 【A añade si aplica: módulos clave — financiación internacional, logística y transporte internacional, gestión aduanera.】
 
 ---
