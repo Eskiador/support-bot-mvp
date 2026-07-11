@@ -22,7 +22,7 @@ TITULARES = {
 EXTRACTOS = {
     "A": ("Técnico Superior en Comercio Internacional con más de un año en Angel Camacho "
           "Alimentación (agroalimentaria exportadora), donde he pasado de prácticas a contrato "
-          "laboral en menos de un año. He gestionado la operativa, facturación y documentación de "
+          "laboral en menos de un año. He gestionado en SAP la operativa, facturación y documentación de "
           "cargas de exportación a EE. UU., Canadá, Sudamérica y Reino Unido —mercados de alta "
           "exigencia documental— y actualmente resuelvo incidencias y cargos con grandes cuentas "
           "de distribución nacional. Inglés B2 de uso profesional diario. Como diferencial: "
@@ -47,12 +47,12 @@ BULLETS_BACKOFFICE = {
     "entregas": ("Reviso y controlo las entregas de mercancía a clientes nacionales, coordinando "
                  "con logística y comercial la resolución de desviaciones."),
     "cargos": ("Gestiono el ciclo completo de cargos de clientes de grandes cuentas de "
-               "distribución: análisis de diferencias de precio y de mercancía, documentación y "
-               "resolución de incidencias — [X cargos/mes, ~X € analizados]."),
+               "distribución: análisis en SAP de diferencias de precio y de mercancía, "
+               "documentación y resolución de incidencias — más de 100 cargos gestionados al mes."),
     "automatizacion": ("Desarrollé por iniciativa propia herramientas de automatización con "
                        "Python, JavaScript y APIs de IA (extracción OCR de datos de facturas y "
-                       "cargos en PDF a Excel), hoy en uso diario en el departamento — [ahorro "
-                       "estimado de X horas/semana de trabajo manual]."),
+                       "cargos en PDF a Excel), hoy en uso diario en el departamento — ahorro de "
+                       "varias horas semanales de trabajo manual."),
 }
 ORDEN_BACKOFFICE = {
     "A": ["entregas", "cargos", "automatizacion"],
@@ -62,34 +62,34 @@ ORDEN_BACKOFFICE = {
 
 BULLETS_FRONTOFFICE = [
     ("Gestioné la operativa de cargas de exportación a Sudamérica, EE. UU., Canadá y almacenes "
-     "externos de Reino Unido — [X contenedores/cargas al mes]."),
-    ("Grabé y gestioné los pedidos del mercado UK — [X pedidos/semana], con comunicación diaria "
-     "en inglés con clientes y almacenes."),
-    ("Responsable de la facturación y documentación de exportación de dichas cargas (factura "
-     "comercial, packing list, [certificados]) para mercados de alta exigencia documental — "
-     "[0 rechazos aduaneros / % incidencias]."),
+     "externos de Reino Unido — entre 15 y 30 cargas mensuales."),
+    ("Grabé y gestioné en SAP los pedidos del mercado UK — 10-25 pedidos semanales, con "
+     "comunicación diaria en inglés con clientes y almacenes."),
+    ("Responsable de la facturación (SAP) y documentación de exportación de dichas cargas "
+     "(factura comercial, packing list, certificados y documentación aduanera) para mercados de "
+     "alta exigencia documental como EE. UU. y Canadá."),
 ]
 
 PROYECTOS = {
     "compacto": [
         ("Sorwebs — Diseño web para negocios locales · [año] – actualidad",
          ["Marca propia de creación de webs profesionales para restaurantes y negocios de la "
-          "Costa del Sol: diseño y desarrollo (HTML/CSS/JavaScript), SEO local y trato comercial "
-          "directo con el cliente — [X webs entregadas]."]),
+          "Costa del Sol: ciclo completo con el cliente — captación, propuesta, diseño y "
+          "desarrollo (HTML/CSS/JavaScript), SEO local y entrega."]),
         ("Publicidad digital y e-commerce · [año] – [año/actualidad]",
          ["Creación y gestión de tiendas online propias (selección de producto, proveedores "
           "internacionales y logística) y campañas de Meta Ads en Facebook/Instagram: "
-          "segmentación, creativos y optimización por resultados — [X € de inversión gestionada]."]),
+          "segmentación de audiencias, creativos y optimización por resultados."]),
     ],
     "ampliado": [
         ("Sorwebs — Diseño web para negocios locales · [año] – actualidad",
          ["Marca propia de creación de webs profesionales para restaurantes y negocios de la "
-          "Costa del Sol — [X webs entregadas; resultado ejemplo: X].",
+          "Costa del Sol.",
           "Ciclo comercial completo: captación de clientes, propuestas y presupuestos, entrega y "
           "mantenimiento recurrente. Diseño y desarrollo con HTML/CSS/JavaScript y SEO local."]),
         ("Meta Ads (Facebook/Instagram) · [año] – [año/actualidad]",
          ["Planificación, creación y optimización de campañas: segmentación de audiencias, "
-          "creativos y análisis de resultados — [X € gestionados / métrica de resultado]."]),
+          "creativos y análisis de resultados por métricas."]),
         ("E-commerce · [año] – [año/actualidad]",
          ["Creación y gestión de tiendas online propias: selección de producto, negociación con "
           "proveedores internacionales y coordinación logística."]),
@@ -98,12 +98,13 @@ PROYECTOS = {
 
 HABILIDADES = {
     "comex": ("Comercio exterior: documentación de exportación (factura comercial, packing list, "
-              "[certificados]), gestión de pedidos y cargas, Incoterms, gestión de incidencias y "
-              "cargos con grandes cuentas."),
+              "certificados y documentación aduanera), gestión de pedidos y cargas, Incoterms, "
+              "gestión de incidencias y cargos con grandes cuentas."),
     "prog": ("Programación y automatización: Python, JavaScript, HTML/CSS, APIs de IA (Claude), "
              "OCR y procesamiento automático de documentos."),
     "mkt": ("Marketing digital: Meta Ads (Facebook/Instagram), e-commerce ([plataforma]), SEO local."),
-    "ofimatica": ("Gestión y ofimática: ERP [nombre], Excel [tablas dinámicas, BUSCARV], Outlook."),
+    "ofimatica": ("Gestión y ofimática: SAP (pedidos, facturación, cargos), Excel de uso diario "
+                  "(análisis de cargos y control de entregas), Outlook."),
 }
 ORDEN_HABILIDADES = {
     "A": ["comex", "prog", "mkt", "ofimatica"],
@@ -114,7 +115,8 @@ ORDEN_HABILIDADES = {
 IDIOMAS = [
     "Español: nativo.",
     ("Inglés: B2 — uso profesional diario: documentación de exportación y gestión de pedidos "
-     "con clientes de Reino Unido, EE. UU. y Canadá. [Certificado oficial si existe]"),
+     "con clientes de Reino Unido, EE. UU. y Canadá. Certificación Trinity (Reading y Writing, "
+     "nivel B2)."),
 ]
 
 FORMACION = ("Técnico Superior en Comercio Internacional (FP de Grado Superior) — [Centro], "
