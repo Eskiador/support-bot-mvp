@@ -122,6 +122,8 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
 .sem{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .sem.v{background:#2aa36a}.sem.a{background:#e0a92b}.sem.r{background:#d64b3c}
 tr.sel td{background:var(--azul-claro)}
+#tablaCola tbody tr{cursor:pointer}
+#tablaCola tbody tr:hover td{background:var(--azul-claro)}
 tbody tr:hover td{background:#f7f9fc}
 td.acc{text-align:right}
 .mini{font-size:12px;padding:3px 8px}
@@ -222,6 +224,7 @@ td.acc{text-align:right}
           <div class="crece"></div>
           <span class="chip" id="chipFiltro"></span>
         </div>
+        <p class="pista" style="margin:8px 0 0">Haz clic en cualquier parte de una fila para abrir su ficha y editarla.</p>
       </div>
       <div class="tablaenv">
         <table id="tablaCola">
@@ -90420,10 +90423,17 @@ window.addEventListener('pdfjs-listo', async ()=>{
     pintarCola();
   });
   $('#btnExportar').onclick = exportarCargos;
+  // Toda la fila abre la ficha, no solo el botón «Abrir»: en tablas anchas ese
+  // botón queda fuera de la vista sin desplazar y parecía que no se podía editar.
   $('#tablaCola tbody').addEventListener('click', e=>{
-    const b = e.target.closest('button'); if(!b) return;
-    if(b.dataset.abrir) abrirFicha(b.dataset.abrir);
-    else if(b.dataset.pdf) abrirDoc(Object.assign({id:b.dataset.pdf}, E.memoria.cargos[b.dataset.pdf]));
+    const b = e.target.closest('button');
+    if(b){
+      if(b.dataset.pdf) abrirDoc(Object.assign({id:b.dataset.pdf}, E.memoria.cargos[b.dataset.pdf]));
+      else if(b.dataset.abrir) abrirFicha(b.dataset.abrir);
+      return;
+    }
+    const fila = e.target.closest('tr[data-id]');
+    if(fila) abrirFicha(fila.dataset.id);
   });
 
   // --- carpeta de PDF ---
@@ -90921,6 +90931,7 @@ function pintarCola(){
   for(const c of lista.slice(0, 400)){
     const dias = diasDesde(c.fecha);
     const tr = document.createElement('tr');
+    tr.dataset.id = c.id;
     if(E.cargoAbierto === c.id) tr.className = 'sel';
     const est = ESTADOS[c.estado];
     tr.innerHTML = `

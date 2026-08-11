@@ -274,3 +274,17 @@ Esto no convierte el Excel en algo que se pueda leer de vuelta — sigue siendo
 un reflejo de solo escritura, por las razones ya explicadas (dos escritores
 sobre el mismo archivo pierden trabajo tarde o temprano). Lo que evita es que
 la sustitución ocurra **en silencio**.
+
+## Fila entera clicable en la cola
+
+Primer aviso de uso real: el usuario no podía editar ningún cargo porque no
+encontraba el botón «Abrir» — con muchas columnas queda al borde derecho de la
+tabla, y en su pantalla se salía de la vista sin que fuera obvio que había que
+desplazarse. La conclusión razonable desde fuera fue «no se puede editar».
+
+Corrección: cualquier clic sobre una fila (fuera de los botones «Ver PDF» y
+«Abrir») abre la ficha de ese cargo, igual que si se hubiera pulsado «Abrir».
+Cursor de mano y resaltado al pasar por encima para que se note que es
+clicable, y una frase fija encima de la tabla («Haz clic en cualquier parte de
+una fila para abrir su ficha»). Los botones de la fila conservan su
+comportamiento propio y no disparan también la apertura de la ficha.
