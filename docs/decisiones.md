@@ -147,3 +147,51 @@ tecleado), un artículo por renglón, y de cada uno se toma el último número c
 valor y el resto como descripción. Se elige una vez si ese número es el importe,
 el precio correcto o la diferencia por unidad, y el modo de cálculo se ajusta
 solo. Hay vista previa en vivo de lo que ha entendido antes de aceptar.
+
+## El listado de cargos I de SAP
+
+Resuelto el punto que quedaba abierto en el brief. El export real trae la
+cabecera en la **fila 8** y filas de subtotal intercaladas (`Cuenta 400131…`) que
+hay que saltarse. Las columnas útiles van de A a H:
+
+| Columna | Uso |
+|---|---|
+| Nombre 1 | cliente |
+| Asignación | identificador del cargo |
+| Importe en moneda local + Moneda | importe |
+| Fecha contabiliz. | antigüedad y semáforo |
+| Clave de reclamación | siempre `I` en este export |
+| Nº documento | referencia de apoyo |
+
+En el export de muestra: 1.273 cargos, 102 clientes, todos en euros.
+
+**No hay identificador único.** La asignación se repite (hay tres filas idénticas
+de ALDI Pinto, misma asignación, mismo documento, mismo importe y misma fecha).
+La clave para cruzar reimportaciones es
+`cliente|asignación|nº documento|fecha|importe` más un número de repetición. Es
+estable mientras el export salga igual; si SAP cambiara el orden de las filas
+repetidas, esas tres podrían bailar entre sí. Como las tres son idénticas, el
+único riesgo es que el trabajo hecho sobre una aparezca en otra de las tres.
+
+El listado incluye clientes internacionales. No hay columna que los distinga, así
+que se importan todos y se filtran por cliente.
+
+## Estado de un cargo
+
+Se deduce de los pasos hechos, no se elige a mano:
+
+| Estado | Condición |
+|---|---|
+| Pendiente | nada hecho |
+| En curso | clasificado o con el cálculo guardado |
+| Abonado | tiene nº de abono |
+| Cerrado | abonado, compensado y —si es no conforme— reclamado |
+
+Esto último implementa la regla del brief: un cargo no se cierra con pasos
+abiertos, y el no conforme no se cierra hasta reclamarlo.
+
+## El correo al comercial
+
+Se genera con `mailto:`, que abre Outlook con destinatario, asunto y cuerpo ya
+escritos. **El PDF no se puede adjuntar desde el navegador**: eso queda a mano, y
+la ficha lo recuerda en pantalla. También hay botón para copiar solo el texto.

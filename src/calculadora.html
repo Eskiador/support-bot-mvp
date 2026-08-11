@@ -99,6 +99,42 @@ td .desc{max-width:190px;overflow:hidden;text-overflow:ellipsis;display:block;wh
 .oculto{display:none!important}
 code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-claro);
   padding:2px 7px;border-radius:5px;font-size:13px;color:#194e8a}
+/* ---------- pestañas ---------- */
+.pestanas{display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:9px;border:1px solid var(--line)}
+.pest{border:none;background:transparent;padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:600}
+.pest:hover{background:#fff}
+.pest.activa{background:#fff;color:var(--azul);box-shadow:var(--sombra)}
+.cuenta{display:inline-block;min-width:19px;padding:1px 6px;border-radius:999px;background:var(--azul);
+  color:#fff;font-size:11.5px;font-weight:700;margin-left:5px}
+.pest.activa .cuenta{background:var(--azul)}
+
+/* ---------- filtros ---------- */
+.filtros{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.check{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--muted)}
+
+/* ---------- semáforo y estados ---------- */
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:650;white-space:nowrap}
+.pill.gris{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.pill.azul{background:var(--azul-claro);color:#194e8a}
+.pill.verde{background:var(--verde-claro);color:var(--verde)}
+.pill.ambar{background:var(--ambar-claro);color:var(--ambar)}
+.pill.rojo{background:var(--rojo-claro);color:var(--rojo)}
+.sem{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.sem.v{background:#2aa36a}.sem.a{background:#e0a92b}.sem.r{background:#d64b3c}
+tr.sel td{background:var(--azul-claro)}
+tbody tr:hover td{background:#f7f9fc}
+td.acc{text-align:right}
+.mini{font-size:12px;padding:3px 8px}
+.tablaenv{max-height:none}
+#tablaCola td{padding:6px 9px}
+.fichaCaja{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:14px}
+.pasos{list-style:none;margin:0;padding:0}
+.pasos li{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--line)}
+.pasos li:last-child{border-bottom:none}
+.pasos .txt{flex:1}
+.pasos .hecho{color:var(--verde);font-weight:600}
+.pasos small{color:var(--muted);font-size:12px}
+
 #pie{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
   padding:9px 22px;font-size:12.5px;color:var(--muted);display:flex;gap:14px;align-items:center;z-index:15}
 </style>
@@ -106,14 +142,122 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
 <body>
 
 <header>
-  <div class="marca">Contabilizador de Cargos I <span>· Módulo 2 · calculadora de diferencias</span></div>
+  <div class="marca">Contabilizador de Cargos I</div>
+  <nav class="pestanas">
+    <button class="pest activa" data-vista="cargos">Cola de cargos <span class="cuenta" id="cnPend">0</span></button>
+    <button class="pest" data-vista="calc">Calculadora</button>
+    <button class="pest" data-vista="comerciales">Comerciales</button>
+  </nav>
   <div class="crece"></div>
   <span class="chip" id="chipDatos">Archivo de datos: sin conectar</span>
   <button id="btnConectar">Conectar archivo de datos</button>
-  <button id="btnNuevo">Cargo nuevo</button>
 </header>
 
 <main>
+
+  <!-- ============================ COLA DE CARGOS ============================ -->
+  <div id="vistaCargos">
+
+    <section>
+      <div class="cab"><span class="paso">1</span><h2>Listado de cargos I de SAP</h2>
+        <div class="crece"></div>
+        <span class="chip" id="chipListado"></span>
+        <button id="btnExportar">Exportar a Excel</button>
+      </div>
+      <div class="cuerpo">
+        <div class="zona" id="zonaListado" data-tipo="listado">
+          <h3>Excel o CSV del listado de cargos I</h3>
+          <p>Arrástralo aquí o haz clic para elegirlo.<br>
+             Al reimportar, el trabajo ya hecho se conserva.</p>
+        </div>
+        <input type="file" id="selListado" accept=".xlsx,.xls,.csv,.txt" class="oculto">
+        <div id="avisoImport"></div>
+      </div>
+    </section>
+
+    <section id="secCola" class="oculto">
+      <div class="marcador" id="contadores"></div>
+      <div class="cuerpo" style="padding-bottom:8px">
+        <div class="filtros">
+          <input id="fBuscar" placeholder="Buscar cliente, asignación, nº de abono…" style="min-width:260px">
+          <select id="fEstado">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="en curso">En curso</option>
+            <option value="abonado">Abonados</option>
+            <option value="cerrado">Cerrados</option>
+          </select>
+          <select id="fCliente2"><option value="">Todos los clientes</option></select>
+          <select id="fConforme">
+            <option value="">Conformidad: todas</option>
+            <option value="si">Conformes</option>
+            <option value="no">No conformes</option>
+            <option value="sin">Sin decidir</option>
+          </select>
+          <label class="check"><input type="checkbox" id="fPendientes"> Ocultar los cerrados</label>
+          <div class="crece"></div>
+          <span class="chip" id="chipFiltro"></span>
+        </div>
+      </div>
+      <div class="tablaenv">
+        <table id="tablaCola">
+          <thead><tr>
+            <th data-orden="fecha">Fecha</th>
+            <th data-orden="dias">Días</th>
+            <th data-orden="cliente">Cliente</th>
+            <th data-orden="asignacion">Asignación</th>
+            <th class="n" data-orden="importe">Importe</th>
+            <th data-orden="estado">Estado</th>
+            <th>Nº abono</th>
+            <th>Conforme</th>
+            <th>En SAP</th>
+            <th>Compensado</th>
+            <th>Reclamado</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="nota" id="pieCola"></div>
+    </section>
+
+    <section id="secFicha" class="oculto">
+      <div class="cab"><span class="paso">✓</span><h2 id="tituloFicha">Ficha del cargo</h2>
+        <div class="crece"></div><button id="btnCerrarFicha">Cerrar ficha</button></div>
+      <div class="cuerpo" id="cuerpoFicha"></div>
+    </section>
+  </div>
+
+  <!-- ============================ COMERCIALES ============================ -->
+  <div id="vistaComerciales" class="oculto">
+    <section>
+      <div class="cab"><span class="paso">4</span><h2>Cliente → comercial</h2>
+        <div class="crece"></div>
+        <button id="btnExportarCom">Exportar a Excel</button>
+      </div>
+      <div class="cuerpo">
+        <p class="pista">La relación no existe en ningún sitio, así que se construye sobre la marcha:
+          la primera vez que reclames un cargo de un cliente, lo apuntas aquí y ya se queda.</p>
+        <div class="rejilla" style="margin-bottom:12px">
+          <div class="campo"><label>Cliente</label><input id="cCliente" list="listaClientes"></div>
+          <div class="campo"><label>Comercial</label><input id="cNombre"></div>
+          <div class="campo"><label>Correo</label><input id="cCorreo" type="email"></div>
+          <div class="campo"><label>Teléfono / notas</label><input id="cNotas"></div>
+        </div>
+        <datalist id="listaClientes"></datalist>
+        <button class="primario" id="btnGuardarCom">Guardar comercial</button>
+        <div class="tablaenv" style="margin-top:14px">
+          <table id="tablaCom">
+            <thead><tr><th>Cliente</th><th>Comercial</th><th>Correo</th><th>Notas</th><th class="n">Cargos</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================ CALCULADORA ============================ -->
+  <div id="vistaCalc" class="oculto">
 
   <!-- 1 · archivos -->
   <section>
@@ -249,12 +393,14 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
       <div class="barra">
         <button class="primario" id="btnCopiar">Copiar tabla para SAP</button>
         <button id="btnCopiarZnet">Copiar solo los ZNET</button>
+        <button class="primario" id="btnRegistrar">Registrar en el archivo de cargos</button>
         <button id="btnGuardar">Guardar en el archivo de datos</button>
         <span id="estadoCopia" class="chip oculto"></span>
       </div>
     </div>
   </section>
 
+  </div><!-- fin vistaCalc -->
 </main>
 
 <div id="pie">
@@ -335,7 +481,8 @@ const E = {
   cargo:   null,   // {numero, cliente, fecha, totalSinIva, ivaPct, lineas:[...], texto}
   factura: null,   // {numero, fecha, lineas:[...]}
   filas:   [],     // filas de trabajo (una por línea de factura)
-  memoria: {version:1, clientes:{}, log:[]},
+  memoria: {version:2, clientes:{}, cargos:{}, comerciales:{}, log:[]},
+  cargoAbierto: null,
   handle:  null
 };
 
@@ -438,13 +585,14 @@ function trocearGlifos(txt, indices, em, x0){
 }
 
 // Lector ZIP mínimo (STORE + DEFLATE con DecompressionStream, nativo en Edge).
-async function leerZip(buf){
+// Lo usan el XPS (páginas .fpage) y el Excel (XML del libro).
+async function leerZip(buf, filtro = /\.fpage$/i){
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   let fin = -1;
   for(let i=buf.length-22;i>=0 && i>buf.length-66000;i--){
     if(dv.getUint32(i,true)===0x06054b50){ fin=i; break; }
   }
-  if(fin<0) throw new Error('El archivo no parece un XPS válido.');
+  if(fin<0) throw new Error('El archivo no parece un ZIP válido (XPS o Excel).');
   const nEnt = dv.getUint16(fin+10,true);
   let p = dv.getUint32(fin+16,true);
   const partes = new Map();
@@ -458,7 +606,7 @@ async function leerZip(buf){
     const desp   = dv.getUint32(p+42,true);
     const nombre = new TextDecoder().decode(buf.subarray(p+46, p+46+nomLen));
     p += 46 + nomLen + extLen + comLen;
-    if(!/\.fpage$/i.test(nombre)) continue;
+    if(!filtro.test(nombre)) continue;
     const nl = dv.getUint16(desp+26,true), el = dv.getUint16(desp+28,true);
     const ini = desp + 30 + nl + el;
     const datos = buf.subarray(ini, ini+compLen);
@@ -1089,6 +1237,7 @@ async function conectarDatos(){
     await cargarDesdeHandle(true);
     await guardarDatos();
     marcarChipDatos(h.name);
+    pintarCola(); pintarComerciales();
   }catch(e){ if(e.name!=='AbortError') avisar('No se pudo conectar el archivo: '+e.message); }
 }
 
@@ -1097,7 +1246,13 @@ async function cargarDesdeHandle(silencioso){
     const f = await E.handle.getFile();
     if(f.size > 0){
       const j = JSON.parse(await f.text());
-      if(j && j.clientes) E.memoria = Object.assign(E.memoria, j);
+      if(j && (j.clientes || j.cargos)){
+        E.memoria = Object.assign(E.memoria, j);
+        E.memoria.clientes    = E.memoria.clientes    || {};
+        E.memoria.cargos      = E.memoria.cargos      || {};
+        E.memoria.comerciales = E.memoria.comerciales || {};
+        E.memoria.log         = E.memoria.log         || [];
+      }
     }
   }catch(e){ if(!silencioso) avisar('No se pudo leer el archivo de datos.'); }
 }
@@ -1227,8 +1382,43 @@ function clienteDeArchivo(nombre){
   return /^[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}$/.test(primero) ? primero.toUpperCase() : '';
 }
 
+async function procesarListado(file){
+  const av = $('#avisoImport');
+  av.innerHTML = '<div class="aviso-caja azul">Leyendo el listado…</div>';
+  try{
+    const filas = /\.(csv|txt)$/i.test(file.name)
+      ? leerCSV(await file.text())
+      : await leerXlsx(file);
+    const r = importarListado(filas);
+    await guardarDatos();
+    $('#chipListado').className = 'chip ok';
+    $('#chipListado').textContent = `${file.name} · ${r.leidos} cargos`;
+    const z = $('#zonaListado'); z.className = 'zona lleno';
+    z.innerHTML = `<h3>Listado importado</h3><p class="archivo">${file.name}</p>
+      <p>${r.leidos} cargos leídos</p>`;
+    av.innerHTML = `<div class="aviso-caja verde-caja azul" style="margin-top:12px">
+      <b>Listado importado.</b> ${r.nuevos} nuevo(s), ${r.actualizados} ya conocido(s)`+
+      (r.desaparecidos ? `, ${r.desaparecidos} que ya no vienen en el listado (se conservan marcados).` : '.')+
+      ` El trabajo hecho no se ha tocado.</div>`;
+    pintarCola();
+  }catch(e){
+    av.innerHTML = `<div class="aviso-caja rojo" style="margin-top:12px">
+      No he podido leer el listado: ${e.message}</div>`;
+    console.error(e);
+  }
+}
+
 function montarZona(el){
   const tipo = el.dataset.tipo;
+  if(tipo === 'listado'){
+    ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev, e=>{
+      e.preventDefault(); el.classList.add('encima'); }));
+    ['dragleave','drop'].forEach(ev=>el.addEventListener(ev, e=>{
+      e.preventDefault(); el.classList.remove('encima'); }));
+    el.addEventListener('drop', e=>{
+      const f = e.dataTransfer.files[0]; if(f) procesarListado(f); });
+    return;
+  }
   el.addEventListener('click', ()=>{ tipoPendiente = tipo; $('#selArchivo').click(); });
   ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev, e=>{
     e.preventDefault(); el.classList.add('encima'); }));
@@ -1244,7 +1434,47 @@ window.addEventListener('pdfjs-listo', async ()=>{
     const f = e.target.files[0]; if(f) procesarArchivo(f, tipoPendiente); e.target.value=''; });
 
   $('#btnConectar').onclick = conectarDatos;
-  $('#btnNuevo').onclick = ()=>location.reload();
+
+  // --- pestañas ---
+  $$('.pest').forEach(b => b.onclick = ()=>cambiarVista(b.dataset.vista));
+
+  // --- listado de cargos ---
+  montarZona($('#zonaListado'));
+  $('#selListado').addEventListener('change', e=>{
+    const f = e.target.files[0]; if(f) procesarListado(f); e.target.value=''; });
+  $('#zonaListado').addEventListener('click', ()=>$('#selListado').click());
+  ['fBuscar','fEstado','fCliente2','fConforme','fPendientes'].forEach(id=>{
+    $('#'+id).addEventListener('input', pintarCola);
+    $('#'+id).addEventListener('change', pintarCola);
+  });
+  $$('#tablaCola th[data-orden]').forEach(th => th.onclick = ()=>{
+    const campo = th.dataset.orden;
+    ordenCola = {campo, asc: ordenCola.campo === campo ? !ordenCola.asc : true};
+    pintarCola();
+  });
+  $('#btnExportar').onclick = exportarCargos;
+  $('#btnCerrarFicha').onclick = ()=>{ $('#secFicha').classList.add('oculto');
+    E.cargoAbierto = null; pintarCola(); };
+
+  // --- comerciales ---
+  $('#btnGuardarCom').onclick = ()=>{
+    const cliente = $('#cCliente').value.trim();
+    if(!cliente){ avisar('Falta el cliente.'); return; }
+    E.memoria.comerciales = E.memoria.comerciales || {};
+    E.memoria.comerciales[norm(cliente)] = {
+      cliente, nombre:$('#cNombre').value.trim(),
+      correo:$('#cCorreo').value.trim(), notas:$('#cNotas').value.trim()
+    };
+    registrar('comercial_guardado', {cliente});
+    guardarDatos(); pintarComerciales();
+    ['cCliente','cNombre','cCorreo','cNotas'].forEach(i=>$('#'+i).value='');
+    avisar('Comercial guardado.');
+  };
+  $('#btnExportarCom').onclick = ()=>exportarCSV(`comerciales_${HOY()}.csv`,
+    ['Cliente','Comercial','Correo','Notas'],
+    Object.values(E.memoria.comerciales||{}).map(v=>[v.cliente,v.nombre,v.correo,v.notas]));
+
+  $('#btnRegistrar').onclick = registrarCalculo;
   $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ if(f.cargoIdx>=0) f.afectada=true; });
     limpiarAjuste(); refrescar(); };
   $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); limpiarAjuste(); refrescar(); };
@@ -1281,16 +1511,594 @@ window.addEventListener('pdfjs-listo', async ()=>{
     const h = await idb.get('handle');
     if(h){
       const p = h.queryPermission ? await h.queryPermission({mode:'readwrite'}) : 'granted';
-      if(p === 'granted'){ E.handle = h; await cargarDesdeHandle(true); marcarChipDatos(h.name); }
+      if(p === 'granted'){ E.handle = h; await cargarDesdeHandle(true); marcarChipDatos(h.name);
+        pintarCola(); pintarComerciales(); }
       else { marcarChipDatos(null); $('#chipDatos').textContent = 'Datos: pulsa para reconectar'; }
     }
   }catch(e){}
 });
 
+/* ==================================================================
+   10 · LISTADO DE CARGOS I  (Excel/CSV de SAP)
+   ================================================================== */
+
+// .xlsx es un ZIP con XML dentro: se lee sin librerías externas.
+async function leerXlsx(file){
+  const partes = await leerZip(new Uint8Array(await file.arrayBuffer()),
+                              /^xl\/(worksheets\/sheet1\.xml|sharedStrings\.xml)$/i);
+  const hoja = [...partes.entries()].find(([n])=>/sheet1\.xml$/i.test(n));
+  if(!hoja) throw new Error('No encuentro la primera hoja del Excel.');
+  const dec = new TextDecoder('utf-8');
+  const dom = new DOMParser();
+
+  let compartidas = [];
+  const ss = [...partes.entries()].find(([n])=>/sharedStrings\.xml$/i.test(n));
+  if(ss){
+    const d = dom.parseFromString(dec.decode(ss[1]), 'application/xml');
+    compartidas = [...d.getElementsByTagName('si')].map(si =>
+      [...si.getElementsByTagName('t')].map(t=>t.textContent).join(''));
+  }
+
+  const d = dom.parseFromString(dec.decode(hoja[1]), 'application/xml');
+  const filas = [];
+  for(const fila of d.getElementsByTagName('row')){
+    const celdas = [];
+    for(const c of fila.getElementsByTagName('c')){
+      const ref = c.getAttribute('r') || '';
+      const letras = ref.replace(/\d+/g,'');
+      let col = 0;
+      for(const ch of letras) col = col*26 + (ch.charCodeAt(0)-64);
+      col = Math.max(0, col-1);
+      const tipo = c.getAttribute('t');
+      let v = null;
+      if(tipo === 'inlineStr'){
+        v = [...c.getElementsByTagName('t')].map(t=>t.textContent).join('');
+      } else {
+        const nodo = c.getElementsByTagName('v')[0];
+        if(nodo){
+          v = nodo.textContent;
+          if(tipo === 's') v = compartidas[parseInt(v,10)] ?? '';
+          else if(tipo !== 'str' && v !== '' && isFinite(+v)) v = +v;
+        }
+      }
+      celdas[col] = v;
+    }
+    filas.push(celdas);
+  }
+  return filas;
+}
+
+function leerCSV(texto){
+  const sep = (texto.match(/;/g)||[]).length > (texto.match(/,/g)||[]).length ? ';'
+            : (texto.includes('\t') ? '\t' : ',');
+  return texto.split(/\r?\n/).filter(l=>l.trim()).map(l=>{
+    const out=[]; let act='', dentro=false;
+    for(let i=0;i<l.length;i++){
+      const ch=l[i];
+      if(ch === '"'){ if(dentro && l[i+1]==='"'){ act+='"'; i++; } else dentro=!dentro; }
+      else if(ch === sep && !dentro){ out.push(act); act=''; }
+      else act+=ch;
+    }
+    out.push(act); return out;
+  });
+}
+
+// Excel guarda las fechas como número de días desde el 30/12/1899.
+function fechaDeExcel(v){
+  if(v == null || v === '') return '';
+  if(typeof v === 'number' && v > 20000 && v < 80000){
+    const ms = Math.round((v - 25569) * 86400000);
+    return new Date(ms).toISOString().slice(0,10);
+  }
+  const s = String(v).trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/.exec(s);
+  if(m){
+    const a = m[3].length === 2 ? '20'+m[3] : m[3];
+    return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  return '';
+}
+
+const COLUMNAS = [
+  {clave:'cliente',    re:/^nombre\s*1$|^cliente|^nombre$/i},
+  {clave:'asignacion', re:/asignaci[oó]n$/i},
+  {clave:'importe',    re:/importe en moneda local|^importe$/i},
+  {clave:'moneda',     re:/moneda local/i},
+  {clave:'fecha',      re:/fecha\s*contabiliz/i},
+  {clave:'clave',      re:/clave de reclamaci/i},
+  {clave:'ndoc',       re:/n[ºo°]?\s*documento/i},
+  {clave:'referencia', re:/^referencia$/i},
+  {clave:'fechaEntrada', re:/fecha de entrada/i}
+];
+
+// Clave estable para cruzar reimportaciones. No hay identificador único en el
+// listado (hay filas idénticas repetidas), así que se combina todo y se numera
+// la repetición.
+function claveCargo(c, vistos){
+  const base = [norm(c.cliente), c.asignacion, c.ndoc, c.fecha, c.importe].join('|');
+  const n = (vistos[base] = (vistos[base]||0) + 1);
+  return n === 1 ? base : base+'#'+n;
+}
+
+function importarListado(filas){
+  // la cabecera es la fila que contiene "Asignación"
+  let iCab = filas.findIndex(f => f.some(c => c && /asignaci[oó]n/i.test(String(c))));
+  if(iCab < 0) throw new Error('No encuentro la fila de cabecera (la que lleva «Asignación»).');
+  const cab = filas[iCab].map(c => String(c ?? '').trim());
+  const idx = {};
+  COLUMNAS.forEach(col => {
+    const i = cab.findIndex(t => col.re.test(t));
+    if(i >= 0) idx[col.clave] = i;
+  });
+  if(idx.cliente == null || idx.asignacion == null)
+    throw new Error('No reconozco las columnas de cliente y asignación.');
+
+  const vistos = {};
+  const leidos = [];
+  for(let i = iCab+1; i < filas.length; i++){
+    const f = filas[i];
+    const cliente = String(f[idx.cliente] ?? '').trim();
+    const asignacion = String(f[idx.asignacion] ?? '').trim();
+    if(!cliente || !asignacion) continue;
+    if(/^cuenta\b/i.test(cliente)) continue;            // filas de subtotal de SAP
+    const importe = typeof f[idx.importe] === 'number' ? f[idx.importe] : num(f[idx.importe]);
+    const c = {
+      cliente, asignacion,
+      importe: isFinite(importe) ? importe : 0,
+      moneda: String(f[idx.moneda] ?? 'EUR').trim() || 'EUR',
+      fecha: fechaDeExcel(f[idx.fecha]),
+      clave: String(f[idx.clave] ?? '').trim(),
+      ndoc: String(f[idx.ndoc] ?? '').trim(),
+      referencia: String(f[idx.referencia] ?? '').trim(),
+      fechaEntrada: fechaDeExcel(f[idx.fechaEntrada])
+    };
+    c.id = claveCargo(c, vistos);
+    leidos.push(c);
+  }
+
+  // fusión: los datos del listado se refrescan, el trabajo hecho se respeta
+  const previos = E.memoria.cargos || (E.memoria.cargos = {});
+  let nuevos = 0, actualizados = 0;
+  const idsLeidos = new Set();
+  for(const c of leidos){
+    idsLeidos.add(c.id);
+    if(previos[c.id]){
+      Object.assign(previos[c.id], c);                  // solo los campos del listado
+      actualizados++;
+    } else {
+      previos[c.id] = Object.assign(estadoInicial(), c);
+      nuevos++;
+    }
+  }
+  // los que ya no vienen en el listado se marcan, no se borran
+  let desaparecidos = 0;
+  for(const id in previos){
+    const antes = previos[id].enListado !== false;
+    previos[id].enListado = idsLeidos.has(id);
+    if(!previos[id].enListado && antes) desaparecidos++;
+  }
+  registrar('importar_listado', {leidos:leidos.length, nuevos, actualizados, desaparecidos});
+  return {leidos:leidos.length, nuevos, actualizados, desaparecidos};
+}
+
+function estadoInicial(){
+  return {
+    estado:'pendiente', abono:'', fechaAbono:'',
+    conforme:null, marcadoEnSap:false, compensado:false,
+    reclamado:false, fechaReclamacion:'', pdfGuardado:false,
+    clasificado:'', nota:'', calculo:null, enListado:true
+  };
+}
+
+/* ------------------------------------------------ estado y presentación */
+const ESTADOS = {
+  'pendiente':{et:'Pendiente', pill:'gris'},
+  'en curso' :{et:'En curso',  pill:'azul'},
+  'abonado'  :{et:'Abonado',   pill:'ambar'},
+  'cerrado'  :{et:'Cerrado',   pill:'verde'}
+};
+
+function recalcularEstado(c){
+  if(c.compensado && c.abono && (c.conforme !== false || c.reclamado)) c.estado = 'cerrado';
+  else if(c.abono) c.estado = 'abonado';
+  else if(c.calculo || c.clasificado) c.estado = 'en curso';
+  else c.estado = 'pendiente';
+  return c.estado;
+}
+
+const HOY = () => new Date().toISOString().slice(0,10);
+function diasDesde(iso){
+  if(!iso) return null;
+  const d = Math.floor((Date.now() - new Date(iso+'T00:00:00').getTime())/86400000);
+  return isFinite(d) ? d : null;
+}
+function semaforo(dias){
+  if(dias == null) return '';
+  const c = dias > 60 ? 'r' : (dias > 30 ? 'a' : 'v');
+  return `<span class="sem ${c}" title="${dias} días"></span>`;
+}
+const fechaCorta = iso => iso ? iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4) : '—';
+
+// nombre con el que se guarda el PDF del cargo
+const nombrePdf = c => `${(c.cliente||'').replace(/[^\wÁÉÍÓÚÑáéíóúñ ]/g,'').trim().replace(/\s+/g,'_')}_${c.asignacion}`;
+
+function registrar(accion, datos){
+  E.memoria.log = E.memoria.log || [];
+  E.memoria.log.push(Object.assign({ts:new Date().toISOString(), accion}, datos));
+}
+
+/* ------------------------------------------------ pintado de la cola */
+let ordenCola = {campo:'fecha', asc:true};
+
+function cargosFiltrados(){
+  const todos = Object.entries(E.memoria.cargos || {}).map(([id,c])=>Object.assign({id}, c));
+  const q = norm($('#fBuscar').value);
+  const est = $('#fEstado').value, cli = $('#fCliente2').value, conf = $('#fConforme').value;
+  const ocultar = $('#fPendientes').checked;
+  const lista = todos.filter(c=>{
+    recalcularEstado(c);
+    if(q && !norm(`${c.cliente} ${c.asignacion} ${c.abono} ${c.ndoc}`).includes(q)) return false;
+    if(est && c.estado !== est) return false;
+    if(cli && c.cliente !== cli) return false;
+    if(conf === 'si' && c.conforme !== true) return false;
+    if(conf === 'no' && c.conforme !== false) return false;
+    if(conf === 'sin' && c.conforme !== null) return false;
+    if(ocultar && c.estado === 'cerrado') return false;
+    return true;
+  });
+  const {campo, asc} = ordenCola;
+  lista.sort((a,b)=>{
+    let x = a[campo], y = b[campo];
+    if(campo === 'dias'){ x = a.fecha; y = b.fecha; }
+    if(campo === 'importe'){ x = +x||0; y = +y||0; return asc ? x-y : y-x; }
+    x = String(x??''); y = String(y??'');
+    return asc ? x.localeCompare(y,'es') : y.localeCompare(x,'es');
+  });
+  return lista;
+}
+
+function pintarCola(){
+  const cargos = E.memoria.cargos || {};
+  const total = Object.keys(cargos).length;
+  if(!total){ $('#secCola').classList.add('oculto'); return; }
+  $('#secCola').classList.remove('oculto');
+
+  // contadores
+  const todos = Object.values(cargos).map(c=>{ recalcularEstado(c); return c; });
+  const cuenta = e => todos.filter(c=>c.estado===e).length;
+  const noConformes = todos.filter(c=>c.conforme===false && !c.reclamado).length;
+  $('#cnPend').textContent = cuenta('pendiente');
+  $('#contadores').innerHTML = `
+    <div class="dato"><div class="et">Pendientes</div><div class="vl">${cuenta('pendiente')}</div></div>
+    <div class="dato"><div class="et">En curso</div><div class="vl">${cuenta('en curso')}</div></div>
+    <div class="dato"><div class="et">Abonados sin compensar</div><div class="vl">${cuenta('abonado')}</div></div>
+    <div class="dato"><div class="et">No conformes sin reclamar</div>
+      <div class="vl" style="color:${noConformes?'var(--rojo)':'inherit'}">${noConformes}</div></div>`;
+
+  // selector de clientes
+  const sel = $('#fCliente2'), valor = sel.value;
+  const clientes = [...new Set(todos.map(c=>c.cliente))].sort((a,b)=>a.localeCompare(b,'es'));
+  sel.innerHTML = '<option value="">Todos los clientes</option>' +
+    clientes.map(c=>`<option${c===valor?' selected':''}>${c}</option>`).join('');
+  $('#listaClientes').innerHTML = clientes.map(c=>`<option value="${c}">`).join('');
+
+  const lista = cargosFiltrados();
+  $('#chipFiltro').textContent = `${lista.length} de ${total}`;
+
+  const tb = $('#tablaCola tbody'); tb.innerHTML = '';
+  for(const c of lista.slice(0, 400)){
+    const dias = diasDesde(c.fecha);
+    const tr = document.createElement('tr');
+    if(E.cargoAbierto === c.id) tr.className = 'sel';
+    const est = ESTADOS[c.estado];
+    tr.innerHTML = `
+      <td>${fechaCorta(c.fecha)}</td>
+      <td>${semaforo(dias)}${dias ?? '—'}</td>
+      <td title="${c.cliente}">${c.cliente.slice(0,28)}</td>
+      <td>${c.asignacion}</td>
+      <td class="n">${eur(c.importe)}</td>
+      <td><span class="pill ${est.pill}">${est.et}</span></td>
+      <td>${c.abono ? c.abono : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${c.conforme === null ? '<span class="pill gris">sin decidir</span>'
+            : (c.conforme ? '<span class="pill verde">conforme</span>'
+                          : '<span class="pill rojo">no conforme</span>')}</td>
+      <td>${c.conforme === null ? '—' : (c.marcadoEnSap ? '<span class="pill verde">sí</span>' : '<span class="pill ambar">no</span>')}</td>
+      <td>${c.compensado ? '<span class="pill verde">sí</span>' : '<span class="pill gris">no</span>'}</td>
+      <td>${c.conforme === false ? (c.reclamado ? '<span class="pill verde">sí</span>' : '<span class="pill rojo">pendiente</span>') : '—'}</td>
+      <td class="acc"><button class="mini" data-abrir="${c.id}">Abrir</button></td>`;
+    tb.appendChild(tr);
+  }
+  $$('#tablaCola [data-abrir]').forEach(b=>b.onclick = ()=>abrirFicha(b.dataset.abrir));
+  $('#pieCola').innerHTML = lista.length > 400
+    ? `Mostrando los primeros 400 de ${lista.length}. Afina el filtro para ver el resto.`
+    : `Importe total de lo filtrado: <b>${eur(lista.reduce((a,c)=>a+(+c.importe||0),0))}</b>.`;
+}
+
+/* ------------------------------------------------ ficha del cargo */
+function abrirFicha(id){
+  const c = E.memoria.cargos[id];
+  if(!c) return;
+  E.cargoAbierto = id;
+  $('#secFicha').classList.remove('oculto');
+  $('#tituloFicha').textContent = `${c.cliente} · ${c.asignacion} · ${eur(c.importe)}`;
+  const com = comercialDe(c.cliente);
+  const pasos = [
+    {k:'clasificado', txt:'Clasificado (mercancía / precio)', hecho:!!c.clasificado, extra:c.clasificado},
+    {k:'calculo',     txt:'Diferencia calculada y cuadrada',  hecho:!!c.calculo,
+      extra:c.calculo ? `${eur(c.calculo.suma)} en ${c.calculo.lineas} línea(s)`+
+        (c.calculo.zaju ? ` · ZAJU ${nf.format(c.calculo.zaju)} €` : '') : ''},
+    {k:'conforme',    txt:'Expediente revisado',              hecho:c.conforme!==null,
+      extra:c.conforme===null?'':(c.conforme?'conforme':'NO conforme')},
+    {k:'abono',       txt:'Abono creado en SAP',              hecho:!!c.abono, extra:c.abono},
+    {k:'pdf',         txt:'PDF del cargo guardado',           hecho:!!c.pdfGuardado, extra:nombrePdf(c)},
+    {k:'sap',         txt:'Conformidad marcada en SAP',       hecho:!!c.marcadoEnSap},
+    {k:'compensado',  txt:'Contabilizado / compensado',       hecho:!!c.compensado},
+    {k:'reclamado',   txt:'Reclamado al comercial',           hecho:!!c.reclamado,
+      extra:c.conforme===false?'':'(solo si no conforme)'}
+  ];
+  const hechos = pasos.filter(p=>p.hecho).length;
+
+  $('#cuerpoFicha').innerHTML = `
+    <div class="fichaCaja">
+      <div class="campo"><label>Nº de abono en SAP</label>
+        <input id="xAbono" value="${c.abono||''}" placeholder="1519001122"></div>
+      <div class="campo"><label>Clasificación</label>
+        <select id="xClasif">
+          <option value="">— sin clasificar —</option>
+          <option value="precio"${c.clasificado==='precio'?' selected':''}>Diferencia de precio</option>
+          <option value="mercancia"${c.clasificado==='mercancia'?' selected':''}>Diferencia de mercancía</option>
+        </select></div>
+      <div class="campo"><label>Conformidad</label>
+        <select id="xConforme">
+          <option value=""${c.conforme===null?' selected':''}>— sin decidir —</option>
+          <option value="si"${c.conforme===true?' selected':''}>Conforme</option>
+          <option value="no"${c.conforme===false?' selected':''}>No conforme</option>
+        </select></div>
+      <div class="campo"><label>Nombre para el PDF</label>
+        <div style="display:flex;gap:6px"><input value="${nombrePdf(c)}" readonly style="flex:1">
+        <button class="mini" id="xCopiarNombre">Copiar</button></div></div>
+    </div>
+    <div class="filtros" style="margin-bottom:14px">
+      <label class="check"><input type="checkbox" id="xPdf" ${c.pdfGuardado?'checked':''}> PDF guardado</label>
+      <label class="check"><input type="checkbox" id="xSap" ${c.marcadoEnSap?'checked':''}> Conformidad marcada en SAP</label>
+      <label class="check"><input type="checkbox" id="xComp" ${c.compensado?'checked':''}> Contabilizado / compensado</label>
+      <label class="check"><input type="checkbox" id="xRec" ${c.reclamado?'checked':''}> Reclamado al comercial</label>
+    </div>
+    <div class="campo" style="margin-bottom:14px"><label>Nota</label>
+      <input id="xNota" value="${(c.nota||'').replace(/"/g,'&quot;')}" placeholder="lo que quieras recordar de este cargo"></div>
+
+    <ul class="pasos">${pasos.map(p=>`<li>
+      <span class="${p.hecho?'hecho':''}">${p.hecho?'✔':'○'}</span>
+      <span class="txt">${p.txt}</span>
+      <small>${p.extra||''}</small></li>`).join('')}</ul>
+
+    <div class="aviso-caja ${c.conforme===false?'rojo':'azul'}" style="margin-top:14px">
+      <b>Comercial de ${c.cliente}:</b>
+      ${com ? `${com.nombre||'(sin nombre)'} · ${com.correo||'sin correo'}`
+            : 'no lo tengo apuntado. Añádelo en la pestaña «Comerciales».'}
+      ${c.conforme===false ? `<div class="barra">
+          <button class="primario" id="xCorreo">Generar el correo de reclamación</button>
+          <button id="xCopiarCorreo">Copiar el texto</button>
+          <span style="font-size:13px">Acuérdate de adjuntar el PDF del cargo.</span>
+        </div>` : '<div style="margin-top:6px;font-size:13px">El correo solo se genera en los cargos no conformes.</div>'}
+    </div>
+
+    <div class="barra">
+      <button class="primario" id="xGuardarFicha">Guardar cambios</button>
+      <button id="xIrCalc">Abrir en la calculadora</button>
+      <span class="chip">${hechos} de ${pasos.length} pasos</span>
+    </div>`;
+
+  $('#xCopiarNombre').onclick = ()=>copiar(nombrePdf(c), 'Nombre copiado');
+  $('#xGuardarFicha').onclick = ()=>guardarFicha(id);
+  $('#xIrCalc').onclick = ()=>{
+    E.cargoAbierto = id;
+    cambiarVista('calc');
+    $('#fCliente').value = c.cliente;
+    $('#fNumCargo').value = c.asignacion;
+    if(!$('#fTotal').value) $('#fTotal').value = nf.format(Math.abs(c.importe));
+    pintarCabecera();
+    avisar('Cargo '+c.asignacion+' abierto en la calculadora.');
+  };
+  if($('#xCorreo')){
+    $('#xCorreo').onclick = ()=>abrirCorreo(c);
+    $('#xCopiarCorreo').onclick = ()=>copiar(textoCorreo(c).cuerpo, 'Texto del correo copiado');
+  }
+  $('#secFicha').scrollIntoView({behavior:'smooth', block:'start'});
+  pintarCola();
+}
+
+function guardarFicha(id){
+  const c = E.memoria.cargos[id];
+  const abonoAntes = c.abono;
+  c.abono = $('#xAbono').value.trim();
+  if(c.abono && !abonoAntes) c.fechaAbono = HOY();
+  c.clasificado = $('#xClasif').value;
+  const cf = $('#xConforme').value;
+  c.conforme = cf === '' ? null : (cf === 'si');
+  c.pdfGuardado = $('#xPdf').checked;
+  c.marcadoEnSap = $('#xSap').checked;
+  c.compensado = $('#xComp').checked;
+  const recAntes = c.reclamado;
+  c.reclamado = $('#xRec').checked;
+  if(c.reclamado && !recAntes) c.fechaReclamacion = HOY();
+  c.nota = $('#xNota').value.trim();
+  recalcularEstado(c);
+  registrar('ficha_guardada', {id, cliente:c.cliente, asignacion:c.asignacion,
+    estado:c.estado, abono:c.abono, conforme:c.conforme, compensado:c.compensado});
+  guardarDatos();
+  abrirFicha(id);
+  avisar('Cargo actualizado.');
+}
+
+/* ------------------------------------------------ comerciales y correo */
+const comercialDe = cliente => (E.memoria.comerciales || {})[norm(cliente)] || null;
+
+function textoCorreo(c){
+  const com = comercialDe(c.cliente);
+  const asunto = `Cargo no conforme ${c.asignacion} — ${c.cliente} — ${eur(Math.abs(c.importe))}`;
+  const cuerpo =
+`Hola${com && com.nombre ? ' '+com.nombre.split(' ')[0] : ''}:
+
+Te paso un cargo de ${c.cliente} que hemos revisado y NO damos por conforme:
+
+  · Asignación:  ${c.asignacion}
+  · Fecha:       ${fechaCorta(c.fecha)}
+  · Importe:     ${eur(Math.abs(c.importe))}${c.ndoc ? `
+  · Documento:   ${c.ndoc}` : ''}${c.abono ? `
+  · Abono:       ${c.abono}` : ''}
+  · Motivo:      ${c.nota || '(indicar el motivo de la no conformidad)'}
+
+El abono se ha hecho igualmente para poder cerrar el cargo, pero el expediente
+no cuadra con lo que tenemos. ¿Puedes revisarlo con el cliente?
+
+Adjunto el PDF del cargo.
+
+Gracias.`;
+  return {asunto, cuerpo, para: com && com.correo ? com.correo : ''};
+}
+
+function abrirCorreo(c){
+  const {asunto, cuerpo, para} = textoCorreo(c);
+  if(!para){
+    avisar('No tengo el correo del comercial: apúntalo en la pestaña «Comerciales».');
+    cambiarVista('comerciales');
+    $('#cCliente').value = c.cliente; $('#cNombre').focus();
+    return;
+  }
+  location.href = `mailto:${encodeURIComponent(para)}?subject=${encodeURIComponent(asunto)}`+
+                  `&body=${encodeURIComponent(cuerpo)}`;
+  registrar('correo_generado', {cliente:c.cliente, asignacion:c.asignacion, para});
+}
+
+function pintarComerciales(){
+  const com = E.memoria.comerciales || (E.memoria.comerciales = {});
+  const cargos = Object.values(E.memoria.cargos || {});
+  const tb = $('#tablaCom tbody'); tb.innerHTML = '';
+  const filas = Object.entries(com).sort((a,b)=>(a[1].cliente||'').localeCompare(b[1].cliente||'','es'));
+  for(const [clave, v] of filas){
+    const n = cargos.filter(c=>norm(c.cliente)===clave).length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${v.cliente||clave}</td><td>${v.nombre||'—'}</td>
+      <td>${v.correo||'<span style="color:var(--rojo)">falta</span>'}</td>
+      <td>${v.notas||''}</td><td class="n">${n}</td>
+      <td class="acc"><button class="mini" data-edit="${clave}">Editar</button>
+      <button class="mini" data-borra="${clave}">Borrar</button></td>`;
+    tb.appendChild(tr);
+  }
+  $$('#tablaCom [data-edit]').forEach(b=>b.onclick=()=>{
+    const v = com[b.dataset.edit];
+    $('#cCliente').value=v.cliente||b.dataset.edit; $('#cNombre').value=v.nombre||'';
+    $('#cCorreo').value=v.correo||''; $('#cNotas').value=v.notas||'';
+    $('#cNombre').focus();
+  });
+  $$('#tablaCom [data-borra]').forEach(b=>b.onclick=()=>{
+    delete com[b.dataset.borra]; guardarDatos(); pintarComerciales();
+  });
+  if(!filas.length) tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Todavía no hay ningún comercial apuntado.</td></tr>';
+}
+
+/* ------------------------------------------------ exportar */
+function exportarCSV(nombre, cabeceras, filas){
+  const esc = v => {
+    const s = v == null ? '' : String(v);
+    return /[;"\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  };
+  const texto = '﻿' + [cabeceras, ...filas].map(f=>f.map(esc).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([texto], {type:'text/csv;charset=utf-8'}));
+  a.download = nombre; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function exportarCargos(){
+  const lista = cargosFiltrados();
+  exportarCSV(`cargos_I_${HOY()}.csv`,
+    ['Fecha','Días','Cliente','Asignación','Importe','Moneda','Nº documento','Estado',
+     'Clasificación','Nº abono','Fecha abono','Conforme','Marcado en SAP','Compensado',
+     'Reclamado','Fecha reclamación','PDF guardado','Nombre del PDF','Nota','En el último listado'],
+    lista.map(c=>[
+      fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
+      nf.format(c.importe), c.moneda, c.ndoc, ESTADOS[c.estado].et,
+      c.clasificado || '', c.abono || '', fechaCorta(c.fechaAbono),
+      c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'No conforme'),
+      c.marcadoEnSap ? 'Sí':'No', c.compensado ? 'Sí':'No',
+      c.reclamado ? 'Sí':'No', fechaCorta(c.fechaReclamacion),
+      c.pdfGuardado ? 'Sí':'No', nombrePdf(c), c.nota || '',
+      c.enListado === false ? 'No':'Sí'
+    ]));
+  avisar(`Exportados ${lista.length} cargos.`);
+}
+
+/* ------------------------------------------------ registrar desde la calculadora */
+function registrarCalculo(){
+  const u = E.ultimaSalida;
+  if(!u || !u.salida.length){ avisar('Todavía no hay ningún cálculo que registrar.'); return; }
+  const cliente = $('#fCliente').value.trim();
+  const asignacion = $('#fNumCargo').value.trim();
+  if(!cliente || !asignacion){ avisar('Faltan el cliente y el nº de cargo.'); return; }
+
+  const abono = prompt(`Cargo ${asignacion} de ${cliente}\nLíneas: ${eur(u.suma)}`+
+    (u.zaju ? ` + ZAJU ${nf.format(u.zaju)} €` : '')+
+    `\n\n¿Nº de abono que ha dado SAP?\n(déjalo vacío si todavía no lo tienes)`, '');
+  if(abono === null) return;                       // ha cancelado
+
+  // busca el cargo en la cola; si no está, lo crea
+  let id = E.cargoAbierto;
+  if(!id || !E.memoria.cargos?.[id] ||
+     norm(E.memoria.cargos[id].asignacion) !== norm(asignacion)){
+    id = Object.keys(E.memoria.cargos || {}).find(k => {
+      const c = E.memoria.cargos[k];
+      return norm(c.asignacion) === norm(asignacion) && norm(c.cliente) === norm(cliente);
+    });
+  }
+  E.memoria.cargos = E.memoria.cargos || {};
+  if(!id){
+    id = [norm(cliente), asignacion, '', '', num($('#fTotal').value)||0].join('|');
+    E.memoria.cargos[id] = Object.assign(estadoInicial(), {
+      cliente, asignacion, importe: num($('#fTotal').value) || 0,
+      moneda:'EUR', fecha: HOY(), clave:'I', ndoc:'', enListado:false
+    });
+    avisar('Ese cargo no estaba en el listado: lo he dado de alta.');
+  }
+  const c = E.memoria.cargos[id];
+  c.calculo = {
+    fecha: new Date().toISOString(), suma: u.suma, total: u.total, zaju: u.zaju,
+    lineas: u.salida.length, factura: $('#fNumFactura').value.trim(),
+    znet: u.salida.map(s=>({pos:s.fila.fac.pos, material:s.fila.fac.material,
+                            cantidad:s.q, znet:s.znet, importe:s.importe}))
+  };
+  if(abono.trim()){ c.abono = abono.trim(); c.fechaAbono = HOY(); }
+  if(!c.clasificado) c.clasificado = 'precio';
+  recalcularEstado(c);
+  recordarCliente();
+  registrar('calculo_registrado', {id, cliente, asignacion, abono:c.abono,
+    suma:u.suma, zaju:u.zaju, factura:c.calculo.factura});
+  guardarDatos();
+  E.cargoAbierto = id;
+  pintarCola();
+  cambiarVista('cargos');
+  abrirFicha(id);
+  avisar(c.abono ? `Registrado con el abono ${c.abono}.` : 'Cálculo registrado, sin nº de abono.');
+}
+
+/* ------------------------------------------------ pestañas */
+function cambiarVista(v){
+  $$('.pest').forEach(b=>b.classList.toggle('activa', b.dataset.vista === v));
+  $('#vistaCargos').classList.toggle('oculto', v !== 'cargos');
+  $('#vistaCalc').classList.toggle('oculto', v !== 'calc');
+  $('#vistaComerciales').classList.toggle('oculto', v !== 'comerciales');
+  if(v === 'cargos') pintarCola();
+  if(v === 'comerciales') pintarComerciales();
+}
+
 /* Ganchos para las pruebas automáticas y para depurar desde la consola. */
 window.E = E;
 window.__num = num;
 window.__elegirZona = t => { tipoPendiente = t; };
+window.__textoCorreo = textoCorreo;
+window.__cambiarVista = cambiarVista;
 
 /* ---------------------------------------------- cargo escrito a mano */
 // De cada renglón se toma el ÚLTIMO número como valor y el resto como

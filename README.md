@@ -5,20 +5,40 @@ Herramienta para contabilizar y abonar en SAP los cargos con letra **I**
 desde el disco: sin instalar nada, sin internet y sin que ningún dato salga del
 ordenador.
 
-Estado: **Módulo 2 (calculadora de diferencias) funcionando y validado contra un
-cargo real.** El resto de módulos todavía no está construido.
+Estado: **cola de cargos, calculadora, checklist y ficha de comerciales
+funcionando**, con la calculadora validada contra cargos reales. Todo vive en un
+solo archivo con tres pestañas.
 
 ## Cómo se usa
 
 1. Descarga `dist/Contabilizador_Cargos_I.html` y guárdalo en tu unidad.
 2. Ábrelo con doble clic (se abre en Edge).
-3. Arrastra el **PDF del cargo** y el **PDF de la factura original**.
-4. Revisa el emparejamiento de líneas y el modo de diferencia.
-5. Copia los **ZNET** y el **ZAJU** que te da, y tecléalos en SAP.
+3. Pulsa **Conectar archivo de datos** y elige un JSON en la unidad. Ahí se
+   guarda todo: los cargos, su estado, los comerciales y el registro.
+4. Arrastra el **Excel de cargos I** que sacas de SAP.
+5. Para cada cargo: ábrelo, calcula la diferencia y regístralo con su nº de abono.
 
-La primera vez conviene pulsar **Conectar archivo de datos** y elegir un JSON en
-la unidad. Ahí se guarda la memoria de cada cliente (qué modo de diferencia usa)
-y el registro de lo que vas cerrando.
+### Las tres pestañas
+
+**Cola de cargos** — el listado de SAP con el estado de cada uno: semáforo de
+antigüedad, nº de abono, conforme / no conforme, si la conformidad está marcada
+en SAP, compensado y reclamado. Filtros por cliente, estado, conformidad y texto
+libre; contadores arriba; exportación a Excel. Al reimportar un listado nuevo se
+cruza por cargo y **el trabajo hecho se conserva**; los que ya no aparecen se
+marcan en lugar de borrarse.
+
+Cada cargo tiene su **ficha** con la checklist de los ocho pasos del proceso, el
+nombre `CLIENTE_ASIGNACIÓN` listo para copiar y el botón para generar el correo
+de reclamación. Un cargo no pasa a cerrado con pasos abiertos: si es no conforme,
+no se cierra hasta que está reclamado.
+
+**Calculadora** — la pieza del cuadre (ver más abajo). Cuando termina, el botón
+**Registrar en el archivo de cargos** pide el nº de abono y guarda el cálculo
+completo (los ZNET línea a línea) en la ficha del cargo.
+
+**Comerciales** — la relación cliente → comercial, que no existe en ningún sitio
+y se va construyendo sola. Con el correo apuntado, el botón de reclamación abre
+Outlook con el asunto y el cuerpo ya escritos.
 
 ## Qué calcula, exactamente
 
@@ -98,6 +118,13 @@ CASOS=/ruta/a/mis/casos node pruebas/probar.js
 
 Cada caso comprueba que la herramienta reproduce, al céntimo, el abono que ya se
 dio por bueno en SAP.
+
+## Lo que la herramienta no puede hacer
+
+- **Adjuntar el PDF al correo.** El navegador abre Outlook con el texto escrito,
+  pero el adjunto lo tienes que poner tú. La ficha te recuerda hacerlo.
+- **Saber si un cargo es nacional o internacional.** El listado de SAP no trae esa
+  columna, así que salen todos. Se filtran por cliente.
 
 ## Privacidad
 
