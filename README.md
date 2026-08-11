@@ -15,8 +15,22 @@ solo archivo con tres pestañas.
 2. Ábrelo con doble clic (se abre en Edge).
 3. Pulsa **Conectar archivo de datos** y elige un JSON en la unidad. Ahí se
    guarda todo: los cargos, su estado, los comerciales y el registro.
-4. Arrastra el **Excel de cargos I** que sacas de SAP.
-5. Para cada cargo: ábrelo, calcula la diferencia y regístralo con su nº de abono.
+4. Pulsa **Conectar Excel** y elige dónde quieres el libro `Cargos_I.xlsx`. A
+   partir de ahí se regenera solo en cada guardado.
+5. Arrastra el **Excel de cargos I** que sacas de SAP.
+6. Para cada cargo: ábrelo, calcula la diferencia y regístralo con su nº de abono.
+
+### El libro Cargos_I.xlsx
+
+Lo genera y lo mantiene la herramienta; se actualiza en cada guardado. Cuatro
+hojas: **Cargos** (con un botón por fila que abre su PDF), **Comerciales** (con
+enlace para escribirle), **Calculadora** (botón que abre esta herramienta) y
+**Registro**.
+
+Es un reflejo, no una fuente: **lo que edites a mano en él se pierde** en la
+siguiente actualización, porque dos programas escribiendo el mismo archivo
+acaban perdiendo trabajo. Los cambios se hacen en la herramienta. Si tienes el
+libro abierto en Excel, Windows lo bloquea y la cabecera te avisa.
 
 ### Las tres pestañas
 
@@ -123,6 +137,9 @@ dio por bueno en SAP.
 
 - **Adjuntar el PDF al correo.** El navegador abre Outlook con el texto escrito,
   pero el adjunto lo tienes que poner tú. La ficha te recuerda hacerlo.
+- **Leer lo que edites a mano en el Excel.** El libro se regenera entero cada vez.
+- **Escribir el Excel si lo tienes abierto.** Windows lo bloquea; ciérralo y vuelve
+  a guardar.
 - **Saber si un cargo es nacional o internacional.** El listado de SAP no trae esa
   columna, así que salen todos. Se filtran por cliente.
 

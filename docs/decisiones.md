@@ -218,3 +218,38 @@ Limitaciones reales:
   archivo. Es un clic, y la herramienta lo pide sola al arrancar.
 - La columna «Abrir» del Excel usa `=HIPERVINCULO(...;...)`, con el nombre y el
   separador del Excel **en español**.
+
+## Por qué el Excel lo escribe la herramienta y no al revés
+
+La petición era tener **un solo Excel** con todo (cargos, comerciales, botones para
+abrir cada PDF y para abrir la calculadora) y que el HTML escribiera en él cada
+vez que se hace un abono.
+
+Lo que **no** se puede hacer, y no es una decisión de diseño sino cómo funciona
+Windows: dos programas escribiendo el mismo archivo. Si Excel tiene el libro
+abierto, lo bloquea y el navegador no puede escribir; y si el navegador escribe
+mientras el libro está abierto, al guardar desde Excel se machaca lo que escribió
+el navegador. Con dos escritores, tarde o temprano se pierde trabajo.
+
+La solución: **un solo escritor**. El estado vive en el JSON, que solo toca la
+herramienta, y el libro `Cargos_I.xlsx` se **regenera entero** en cada guardado.
+El Excel es siempre un reflejo actualizado, nunca una fuente de datos.
+
+Consecuencia que hay que tener presente: lo que se escriba a mano en el Excel se
+pierde en la siguiente actualización. La hoja «Calculadora» del propio libro lo
+advierte.
+
+Si el libro está abierto en Excel, la escritura falla y la herramienta lo dice en
+la cabecera («Excel: bloqueado, ciérralo») en lugar de fallar en silencio.
+
+### Cómo se escribe el .xlsx sin librerías
+
+Un `.xlsx` es un ZIP de XML. El escritor usa el método **STORE** (sin comprimir),
+que Excel acepta igual, así que no hace falta ningún compresor: basta con
+calcular el CRC32 y montar las cabeceras del ZIP. Son unas 60 líneas.
+
+El libro lleva cuatro hojas: **Cargos** (una fila por cargo, con la columna
+«Abrir el cargo» como `=HIPERVINCULO` al PDF), **Comerciales** (con enlace
+`mailto:`), **Calculadora** (el botón que abre el HTML y el recordatorio de la
+fórmula) y **Registro** (el log append-only). Cabecera fija, autofiltro y formato
+de moneda.

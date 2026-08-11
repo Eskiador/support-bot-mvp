@@ -149,6 +149,8 @@ td.acc{text-align:right}
     <button class="pest" data-vista="comerciales">Comerciales</button>
   </nav>
   <div class="crece"></div>
+  <span class="chip" id="chipExcel">Excel: sin conectar</span>
+  <button id="btnExcel">Conectar Excel</button>
   <span class="chip" id="chipDatos">Archivo de datos: sin conectar</span>
   <button id="btnConectar">Conectar archivo de datos</button>
 </header>
@@ -182,9 +184,15 @@ td.acc{text-align:right}
             <input type="file" id="selCarpeta" webkitdirectory directory multiple class="oculto">
           </div>
         </div>
-        <div class="campo" style="margin-top:12px;max-width:520px">
-          <label>Ruta de esa carpeta en tu unidad (solo para los enlaces del Excel)</label>
-          <input id="fRutaCarpeta" placeholder="G:\Cargos\Cargos I">
+        <div class="rejilla" style="margin-top:12px">
+          <div class="campo">
+            <label>Ruta de esa carpeta en tu unidad (para los botones del Excel)</label>
+            <input id="fRutaCarpeta" placeholder="G:\Cargos\Cargos I">
+          </div>
+          <div class="campo">
+            <label>Ruta de esta herramienta (para el botón «abrir calculadora»)</label>
+            <input id="fRutaHtml" placeholder="G:\Cargos\Contabilizador_Cargos_I.html">
+          </div>
         </div>
         <input type="file" id="selListado" accept=".xlsx,.xls,.csv,.txt" class="oculto">
         <div id="avisoImport"></div>
@@ -90227,6 +90235,7 @@ async function guardarDatos(){
       const w = await E.handle.createWritable();
       await w.write(JSON.stringify(E.memoria,null,2)); await w.close();
       avisar('Guardado en '+E.handle.name);
+      escribirExcel();            // el libro se mantiene solo, en segundo plano
       return true;
     }catch(e){ avisar('No se pudo escribir: '+e.message+'. Usa descarga manual.'); }
   }
@@ -90432,6 +90441,13 @@ window.addEventListener('pdfjs-listo', async ()=>{
   });
   $('#fRutaCarpeta').addEventListener('change', ()=>{
     E.memoria.rutaCarpeta = $('#fRutaCarpeta').value.trim(); guardarDatos(); });
+  $('#fRutaHtml').addEventListener('change', ()=>{
+    E.memoria.rutaHtml = $('#fRutaHtml').value.trim(); guardarDatos(); });
+
+  // --- libro de Excel ---
+  $('#btnExcel').onclick = ()=>{
+    if(E.excel) escribirExcel(true); else conectarExcel();
+  };
   $('#btnCerrarFicha').onclick = ()=>{ $('#secFicha').classList.add('oculto');
     E.cargoAbierto = null; pintarCola(); };
 
@@ -90485,6 +90501,17 @@ window.addEventListener('pdfjs-listo', async ()=>{
     });
   });
 
+  // reconectar el libro de Excel de sesiones anteriores
+  try{
+    const x = await idb.get('excel');
+    if(x){
+      const p = x.queryPermission ? await x.queryPermission({mode:'readwrite'}) : 'granted';
+      E.excel = x;
+      marcarChipExcel(p === 'granted' ? x.name : null);
+      if(p !== 'granted') $('#chipExcel').textContent = 'Excel: pulsa para reconectar';
+    }
+  }catch(e){}
+
   // reconectar la carpeta de PDF de sesiones anteriores (necesita un clic:
   // el navegador no devuelve el permiso de lectura solo)
   try{
@@ -90515,6 +90542,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
       const p = h.queryPermission ? await h.queryPermission({mode:'readwrite'}) : 'granted';
       if(p === 'granted'){ E.handle = h; await cargarDesdeHandle(true); marcarChipDatos(h.name);
         if(E.memoria.rutaCarpeta) $('#fRutaCarpeta').value = E.memoria.rutaCarpeta;
+        if(E.memoria.rutaHtml) $('#fRutaHtml').value = E.memoria.rutaHtml;
         pintarCola(); pintarComerciales(); }
       else { marcarChipDatos(null); $('#chipDatos').textContent = 'Datos: pulsa para reconectar'; }
     }
@@ -91115,6 +91143,284 @@ function pintarComerciales(){
   if(!filas.length) tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Todavía no hay ningún comercial apuntado.</td></tr>';
 }
 
+/* ==================================================================
+   11 · ESCRITURA DE .XLSX
+   Un .xlsx es un ZIP de XML. Se escribe con el método STORE (sin comprimir),
+   que Excel acepta igual, así no hace falta ninguna librería.
+   ================================================================== */
+const TABLA_CRC = (()=>{
+  const t = new Uint32Array(256);
+  for(let i=0;i<256;i++){
+    let c = i;
+    for(let k=0;k<8;k++) c = c & 1 ? 0xEDB88320 ^ (c>>>1) : c>>>1;
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(datos){
+  let c = 0xFFFFFFFF;
+  for(let i=0;i<datos.length;i++) c = TABLA_CRC[(c ^ datos[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function escribirZip(archivos){
+  const cod = new TextEncoder();
+  const partes = [], central = [];
+  let desp = 0;
+  for(const a of archivos){
+    const nombre = cod.encode(a.nombre);
+    const datos = typeof a.datos === 'string' ? cod.encode(a.datos) : a.datos;
+    const crc = crc32(datos);
+    const loc = new Uint8Array(30 + nombre.length);
+    const dv = new DataView(loc.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true);
+    dv.setUint16(8, 0, true);                       // método 0 = sin comprimir
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, datos.length, true); dv.setUint32(22, datos.length, true);
+    dv.setUint16(26, nombre.length, true);
+    loc.set(nombre, 30);
+    partes.push(loc, datos);
+
+    const cen = new Uint8Array(46 + nombre.length);
+    const dc = new DataView(cen.buffer);
+    dc.setUint32(0, 0x02014b50, true); dc.setUint16(4, 20, true); dc.setUint16(6, 20, true);
+    dc.setUint16(10, 0, true);
+    dc.setUint32(16, crc, true);
+    dc.setUint32(20, datos.length, true); dc.setUint32(24, datos.length, true);
+    dc.setUint16(28, nombre.length, true);
+    dc.setUint32(42, desp, true);
+    cen.set(nombre, 46);
+    central.push(cen);
+    desp += loc.length + datos.length;
+  }
+  const finCentral = central.reduce((a,c)=>a+c.length, 0);
+  const fin = new Uint8Array(22);
+  const df = new DataView(fin.buffer);
+  df.setUint32(0, 0x06054b50, true);
+  df.setUint16(8, archivos.length, true); df.setUint16(10, archivos.length, true);
+  df.setUint32(12, finCentral, true); df.setUint32(16, desp, true);
+  const todo = [...partes, ...central, fin];
+  const total = todo.reduce((a,p)=>a+p.length, 0);
+  const salida = new Uint8Array(total);
+  let i = 0; for(const p of todo){ salida.set(p, i); i += p.length; }
+  return salida;
+}
+
+const xesc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                           .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function colExcel(i){
+  let s = '';
+  for(i++; i > 0; i = Math.floor((i-1)/26)) s = String.fromCharCode(65 + (i-1)%26) + s;
+  return s;
+}
+// una celda: número, texto, {f:fórmula} o {v, s:estilo}
+function celdaXml(ref, c){
+  if(c == null || c === '') return '';
+  if(typeof c === 'object' && c.f)
+    return `<c r="${ref}" s="${c.s||0}"><f>${xesc(c.f)}</f></c>`;
+  const est = (typeof c === 'object' && c.s != null) ? c.s : 0;
+  const v = (typeof c === 'object') ? c.v : c;
+  if(typeof v === 'number' && isFinite(v))
+    return `<c r="${ref}" s="${est}"><v>${v}</v></c>`;
+  return `<c r="${ref}" s="${est}" t="inlineStr"><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
+}
+function hojaXml(filas, anchos){
+  const cols = anchos ? `<cols>${anchos.map((a,i)=>
+    `<col min="${i+1}" max="${i+1}" width="${a}" customWidth="1"/>`).join('')}</cols>` : '';
+  const cuerpo = filas.map((f,r)=>
+    `<row r="${r+1}">${f.map((c,i)=>celdaXml(colExcel(i)+(r+1), c)).join('')}</row>`).join('');
+  const ancla = filas.length > 1 ? '<sheetViews><sheetView workbookViewId="0">'+
+    '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' : '';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${ancla}${cols}<sheetData>${cuerpo}</sheetData>
+<autoFilter ref="A1:${colExcel(Math.max(0,(filas[0]||[]).length-1))}${Math.max(1,filas.length)}"/></worksheet>`;
+}
+
+const ESTILOS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00\\ &quot;€&quot;"/></numFmts>
+<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+<font><u/><sz val="11"/><color rgb="FF1F5FA8"/><name val="Calibri"/></font></fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF1F5FA8"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="1"><border/></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="4">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+function construirXlsx(hojas){
+  const tipos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+${hojas.map((h,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}
+</Types>`;
+  const relsRaiz = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+  const libro = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>
+${hojas.map((h,i)=>`<sheet name="${xesc(h.nombre)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}
+</sheets></workbook>`;
+  const relsLibro = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${hojas.map((h,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}
+<Relationship Id="rId${hojas.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+  return escribirZip([
+    {nombre:'[Content_Types].xml', datos:tipos},
+    {nombre:'_rels/.rels', datos:relsRaiz},
+    {nombre:'xl/workbook.xml', datos:libro},
+    {nombre:'xl/_rels/workbook.xml.rels', datos:relsLibro},
+    {nombre:'xl/styles.xml', datos:ESTILOS},
+    ...hojas.map((h,i)=>({nombre:`xl/worksheets/sheet${i+1}.xml`, datos:hojaXml(h.filas, h.anchos)}))
+  ]);
+}
+
+/* ------------------------------------------------ el libro de cargos */
+const CAB = t => ({v:t, s:1});
+const ENL = (destino, texto) => ({f:`HIPERVINCULO("${destino.replace(/"/g,'')}";"${texto}")`, s:3});
+
+function rutaHtml(){
+  const r = ($('#fRutaHtml').value || '').trim();
+  return r ? 'file:///' + r.replace(/\\/g,'/') : '';
+}
+
+function hojasDelLibro(){
+  const lista = Object.entries(E.memoria.cargos || {})
+    .map(([id,c])=>Object.assign({id}, c));
+  lista.forEach(recalcularEstado);
+  lista.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+
+  const cargos = [[
+    CAB('Fecha'), CAB('Días'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
+    CAB('Nº documento'), CAB('Estado'), CAB('Clasificación'), CAB('Nº abono'),
+    CAB('Fecha abono'), CAB('Conforme'), CAB('Marcado en SAP'), CAB('Compensado'),
+    CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
+  ]];
+  for(const c of lista){
+    const com = comercialDe(c.cliente);
+    const ruta = rutaCompleta(c);
+    cargos.push([
+      fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
+      {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.clasificado||'',
+      c.abono||'', fechaCorta(c.fechaAbono),
+      c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'NO conforme'),
+      c.marcadoEnSap?'Sí':'No', c.compensado?'Sí':'No',
+      c.conforme === false ? (c.reclamado?'Sí':'PENDIENTE') : '',
+      com ? (com.nombre || com.correo || '') : '',
+      c.nota||'',
+      ruta ? ENL('file:///'+ruta.replace(/\\/g,'/'), 'Abrir PDF') : '',
+      (buscarDoc(c)||{}).nombre || ''
+    ]);
+  }
+
+  const comerciales = [[CAB('Cliente'), CAB('Comercial'), CAB('Correo'), CAB('Notas'),
+                        CAB('Cargos'), CAB('Escribirle')]];
+  for(const v of Object.values(E.memoria.comerciales || {})){
+    const n = lista.filter(c=>norm(c.cliente) === norm(v.cliente)).length;
+    comerciales.push([v.cliente, v.nombre||'', v.correo||'', v.notas||'', n,
+      v.correo ? ENL('mailto:'+v.correo, 'Escribir') : '']);
+  }
+
+  const html = rutaHtml();
+  const calc = [
+    [CAB('Calculadora de diferencias')],
+    [''],
+    ['Este libro lo genera y lo mantiene la herramienta. Se actualiza solo cada vez'],
+    ['que registras un abono o cambias el estado de un cargo.'],
+    [''],
+    ['Lo que escribas a mano aquí NO vuelve a la herramienta: se perdería en la'],
+    ['siguiente actualización. Los cambios se hacen en el HTML.'],
+    [''],
+    [html ? ENL(html, '▶  ABRIR LA CALCULADORA') : 'Escribe la ruta del HTML en la herramienta para tener aquí el botón.'],
+    [''],
+    [CAB('Cómo se calcula')],
+    ['ZNET de la línea = diferencia × 100 / cantidad     (2 decimales, el límite de SAP)'],
+    ['Importe de línea = ZNET × cantidad / 100'],
+    ['ZAJU de cabecera = importe del cargo − suma de los importes de línea'],
+    [''],
+    ['Actualizado: ' + new Date().toLocaleString('es-ES')]
+  ];
+
+  const registro = [[CAB('Fecha y hora'), CAB('Acción'), CAB('Cliente'), CAB('Asignación'), CAB('Detalle')]];
+  for(const l of (E.memoria.log || []).slice(-3000)){
+    registro.push([
+      new Date(l.ts).toLocaleString('es-ES'), l.accion, l.cliente||'', l.asignacion||'',
+      Object.entries(l).filter(([k])=>!['ts','accion','cliente','asignacion'].includes(k))
+        .map(([k,v])=>`${k}=${v}`).join(', ')
+    ]);
+  }
+
+  return [
+    {nombre:'Cargos', filas:cargos, anchos:[11,7,30,18,13,13,12,13,13,12,13,15,13,12,20,34,13,30]},
+    {nombre:'Comerciales', filas:comerciales, anchos:[32,24,30,26,9,12]},
+    {nombre:'Calculadora', filas:calc, anchos:[82]},
+    {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
+  ];
+}
+
+async function conectarExcel(){
+  if(!window.showSaveFilePicker){ descargarExcel(); return; }
+  try{
+    const h = await window.showSaveFilePicker({
+      suggestedName:'Cargos_I.xlsx',
+      types:[{description:'Libro de Excel', accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]
+    });
+    E.excel = h; await idb.set('excel', h);
+    await escribirExcel(true);
+  }catch(e){ if(e.name !== 'AbortError') avisar('No se pudo conectar el Excel: '+e.message); }
+}
+
+async function escribirExcel(avisando){
+  if(!E.excel) return false;
+  try{
+    if(E.excel.queryPermission){
+      let p = await E.excel.queryPermission({mode:'readwrite'});
+      if(p !== 'granted') p = await E.excel.requestPermission({mode:'readwrite'});
+      if(p !== 'granted') throw new Error('sin permiso');
+    }
+    const datos = construirXlsx(hojasDelLibro());
+    const w = await E.excel.createWritable();
+    await w.write(datos); await w.close();
+    marcarChipExcel(E.excel.name);
+    if(avisando) avisar('Excel actualizado: '+E.excel.name);
+    return true;
+  }catch(e){
+    marcarChipExcel(null, e.message);
+    avisar('No he podido escribir el Excel (¿lo tienes abierto?). Ciérralo y vuelve a guardar.');
+    return false;
+  }
+}
+
+function descargarExcel(){
+  const datos = construirXlsx(hojasDelLibro());
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([datos],
+    {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  a.download = 'Cargos_I.xlsx'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function marcarChipExcel(nombre, error){
+  const c = $('#chipExcel');
+  if(!c) return;
+  if(error){ c.className='chip no'; c.textContent='Excel: bloqueado, ciérralo'; }
+  else if(nombre){ c.className='chip ok'; c.textContent='Excel: '+nombre; }
+  else { c.className='chip'; c.textContent='Excel: sin conectar'; }
+}
+
 /* ------------------------------------------------ exportar */
 function exportarCSV(nombre, cabeceras, filas){
   const esc = v => {
@@ -91233,6 +91539,7 @@ window.__num = num;
 window.__elegirZona = t => { tipoPendiente = t; };
 window.__textoCorreo = textoCorreo;
 window.__buscarDoc = buscarDoc;
+window.__descargarExcel = descargarExcel;
 window.__cambiarVista = cambiarVista;
 
 /* ---------------------------------------------- cargo escrito a mano */
