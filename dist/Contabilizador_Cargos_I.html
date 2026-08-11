@@ -150,7 +150,9 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
         <div class="campo"><label>Base del ZNET</label>
           <select id="fBase">
             <option value="100UC">por 100 UC (unidades)</option>
+            <option value="1000UC">por 1.000 UC — más fino</option>
             <option value="100CJ">por 100 CJ (cajas)</option>
+            <option value="1000CJ">por 1.000 CJ — más fino</option>
             <option value="1UC">por 1 UC</option>
             <option value="1CJ">por 1 CJ</option>
           </select>
@@ -89453,11 +89455,13 @@ function parseCargo(filas){
   const texto = filasTexto(filas);
 
   // --- cabecera ---
-  const numero = (/(?:Número de documento|N[ºo°]\s*documento|Factura n[ºo°])\D{0,40}?(\d{4}-\d{6,}|\d{8,})/i.exec(texto)||[])[1]
-              || (/\b(\d{4}-\d{10})\b/.exec(texto)||[])[1] || '';
-  const fecha  = (/Fecha de documento\D{0,30}?(\d{2}[.\/]\d{2}[.\/]\d{4})/i.exec(texto)||[])[1]
+  const numero = (/(?:Número de documento|N[ºo°]\s*documento|Nota\s*contab\.?\s*n[ºo°]?)\s*:?\s*\n?\s*([A-Z]{0,3}\d{4,}(?:-\d{4,})?)/i.exec(texto)||[])[1]
+              || (/\b(\d{4}-\d{10})\b/.exec(texto)||[])[1]
+              || (/\b([A-Z]{2,3}\d{6,})\b/.exec(texto)||[])[1] || '';
+  const fecha  = (/Fecha(?:\s*de\s*documento)?\.*\s*:?\s*\n?\s*(\d{2}[.\/]\d{2}[.\/]\d{2,4})/i.exec(texto)||[])[1]
               || (/\b(\d{2}[.\/]\d{2}[.\/]\d{4})\b/.exec(texto)||[])[1] || '';
-  const refFac = (/Ref\.?\s*Fact\.?\s*:?\s*(\d{6,})/i.exec(texto)||[])[1] || '';
+  const refFac = (/Ref\.?\s*Fact\.?\s*:?\s*(\d{6,})/i.exec(texto)||[])[1]
+              || (/FACTURA\s*N[ºo°]?\.?\s*:?\s*\n?\s*(\d{6,})/i.exec(texto)||[])[1] || '';
 
   // cliente = emisor del cargo (el que nos carga)
   let cliente = '';
@@ -89469,16 +89473,20 @@ function parseCargo(filas){
   }
 
   // --- total sin IVA ---
+  // Los rótulos vienen rellenos de puntos ("BASE IMPONIBLE......... 39,02"),
+  // así que entre la etiqueta y la cifra puede haber muchos caracteres.
   let total = NaN;
-  for(const re of [/Base imponible total\D{0,20}(-?[\d.,]+)/i,
-                   /Base imponible\D{0,20}(-?[\d.,]+)/i,
-                   /Neto total factura\D{0,20}(-?[\d.,]+)/i,
-                   /Total\s+sin\s+IVA\D{0,20}(-?[\d.,]+)/i,
-                   /Base\D{0,12}(-?[\d.,]+)/i]){
+  // El número tiene que empezar por dígito: si no, "BASE IMPONIBLE...." hace
+  // que la propia fila de puntos del rótulo se lea como si fuera la cifra.
+  for(const re of [/Base imponible total\D{0,60}?(-?\d[\d.,]*)/i,
+                   /Base imponible\D{0,60}?(-?\d[\d.,]*)/i,
+                   /Neto total factura\D{0,60}?(-?\d[\d.,]*)/i,
+                   /Total\s+sin\s+IVA\D{0,60}?(-?\d[\d.,]*)/i,
+                   /Base\D{0,40}?(-?\d[\d.,]*)/i]){
     const m = re.exec(texto);
     if(m){ const v = Math.abs(num(m[1])); if(isFinite(v) && v>0){ total = v; break; } }
   }
-  const ivaPct = num((/IVA\D{0,10}(\d{1,2}[,.]\d{1,3})\s*%?/i.exec(texto)||[])[1]) || null;
+  const ivaPct = num((/IVA\D{0,40}?(\d{1,2}[,.]\d{1,3})\s*%/i.exec(texto)||[])[1]) || null;
 
   // --- líneas: filas con nº de línea a la izquierda y varios importes a la derecha ---
   const lineas = [];
@@ -89503,27 +89511,49 @@ function parseCargo(filas){
     lineas.push({n:nLin, desc, importe, precioCorrecto:null, difUnitaria:null, y:f.y, pag:f.pag, texto:filaTexto(f)});
   }
 
-  // --- textos "DIF.DE PRECIO ES A x,xxx": precio correcto por línea ---
+  // --- precio correcto anunciado en texto ---
+  // Dos formas vistas en cargos reales:
+  //   "ACEITUNAS ... / DP / DIF.DE PRECIO ES A 0,838 ( Ref. Fact. 90224478 )"
+  //   "MERMELADA ARANDANOS 263 ES A 2,125"   (la línea entera, sin importe)
+  const RE_RESUMEN = /^(IVA|TOTAL|BASE|IMPORTE|NOTA|P[ÁA]GINA|SUMA)/i;
   const precios = [];
   for(const f of filas){
-    const t = filaTexto(f);
-    const m = /(?:ES A|PRECIO CORRECTO|DEBE SER|CORRECTO ES)\s*:?\s*(-?[\d.,]+)/i.exec(t);
-    if(m) precios.push({y:f.y, pag:f.pag, v:num(m[1]), t});
-  }
-  // cada texto pertenece a la línea inmediatamente superior de la misma página
-  for(const p of precios){
-    let mejor=null;
-    for(const l of lineas){
-      if(l.pag!==p.pag) continue;
-      if(l.y > p.y && (!mejor || l.y < mejor.y)) mejor = l;
+    const t = filaTexto(f).trim();
+    if(RE_RESUMEN.test(t)) continue;
+    const sola = /^(.+?)\s+(?:ES\s+)?A\s+(-?[\d.,]+)\s*$/i.exec(t);
+    if(sola && norm(sola[1]).length > 4 && isFinite(num(sola[2]))){
+      precios.push({y:f.y, pag:f.pag, v:num(sola[2]), desc:sola[1].trim(), t});
+      continue;
     }
-    if(mejor && mejor.precioCorrecto==null) mejor.precioCorrecto = p.v;
+    const dentro = /(?:ES A|PRECIO CORRECTO|DEBE SER|CORRECTO ES)\s*:?\s*(-?[\d.,]+)/i.exec(t);
+    if(dentro) precios.push({y:f.y, pag:f.pag, v:num(dentro[1]), desc:null, t});
   }
 
-  // descarta filas de resumen coladas (IVA, totales) usando el total
-  const limpias = lineas.filter(l => !/^(IVA|TOTAL|BASE|IMPORTE)/i.test(l.desc));
+  // descarta filas de resumen coladas entre las líneas
+  let limpias = lineas.filter(l => !RE_RESUMEN.test(l.desc));
+
+  if(limpias.length){
+    // perfil con tabla: el texto del precio pertenece a la línea de encima
+    for(const p of precios){
+      let mejor = null;
+      for(const l of limpias){
+        if(l.pag !== p.pag) continue;
+        if(l.y > p.y && (!mejor || l.y < mejor.y)) mejor = l;
+      }
+      if(mejor && mejor.precioCorrecto == null) mejor.precioCorrecto = p.v;
+    }
+  } else {
+    // perfil sin importes: cada línea del cargo es "artículo ES A precio".
+    // La diferencia hay que sacarla contra el precio de nuestra factura.
+    limpias = precios.filter(p => p.desc).map((p,i) => ({
+      n: i+1, desc: p.desc, importe: null, precioCorrecto: p.v,
+      difUnitaria: null, y: p.y, pag: p.pag, texto: p.t
+    }));
+  }
+
+  const sinImportes = limpias.length > 0 && limpias.every(l => l.importe == null);
   return {numero, cliente, fecha, refFactura:refFac, totalSinIva:total, ivaPct,
-          lineas:limpias, texto};
+          lineas:limpias, sinImportes, texto};
 }
 
 /* ==================================================================
@@ -89575,7 +89605,7 @@ function emparejar(){
    ================================================================== */
 function baseZnet(){
   const v = $('#fBase').value;
-  return { por: v.startsWith('100') ? 100 : 1, um: v.endsWith('CJ') ? 'CJ' : 'UC' };
+  return { por: parseInt(v, 10) || 1, um: v.endsWith('CJ') ? 'CJ' : 'UC' };
 }
 
 // cantidad de la línea expresada en la unidad de la base del ZNET
@@ -89660,7 +89690,9 @@ function pintarCabecera(){
     if(!$('#fFecha').value) $('#fFecha').value = c.fecha || '';
     if(!$('#fTotal').value && isFinite(c.totalSinIva)) $('#fTotal').value = nf.format(c.totalSinIva);
   }
-  if(f && !$('#fNumFactura').value) $('#fNumFactura').value = f.numero || '';
+  // el nº de factura sale de la factura si está cargada; si no, de la
+  // referencia que el propio cargo menciona (sirve para buscarla en SAP)
+  if(!$('#fNumFactura').value) $('#fNumFactura').value = (f && f.numero) || (c && c.refFactura) || '';
 
   // memoria del cliente
   const clave = norm($('#fCliente').value);
@@ -89705,8 +89737,11 @@ function pintarLineas(){
     if(!fila.afectada) tr.className = 'apagada';
     const dato = datoCargo(fila), dif = diferenciaDe(fila);
     const opciones = ['<option value="-1">— sin asignar —</option>']
-      .concat((E.cargo?.lineas||[]).map((lc,j)=>
-        `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${lc.desc.slice(0,34)} · ${eur(lc.importe)}</option>`));
+      .concat((E.cargo?.lineas||[]).map((lc,j)=>{
+        const ref = lc.importe != null ? eur(lc.importe)
+                  : (lc.precioCorrecto != null ? 'es a '+nf3.format(lc.precioCorrecto) : '');
+        return `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${lc.desc.slice(0,34)} · ${ref}</option>`;
+      }));
     tr.innerHTML = `
       <td><input type="checkbox" data-i="${i}" class="chkAf" ${fila.afectada?'checked':''}></td>
       <td>${lf.pos}</td>
@@ -89933,10 +89968,15 @@ async function procesarArchivo(file, tipo){
     const filas = esXPS ? await filasDeXPS(file) : await filasDePDF(file);
     if(tipo === 'cargo'){
       E.cargo = parseCargo(filas);
+      // Muchos cargos no nombran al cliente: lo llevan solo en el nombre del
+      // archivo (ALIPENSA_NC2417589_...). Vale como propuesta editable.
+      if(!E.cargo.cliente) E.cargo.cliente = clienteDeArchivo(file.name);
+      if(E.cargo.sinImportes) $('#fModo').value = 'precio_ud';
       const z = $('#zonaCargo');
       z.className = 'zona lleno';
       z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">${file.name}</p>
-        <p>${E.cargo.lineas.length} línea(s) · total sin IVA ${eur(E.cargo.totalSinIva)}</p>`;
+        <p>${E.cargo.lineas.length} línea(s) · total sin IVA ${eur(E.cargo.totalSinIva)}`+
+        `${E.cargo.sinImportes ? ' · sin importes por línea' : ''}</p>`;
     } else {
       E.factura = parseFactura(filas);
       const z = $('#zonaFactura');
@@ -89945,12 +89985,18 @@ async function procesarArchivo(file, tipo){
         <p>${E.factura.lineas.length} línea(s) · factura ${E.factura.numero||'—'}</p>`;
     }
     est.className='chip ok'; est.textContent='Leído: '+file.name;
-    if(E.factura){ emparejar(); refrescar(); }
-    else if(E.cargo){ pintarCabecera(); }
+    pintarCabecera();                       // aplica la memoria del cliente...
+    if(E.factura){ emparejar(); refrescar(); }   // ...antes de repartir modos
   }catch(e){
     est.className='chip no'; est.textContent='Error leyendo '+file.name+': '+e.message;
     console.error(e);
   }
+}
+
+// "ALIPENSA_NC2417589_c_006001...pdf" -> "ALIPENSA"
+function clienteDeArchivo(nombre){
+  const primero = nombre.replace(/\.[a-z]+$/i,'').split(/[_\-.\s]+/)[0] || '';
+  return /^[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}$/.test(primero) ? primero.toUpperCase() : '';
 }
 
 function montarZona(el){

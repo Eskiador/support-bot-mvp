@@ -1,0 +1,21 @@
+{
+  "nombre": "Alipensa · cargo NC2417589 · precio correcto, sin importes por línea",
+  "notas": [
+    "Perfil de cargo distinto al de Alimerka: no da importe por línea, solo",
+    "el precio al que debía haberse facturado ('MERMELADA ARANDANOS 263 ES A 2,125').",
+    "La diferencia hay que sacarla contra el precio de nuestra factura 90194273.",
+    "Falta esa factura, así que de momento solo se comprueba la lectura del cargo.",
+    "El cliente no aparece en el texto del PDF: se propone desde el nombre del archivo."
+  ],
+  "archivos": {
+    "cargo": "ALIPENSA_NC2417589.pdf"
+  },
+  "esperado": {
+    "cliente": "ALIPENSA",
+    "numCargo": "NC2417589",
+    "numFactura": "90194273",
+    "lineasCargo": 6,
+    "totalSinIva": 39.02,
+    "preciosCargo": [2.125, 2.01, 2.01, 4.64, 3.978, 3.978]
+  }
+}

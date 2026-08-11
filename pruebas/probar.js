@@ -31,8 +31,9 @@ const eur = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2).replace('.', ','
 
   for (const caso of casos) {
     const cargo = path.join(baseArchivos, caso.archivos.cargo);
-    const factura = path.join(baseArchivos, caso.archivos.factura);
-    if (!fs.existsSync(cargo) || !fs.existsSync(factura)) {
+    // Hay casos de los que todavía no tengo la factura: se comprueba solo la lectura del cargo.
+    const factura = caso.archivos.factura ? path.join(baseArchivos, caso.archivos.factura) : null;
+    if (!fs.existsSync(cargo) || (factura && !fs.existsSync(factura))) {
       console.log(`\n· ${caso.nombre}: OMITIDO (no encuentro los PDF en ${baseArchivos})`);
       continue;
     }
@@ -46,10 +47,12 @@ const eur = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2).replace('.', ','
     await pagina.setInputFiles('#selArchivo', cargo);
     await pagina.waitForFunction(() => document.querySelector('#zonaCargo').classList.contains('lleno'),
       { timeout: 40000 });
-    await pagina.evaluate(() => window.__elegirZona('factura'));
-    await pagina.setInputFiles('#selArchivo', factura);
-    await pagina.waitForFunction(() => document.querySelector('#secResultado') &&
-      !document.querySelector('#secResultado').classList.contains('oculto'), { timeout: 40000 });
+    if (factura) {
+      await pagina.evaluate(() => window.__elegirZona('factura'));
+      await pagina.setInputFiles('#selArchivo', factura);
+      await pagina.waitForFunction(() => document.querySelector('#secResultado') &&
+        !document.querySelector('#secResultado').classList.contains('oculto'), { timeout: 40000 });
+    }
 
     const obtenido = await pagina.evaluate(() => ({
       cliente: document.querySelector('#fCliente').value,
@@ -57,8 +60,10 @@ const eur = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2).replace('.', ','
       numFactura: document.querySelector('#fNumFactura').value,
       total: window.__num ? window.__num(document.querySelector('#fTotal').value) : null,
       totalTexto: document.querySelector('#fTotal').value,
-      lineasCargo: window.E ? window.E.cargo.lineas.length : null,
-      lineasFactura: window.E ? window.E.factura.lineas.length : null,
+      lineasCargo: window.E && window.E.cargo ? window.E.cargo.lineas.length : null,
+      lineasFactura: window.E && window.E.factura ? window.E.factura.lineas.length : null,
+      preciosCargo: window.E && window.E.cargo
+        ? window.E.cargo.lineas.map(l => l.precioCorrecto) : [],
       suma: window.E && window.E.ultimaSalida ? window.E.ultimaSalida.suma : null,
       zaju: window.E && window.E.ultimaSalida ? window.E.ultimaSalida.zaju : null,
       znet: window.E && window.E.ultimaSalida
@@ -77,11 +82,20 @@ const eur = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2).replace('.', ','
       console.log(`  [${bien ? 'OK ' : 'MAL'}] ${etiqueta}: esperado ${esperado}, obtenido ${real}`);
     };
 
+    comprobar('cliente', caso.esperado.cliente ?? obtenido.cliente, obtenido.cliente);
     comprobar('nº de cargo', caso.esperado.numCargo, obtenido.numCargo);
     comprobar('nº de factura', caso.esperado.numFactura, obtenido.numFactura);
     comprobar('líneas del cargo', caso.esperado.lineasCargo, obtenido.lineasCargo);
+    comprobar('importe sin IVA leído', caso.esperado.totalSinIva,
+      num(obtenido.totalTexto.replace(/\./g, '').replace(',', '.')), 0.005);
+
+    if (caso.esperado.preciosCargo) {
+      comprobar('precios "es a" leídos', caso.esperado.preciosCargo.join(' '),
+        obtenido.preciosCargo.join(' '));
+    }
+    if (!factura) { console.log('  (sin factura: no se comprueba el cuadre)'); await pagina.close(); continue; }
+
     comprobar('líneas de la factura', caso.esperado.lineasFactura, obtenido.lineasFactura);
-    comprobar('importe sin IVA leído', caso.esperado.totalSinIva, num(obtenido.totalTexto.replace('.', '').replace(',', '.')), 0.005);
     comprobar('suma de las líneas', caso.esperado.sumaLineas, obtenido.suma, 0.005);
     comprobar('ZAJU propuesto', caso.esperado.zaju, obtenido.zaju, 0.005);
 
