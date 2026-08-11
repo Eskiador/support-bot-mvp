@@ -116,3 +116,34 @@ se hace por orden y parecido de texto, y siempre se puede corregir a mano.
   columna `UC/US` de la factura, pero no está probado contra un cargo real.
 - Falta ver el export del listado de cargos I de SAP (Módulo 1).
 - Falta un cargo de diferencia de **mercancía**: hasta ahora solo hay de precio.
+
+## Cuadrar las líneas a la fuerza
+
+Cuando las diferencias calculadas no suman el importe del cargo, hay un botón
+que reparte el hueco entre las líneas afectadas: primero en proporción a lo que
+pesa cada una, y después afinando de céntimo en céntimo de ZNET, tocando en cada
+vuelta la línea que menos se ha movido en proporción. El ajuste es reversible y
+cada línea muestra en la columna «Desvío» cuánto se ha separado del cargo.
+
+El veredicto distingue tres situaciones, porque no todos los descuadres
+significan lo mismo:
+
+| Estado | Cuándo | Qué significa |
+|---|---|---|
+| CUADRA | descuadre ≤ tolerancia | nada que hacer |
+| SOLO FALTA EL ZAJU | descuadre ≤ el salto de la línea más fina | resto inevitable del redondeo del ZNET |
+| NO CUADRA | por encima de eso | las diferencias y el cargo no dicen lo mismo: hay que mirarlo |
+
+El tercer caso es el importante. En el cargo de Alipensa NC2417589 las seis
+líneas alcanzan su objetivo exacto y aun así faltan 0,72 € sobre 39,02 (un 1,8 %):
+eso no es redondeo, es que el cliente y nuestra factura no cuentan lo mismo.
+Cuadrar a la fuerza deja el abono correcto, pero tapa esa discrepancia, así que
+la herramienta lo dice antes de hacerlo.
+
+## Cargo escrito a mano
+
+Para clientes cuyo PDF no se deja leer. Se pega el texto (del PDF, de Excel o
+tecleado), un artículo por renglón, y de cada uno se toma el último número como
+valor y el resto como descripción. Se elige una vez si ese número es el importe,
+el precio correcto o la diferencia por unidad, y el modo de cálculo se ajusta
+solo. Hay vista previa en vivo de lo que ha entendido antes de aceptar.

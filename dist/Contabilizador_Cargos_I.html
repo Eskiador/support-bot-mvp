@@ -26,6 +26,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 input,select{font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
 input:focus,select:focus{outline:2px solid var(--azul-claro);border-color:var(--azul)}
 input.num{text-align:right;font-variant-numeric:tabular-nums}
+textarea{width:100%;font:13.5px/1.5 ui-monospace,Consolas,monospace;padding:10px;
+  border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);resize:vertical}
+textarea:focus{outline:2px solid var(--azul-claro);border-color:var(--azul)}
 
 /* ---------- cabecera ---------- */
 header{background:#fff;border-bottom:1px solid var(--line);padding:12px 22px;
@@ -71,6 +74,7 @@ th{background:#fbfcfe;font-size:11.5px;text-transform:uppercase;letter-spacing:.
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 tr.apagada{opacity:.42}
 tr.aviso td{background:var(--ambar-claro)}
+tr.ajustada td{background:var(--azul-claro)}
 td .desc{max-width:190px;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap}
 
 /* ---------- resultado ---------- */
@@ -83,6 +87,7 @@ td .desc{max-width:190px;overflow:hidden;text-overflow:ellipsis;display:block;wh
 .dato.veredicto .et{color:rgba(255,255,255,.8)}
 .dato.cuadra{background:var(--verde)}
 .dato.nocuadra{background:var(--rojo)}
+.dato.parcial{background:var(--ambar)}
 .dato.espera{background:#8a97a8}
 .nota{padding:12px 16px;font-size:13.5px;border-top:1px solid var(--line);background:#fbfcfe;color:var(--muted)}
 .nota b{color:var(--ink)}
@@ -130,6 +135,35 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
         <button id="btnPegar">Pegar texto a mano…</button>
         <button id="btnEjemplo" class="oculto">Cargar caso de ejemplo</button>
         <span id="estadoLectura" class="chip oculto"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1b · cargo a mano -->
+  <section id="secManual" class="oculto">
+    <div class="cab"><span class="paso">✎</span><h2>Escribir el cargo a mano</h2>
+      <div class="crece"></div><button id="btnCerrarManual">Cerrar</button></div>
+    <div class="cuerpo">
+      <p class="pista">Para cuando el PDF no se deja leer. Selecciona el texto en el PDF,
+        cópialo y pégalo aquí tal cual: una línea por artículo, con su número al final.
+        Vale también pegar desde Excel o teclearlo a mano.</p>
+      <div class="rejilla" style="margin-bottom:12px">
+        <div class="campo"><label>Importe sin IVA del cargo</label><input id="mTotal" class="num" placeholder="39,02"></div>
+        <div class="campo"><label>Cliente</label><input id="mCliente"></div>
+        <div class="campo"><label>Nº de cargo</label><input id="mNumCargo"></div>
+        <div class="campo"><label>El número de cada línea es…</label>
+          <select id="mTipo">
+            <option value="importe">el importe de la diferencia</option>
+            <option value="precio">el precio correcto («es a…»)</option>
+            <option value="dif_ud">la diferencia por unidad</option>
+          </select></div>
+      </div>
+      <textarea id="mTexto" rows="7" spellcheck="false"
+        placeholder="MERMELADA ARANDANOS 263 ES A 2,125&#10;MERMELADA HIGO 263 ES A 2,01&#10;MERMELADA TOMATE 263 ES A 2,01"></textarea>
+      <div id="mPrevio"></div>
+      <div class="barra">
+        <button class="primario" id="btnUsarManual">Usar estas líneas</button>
+        <button id="btnLimpiarManual">Vaciar</button>
       </div>
     </div>
   </section>
@@ -200,6 +234,7 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
     <div class="marcador" id="marcador"></div>
     <div class="nota" id="notaCuadre"></div>
     <div class="cuerpo">
+      <div id="accionCuadre"></div>
       <div id="avisosZnet"></div>
       <div class="tablaenv">
         <table id="tablaSalida">
@@ -89570,6 +89605,7 @@ function parecido(a,b){
 function emparejar(){
   const fac = E.factura?.lineas || [], car = E.cargo?.lineas || [];
   const usados = new Set();
+  E.ajuste = null;
   E.filas = fac.map((lf, idx) => {
     let mejor = -1, mejorPunt = -1;
     car.forEach((lc, j) => {
@@ -89585,7 +89621,8 @@ function emparejar(){
       cargoIdx: mejor,
       afectada: mejor >= 0,
       modo: $('#fModo').value,
-      manual: null            // valor tecleado a mano (dato del cargo)
+      manual: null,           // valor tecleado a mano (dato del cargo)
+      objetivoForzado: null   // importe fijado al cuadrar las líneas
     };
   });
   const sin = car.length - usados.size;
@@ -89660,7 +89697,9 @@ function calcular(){
 
   for(const fila of E.filas){
     if(!fila.afectada) continue;
-    const objetivo = r2(diferenciaDe(fila));
+    const objetivoCargo = r2(diferenciaDe(fila));           // lo que dice el cargo
+    const objetivo = fila.objetivoForzado != null            // lo que buscamos tras cuadrar
+      ? fila.objetivoForzado : objetivoCargo;
     const q = cantidadEnBase(fila);
     let znet = NaN, importe = NaN;
     if(isFinite(objetivo) && isFinite(q) && q>0){
@@ -89668,14 +89707,89 @@ function calcular(){
       importe = r2(znet * q / por);
       suma = r2(suma + importe);
     }
-    const desvio = (isFinite(importe)&&isFinite(objetivo)) ? r2(importe - objetivo) : NaN;
-    const fal = isFinite(desvio) && Math.abs(desvio) > 0.0001;
-    if(fal) avisos.push({fila, objetivo, importe, desvio, paso: r2(q/por*0.01)});
-    salida.push({fila, objetivo, q, znet, importe, desvio, por, um, alerta:fal});
+    // el desvío se mide siempre contra el cargo, esté ajustada la línea o no
+    const desvio = (isFinite(importe)&&isFinite(objetivoCargo)) ? r2(importe - objetivoCargo) : NaN;
+    const ajustada = fila.objetivoForzado != null;
+    const fal = !ajustada && isFinite(desvio) && Math.abs(desvio) > 0.0001;
+    if(fal) avisos.push({fila, objetivo:objetivoCargo, importe, desvio, paso: r2(q/por*0.01)});
+    salida.push({fila, objetivo:objetivoCargo, q, znet, importe, desvio, por, um,
+                 alerta:fal, ajustada});
   }
 
   const zaju = isFinite(total) ? r2(total - suma) : NaN;
   pintarResultado({salida, suma, total, zaju, tol, avisos});
+}
+
+/* Reparte el descuadre entre las líneas afectadas, en proporción a lo que pesa
+   cada una, y luego afina céntimo a céntimo de ZNET hasta llegar al importe del
+   cargo. No inventa importes: solo mueve lo justo y deja constancia del desvío
+   que queda en cada línea. */
+function cuadrarLineas(){
+  const {por} = baseZnet();
+  const total = num($('#fTotal').value);
+  if(!isFinite(total)) return {ok:false, motivo:'Falta el importe del cargo.'};
+
+  const piezas = [];
+  for(const fila of E.filas){
+    if(!fila.afectada) continue;
+    const objetivo = r2(diferenciaDe(fila));
+    const q = cantidadEnBase(fila);
+    if(!isFinite(objetivo) || !isFinite(q) || q <= 0) continue;
+    piezas.push({fila, objetivo, q, paso: q/por*0.01});
+  }
+  if(!piezas.length) return {ok:false, motivo:'No hay líneas afectadas que ajustar.'};
+
+  const sumaOriginal = r2(piezas.reduce((a,p)=>a+p.objetivo, 0));
+  if(Math.abs(sumaOriginal) < 0.005) return {ok:false, motivo:'Las líneas suman cero.'};
+
+  // punto de partida: lo que darían las líneas sin tocar nada
+  for(const p of piezas){
+    p.znetIni = r2(p.objetivo * por / p.q);
+    p.importeIni = r2(p.znetIni * p.q / por);
+  }
+  const sumaInicial = r2(piezas.reduce((a,p)=>a+p.importeIni, 0));
+
+  // 1 · reparto proporcional: cada línea cede en proporción a lo que pesa
+  const factor = total / sumaOriginal;
+  for(const p of piezas){
+    p.znet = r2(p.objetivo * factor * por / p.q);
+    p.importe = r2(p.znet * p.q / por);
+  }
+
+  // 2 · afinado. Un céntimo de ZNET mueve "paso" euros, y el paso depende de la
+  // cantidad: en líneas grandes es tosco. Para que el ajuste no se cebe en dos
+  // líneas, en cada vuelta se toca la que MENOS se ha movido en proporción.
+  const desvioRel = p => p.objetivo ? Math.abs(p.importe - p.objetivo)/Math.abs(p.objetivo) : 0;
+  let resto = r2(total - piezas.reduce((a,p)=>a+p.importe, 0));
+  let vueltas = 0;
+  while(Math.abs(resto) > 0.005 && vueltas++ < 2000){
+    let elegida = null;
+    for(const p of piezas){
+      if(p.paso > Math.abs(resto) + 1e-9) continue;   // esa línea no afina tan poco
+      if(!elegida || desvioRel(p) < desvioRel(elegida)) elegida = p;
+    }
+    if(!elegida) break;                                // ninguna puede afinar tan poco
+    elegida.znet = r2(elegida.znet + Math.sign(resto) * 0.01);
+    elegida.importe = r2(elegida.znet * elegida.q / por);
+    resto = r2(total - piezas.reduce((a,p)=>a+p.importe, 0));
+  }
+
+  for(const p of piezas) p.fila.objetivoForzado = p.importe;
+
+  const movido = piezas.map(p => r2(p.importe - p.importeIni));
+  return {
+    ok: true,
+    lineas: piezas.length,
+    tocadas: movido.filter(m => Math.abs(m) > 0.004).length,
+    repartido: r2(total - sumaInicial),
+    restante: resto,
+    mayor: movido.reduce((a,b)=>Math.abs(b)>Math.abs(a)?b:a, 0)
+  };
+}
+
+function limpiarAjuste(){
+  E.filas.forEach(f => f.objetivoForzado = null);
+  E.ajuste = null;
 }
 
 /* ==================================================================
@@ -89759,16 +89873,18 @@ function pintarLineas(){
     tb.appendChild(tr);
   });
 
+  // cualquier cambio en las líneas invalida un ajuste anterior
   $$('.chkAf').forEach(el=>el.onchange = e=>{
-    E.filas[+e.target.dataset.i].afectada = e.target.checked; refrescar(); });
+    E.filas[+e.target.dataset.i].afectada = e.target.checked; limpiarAjuste(); refrescar(); });
   $$('.selCargo').forEach(el=>el.onchange = e=>{
     const f = E.filas[+e.target.dataset.i];
     f.cargoIdx = +e.target.value; f.manual = null;
-    if(f.cargoIdx<0) f.afectada = false; refrescar(); });
+    if(f.cargoIdx<0) f.afectada = false; limpiarAjuste(); refrescar(); });
   $$('.selModo').forEach(el=>el.onchange = e=>{
-    const f = E.filas[+e.target.dataset.i]; f.modo = e.target.value; f.manual = null; refrescar(); });
+    const f = E.filas[+e.target.dataset.i]; f.modo = e.target.value; f.manual = null;
+    limpiarAjuste(); refrescar(); });
   $$('.datoMan').forEach(el=>el.onchange = e=>{
-    E.filas[+e.target.dataset.i].manual = e.target.value; refrescar(); });
+    E.filas[+e.target.dataset.i].manual = e.target.value; limpiarAjuste(); refrescar(); });
 }
 
 function pintarResultado({salida, suma, total, zaju, tol, avisos}){
@@ -89777,14 +89893,23 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
   const desc = hayTotal ? r2(total - suma) : NaN;
   const cuadra = hayTotal && Math.abs(desc) <= tol + 1e-9;
 
+  // El ZNET solo tiene 2 decimales, así que cada línea se mueve a saltos. Por
+  // debajo del salto más pequeño no hay reparto que valga: ese resto es
+  // inevitable y se cierra con el ZAJU. Un descuadre mayor ya es otra cosa.
+  const pasoMin = salida.length ? Math.min(...salida.map(s => s.q/s.por*0.01)) : 0;
+  const inevitable = hayTotal && !cuadra && Math.abs(desc) <= pasoMin + tol + 1e-9;
+  const estado = !hayTotal ? 'espera' : (cuadra ? 'cuadra' : (inevitable ? 'parcial' : 'nocuadra'));
+  const rotulo = {espera:'Falta el total', cuadra:'CUADRA',
+                  parcial:'SOLO FALTA EL ZAJU', nocuadra:'NO CUADRA'}[estado];
+
   $('#marcador').innerHTML = `
-    <div class="dato veredicto ${!hayTotal?'espera':(cuadra?'cuadra':'nocuadra')}">
+    <div class="dato veredicto ${estado}">
       <div class="et">Cuadre contra el cargo (sin IVA)</div>
-      <div class="vl">${!hayTotal?'Falta el total':(cuadra?'CUADRA':'NO CUADRA')}</div></div>
+      <div class="vl">${rotulo}</div></div>
     <div class="dato"><div class="et">Suma de las líneas</div><div class="vl">${eur(suma)}</div></div>
     <div class="dato"><div class="et">Importe del cargo</div><div class="vl">${hayTotal?eur(total):'—'}</div></div>
     <div class="dato"><div class="et">Descuadre</div>
-      <div class="vl" style="color:${!hayTotal?'inherit':(cuadra?'var(--verde)':'var(--rojo)')}">
+      <div class="vl" style="color:${!hayTotal?'inherit':(cuadra?'var(--verde)':(inevitable?'var(--ambar)':'var(--rojo)'))}">
         ${hayTotal?(desc>=0?'+':'')+eur(desc):'—'}</div></div>`;
 
   const nota = $('#notaCuadre');
@@ -89794,7 +89919,48 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
     nota.innerHTML = 'Las líneas suman exactamente el importe del cargo. <b>No hace falta ZAJU.</b>';
   } else {
     nota.innerHTML = `Las líneas llegan a ${eur(suma)}. Para cerrar el cargo añade en cabecera `+
-      `<code class="zaju">ZAJU ${(zaju>=0?'+':'')}${nf.format(zaju)} €</code> y el abono quedará en ${eur(total)}.`;
+      `<code class="zaju">ZAJU ${(zaju>=0?'+':'')}${nf.format(zaju)} €</code> y el abono quedará en ${eur(total)}.`+
+      (inevitable ? ` Con esta base, la línea más fina se mueve de ${eur(pasoMin)} en ${eur(pasoMin)}, `+
+        `así que este resto no se puede repartir: el ZAJU es la única vía.` : '');
+  }
+
+  // --- acción de cuadrar ---
+  const acc = $('#accionCuadre');
+  acc.innerHTML = '';
+  const hayDescuadre = hayTotal && Math.abs(desc) > tol + 1e-9;
+  const sinRedondeos = salida.length && salida.every(s => !s.alerta);
+
+  if(E.ajuste){
+    const d = document.createElement('div');
+    d.className = 'aviso-caja azul';
+    d.innerHTML = `<b>Líneas cuadradas.</b> Se ha repartido ${eur(E.ajuste.repartido)} entre `+
+      `${E.ajuste.tocadas} de las ${E.ajuste.lineas} líneas; el mayor movimiento en una sola línea `+
+      `ha sido ${(E.ajuste.mayor>=0?'+':'')}${nf.format(E.ajuste.mayor)} €. `+
+      (Math.abs(E.ajuste.restante) > 0.005
+        ? `No se ha podido afinar más: quedan ${eur(E.ajuste.restante)} para el ZAJU. `
+        : `El total sale exacto, sin ZAJU. `)+
+      `<button id="btnDeshacer" style="margin-left:6px">Deshacer el ajuste</button>`;
+    acc.appendChild(d);
+    $('#btnDeshacer').onclick = ()=>{ limpiarAjuste(); refrescar(); avisar('Ajuste deshecho.'); };
+  } else if(hayDescuadre && !inevitable){
+    const d = document.createElement('div');
+    d.className = 'aviso-caja rojo';
+    d.innerHTML = `<b>Faltan ${eur(Math.abs(desc))} para llegar al importe del cargo.</b><br>`+
+      (sinRedondeos
+        ? `Cada línea alcanza su objetivo exacto, así que esto <b>no es un problema de redondeo</b>: `+
+          `las diferencias calculadas contra la factura suman ${eur(suma)} y el cargo pide ${eur(total)}. `+
+          `Merece la pena mirar si el cliente usa otras cantidades o si el cargo no cubre la factura entera.`
+        : `Parte del descuadre viene del redondeo del ZNET.`)+
+      `<div class="barra"><button class="primario" id="btnCuadrar">¿Cuadrar las líneas?</button>`+
+      `<span style="font-size:13px">Repartirá ${eur(desc)} entre las ${salida.length} líneas, `+
+      `en proporción a lo que pesa cada una.</span></div>`;
+    acc.appendChild(d);
+    $('#btnCuadrar').onclick = ()=>{
+      const r = cuadrarLineas();
+      if(!r.ok){ avisar(r.motivo); return; }
+      E.ajuste = r; refrescar();
+      avisar('Líneas cuadradas contra el importe del cargo.');
+    };
   }
 
   const cajaAv = $('#avisosZnet');
@@ -89812,6 +89978,7 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
   for(const s of salida){
     const tr = document.createElement('tr');
     if(s.alerta) tr.className = 'aviso';
+    else if(s.ajustada && Math.abs(s.desvio) > 0.0001) tr.className = 'ajustada';
     tr.innerHTML = `
       <td>${s.fila.fac.pos}</td><td>${s.fila.fac.material}</td>
       <td><span class="desc">${s.fila.fac.desc}</span></td>
@@ -90017,19 +90184,35 @@ window.addEventListener('pdfjs-listo', async ()=>{
 
   $('#btnConectar').onclick = conectarDatos;
   $('#btnNuevo').onclick = ()=>location.reload();
-  $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ if(f.cargoIdx>=0) f.afectada=true; }); refrescar(); };
-  $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); refrescar(); };
+  $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ if(f.cargoIdx>=0) f.afectada=true; });
+    limpiarAjuste(); refrescar(); };
+  $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); limpiarAjuste(); refrescar(); };
   $('#btnAplicarModo').onclick = ()=>{ const m=$('#fModo').value;
-    E.filas.forEach(f=>{ f.modo=m; f.manual=null; }); refrescar(); };
+    E.filas.forEach(f=>{ f.modo=m; f.manual=null; }); limpiarAjuste(); refrescar(); };
   $('#btnCopiar').onclick = ()=>copiar(tsvSalida(),'Tabla copiada');
   $('#btnCopiarZnet').onclick = ()=>copiar(
     (E.ultimaSalida?.salida||[]).map(s=>nf.format(s.znet)).join('\n'), 'ZNET copiados');
   $('#btnGuardar').onclick = async ()=>{ recordarCliente();
     if(!await guardarDatos()) descargarDatos(); };
-  $('#btnPegar').onclick = pegarTexto;
+  $('#btnPegar').onclick = ()=>{
+    $('#secManual').classList.remove('oculto');
+    if(!$('#mTotal').value) $('#mTotal').value = $('#fTotal').value;
+    if(!$('#mCliente').value) $('#mCliente').value = $('#fCliente').value;
+    if(!$('#mNumCargo').value) $('#mNumCargo').value = $('#fNumCargo').value;
+    $('#mTexto').focus();
+    $('#secManual').scrollIntoView({behavior:'smooth', block:'start'});
+  };
+  $('#btnCerrarManual').onclick = ()=>$('#secManual').classList.add('oculto');
+  $('#btnUsarManual').onclick = usarLineasManuales;
+  $('#btnLimpiarManual').onclick = ()=>{ $('#mTexto').value=''; previoManual(); $('#mTexto').focus(); };
+  $('#mTexto').addEventListener('input', previoManual);
+  $('#mTipo').addEventListener('change', previoManual);
 
   ['fTotal','fTolerancia','fBase','fCliente','fModo'].forEach(id=>{
-    $('#'+id).addEventListener('change', ()=>{ if(E.filas.length) refrescar(); else pintarCabecera(); });
+    $('#'+id).addEventListener('change', ()=>{
+      limpiarAjuste();
+      if(E.filas.length) refrescar(); else pintarCabecera();
+    });
   });
 
   // reconectar el archivo de datos de sesiones anteriores
@@ -90048,21 +90231,78 @@ window.E = E;
 window.__num = num;
 window.__elegirZona = t => { tipoPendiente = t; };
 
-function pegarTexto(){
-  const t = prompt('Pega aquí el texto del cargo (una línea por artículo, con el importe al final):');
-  if(!t) return;
-  const lineas = [];
-  t.split('\n').forEach((l,i)=>{
-    const m = /^(.*?)[\s\t]+(-?[\d.,]+)\s*€?$/.exec(l.trim());
-    if(m && norm(m[1]).length>3){
-      lineas.push({n:i+1, desc:m[1].trim(), importe:Math.abs(num(m[2])), precioCorrecto:null, difUnitaria:null, y:-i, pag:1, texto:l});
-    }
+/* ---------------------------------------------- cargo escrito a mano */
+// De cada renglón se toma el ÚLTIMO número como valor y el resto como
+// descripción. Así vale igual pegar del PDF, pegar de Excel o teclearlo.
+function leerLineasManuales(texto){
+  const salida = [];
+  texto.split('\n').forEach((cruda,i)=>{
+    const l = cruda.trim();
+    if(!l) return;
+    const m = /^(.*?)[\s\t]+(-?\d[\d.,]*)\s*€?\s*$/.exec(l);
+    if(!m) return;
+    const v = num(m[2]);
+    const desc = m[1].replace(/\s*(?:ES\s+)?A\s*$/i,'').replace(/[.:;,\-\s]+$/,'').trim();
+    if(!isFinite(v) || norm(desc).length < 3) return;
+    salida.push({n:salida.length+1, desc, valor:Math.abs(v), y:-i, pag:1, texto:l});
   });
-  if(!lineas.length){ avisar('No he reconocido ninguna línea en ese texto.'); return; }
-  E.cargo = Object.assign(E.cargo||{numero:'',cliente:'',fecha:'',totalSinIva:NaN}, {lineas, texto:t});
-  const z=$('#zonaCargo'); z.className='zona lleno';
-  z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">texto pegado a mano</p><p>${lineas.length} línea(s)</p>`;
-  if(E.factura){ emparejar(); refrescar(); } else pintarCabecera();
+  return salida;
+}
+
+function previoManual(){
+  const lineas = leerLineasManuales($('#mTexto').value);
+  const caja = $('#mPrevio');
+  if(!lineas.length){
+    caja.innerHTML = $('#mTexto').value.trim()
+      ? '<div class="aviso-caja" style="margin-top:12px">No reconozco ninguna línea. Cada renglón tiene que acabar en un número.</div>'
+      : '';
+    return lineas;
+  }
+  const et = {importe:'Importe', precio:'Precio correcto', dif_ud:'Diferencia/ud'}[$('#mTipo').value];
+  const suma = lineas.reduce((a,l)=>a+l.valor,0);
+  caja.innerHTML = `<div class="aviso-caja azul" style="margin-top:12px">`+
+    `<b>${lineas.length} línea(s) reconocidas.</b>`+
+    ($('#mTipo').value==='importe' ? ` Suman ${eur(suma)}.` : '')+
+    `<div class="tablaenv" style="margin-top:8px"><table><thead><tr>`+
+    `<th>#</th><th>Descripción</th><th class="n">${et}</th></tr></thead><tbody>`+
+    lineas.map(l=>`<tr><td>${l.n}</td><td>${l.desc}</td><td class="n">${nf3.format(l.valor)}</td></tr>`).join('')+
+    `</tbody></table></div></div>`;
+  return lineas;
+}
+
+function usarLineasManuales(){
+  const lineas = leerLineasManuales($('#mTexto').value);
+  if(!lineas.length){ avisar('No hay líneas que usar.'); return; }
+  const tipo = $('#mTipo').value;
+  E.cargo = {
+    numero: $('#mNumCargo').value.trim(),
+    cliente: $('#mCliente').value.trim(),
+    fecha: '', refFactura: '',
+    totalSinIva: num($('#mTotal').value),
+    ivaPct: null,
+    sinImportes: tipo !== 'importe',
+    texto: $('#mTexto').value,
+    lineas: lineas.map(l => ({
+      n:l.n, desc:l.desc, y:l.y, pag:1, texto:l.texto,
+      importe:        tipo==='importe' ? l.valor : null,
+      precioCorrecto: tipo==='precio'  ? l.valor : null,
+      difUnitaria:    tipo==='dif_ud'  ? l.valor : null
+    }))
+  };
+  $('#fModo').value = {importe:'importe', precio:'precio_ud', dif_ud:'dif_ud'}[tipo];
+  if($('#mTotal').value.trim())    $('#fTotal').value    = $('#mTotal').value.trim();
+  if($('#mCliente').value.trim())  $('#fCliente').value  = $('#mCliente').value.trim();
+  if($('#mNumCargo').value.trim()) $('#fNumCargo').value = $('#mNumCargo').value.trim();
+
+  const z = $('#zonaCargo');
+  z.className = 'zona lleno';
+  z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">escrito a mano</p>
+    <p>${lineas.length} línea(s) · total sin IVA ${eur(num($('#mTotal').value))}</p>`;
+  $('#secManual').classList.add('oculto');
+  limpiarAjuste();
+  pintarCabecera();
+  if(E.factura){ emparejar(); refrescar(); }
+  avisar(`${lineas.length} línea(s) cargadas a mano.`);
 }
 </script>
 </body>
