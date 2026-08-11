@@ -1,0 +1,34 @@
+{
+  "nombre": "Alimerka · cargo 2025-1970008318 · diferencia de precio",
+  "notas": [
+    "Caso real resuelto a mano en SAP. Abono GAC 1519001122, valor neto 232,83 €.",
+    "El cargo trae el importe de línea ya calculado y además el precio correcto",
+    "en el texto ('DIF.DE PRECIO ES A 0,838'), así que sirve para probar los dos modos.",
+    "En el abono real la posición 10 se dejó en 90,73 € para cuadrar el total.",
+    "La herramienta llega al mismo 232,83 dejando las líneas en 232,82 y un ZAJU de +0,01."
+  ],
+  "archivos": {
+    "cargo": "ALIMERKA_20251970008318_nc_.pdf",
+    "factura": "ALIMERKA_FACTURA_PDF.pdf"
+  },
+  "esperado": {
+    "numCargo": "2025-1970008318",
+    "numFactura": "90224478",
+    "lineasCargo": 9,
+    "lineasFactura": 9,
+    "totalSinIva": 232.83,
+    "sumaLineas": 232.82,
+    "zaju": 0.01,
+    "znet": [
+      { "pos": 10,  "znet": 0.90, "importe": 90.72, "objetivo": 90.72 },
+      { "pos": 20,  "znet": 0.50, "importe": 16.20, "objetivo": 16.20 },
+      { "pos": 30,  "znet": 0.90, "importe": 18.14, "objetivo": 18.14 },
+      { "pos": 40,  "znet": 1.10, "importe": 19.36, "objetivo": 19.36 },
+      { "pos": 50,  "znet": 1.00, "importe": 17.28, "objetivo": 17.28 },
+      { "pos": 60,  "znet": 2.30, "importe": 17.66, "objetivo": 17.66 },
+      { "pos": 70,  "znet": 2.30, "importe": 17.66, "objetivo": 17.67 },
+      { "pos": 90,  "znet": 2.30, "importe": 17.66, "objetivo": 17.66 },
+      { "pos": 100, "znet": 0.90, "importe": 18.14, "objetivo": 18.14 }
+    ]
+  }
+}

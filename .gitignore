@@ -137,3 +137,13 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# El HTML construido es el entregable: se versiona a proposito.
+!dist/
+!dist/Contabilizador_Cargos_I.html
+
+# Cargos y facturas reales: nunca al repositorio.
+casos-reales/
+*.pdf
+*.oxps
+*.xps

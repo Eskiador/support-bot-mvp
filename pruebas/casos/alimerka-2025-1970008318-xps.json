@@ -1,0 +1,77 @@
+{
+  "nombre": "Alimerka · mismo cargo, factura leída desde XPS (respaldo)",
+  "notas": [
+    "Comprueba que la vía XPS/OXPS llega a los mismos importes que el PDF.",
+    "Las descripciones salen con espaciado irregular (el XPS no guarda espacios),",
+    "pero las cifras, que son lo que cuadra, son exactas."
+  ],
+  "archivos": {
+    "cargo": "ALIMERKA_20251970008318_nc_.pdf",
+    "factura": "ALIMERKA_FACTURA_XPS.oxps"
+  },
+  "esperado": {
+    "numCargo": "2025-1970008318",
+    "numFactura": "90224478",
+    "lineasCargo": 9,
+    "lineasFactura": 9,
+    "totalSinIva": 232.83,
+    "sumaLineas": 232.82,
+    "zaju": 0.01,
+    "znet": [
+      {
+        "pos": 10,
+        "znet": 0.9,
+        "importe": 90.72,
+        "objetivo": 90.72
+      },
+      {
+        "pos": 20,
+        "znet": 0.5,
+        "importe": 16.2,
+        "objetivo": 16.2
+      },
+      {
+        "pos": 30,
+        "znet": 0.9,
+        "importe": 18.14,
+        "objetivo": 18.14
+      },
+      {
+        "pos": 40,
+        "znet": 1.1,
+        "importe": 19.36,
+        "objetivo": 19.36
+      },
+      {
+        "pos": 50,
+        "znet": 1.0,
+        "importe": 17.28,
+        "objetivo": 17.28
+      },
+      {
+        "pos": 60,
+        "znet": 2.3,
+        "importe": 17.66,
+        "objetivo": 17.66
+      },
+      {
+        "pos": 70,
+        "znet": 2.3,
+        "importe": 17.66,
+        "objetivo": 17.67
+      },
+      {
+        "pos": 90,
+        "znet": 2.3,
+        "importe": 17.66,
+        "objetivo": 17.66
+      },
+      {
+        "pos": 100,
+        "znet": 0.9,
+        "importe": 18.14,
+        "objetivo": 18.14
+      }
+    ]
+  }
+}

@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contabilizador de Cargos I — Calculadora de diferencias</title>
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --ink:#1b2430; --muted:#68758a; --line:#dfe5ee;
+  --azul:#1f5fa8; --azul-claro:#e8f0fb;
+  --verde:#1a7f4b; --verde-claro:#e6f5ec;
+  --rojo:#c0392b; --rojo-claro:#fdeceb;
+  --ambar:#b4740a; --ambar-claro:#fdf3e0;
+  --sombra:0 1px 2px rgba(20,30,50,.06), 0 4px 14px rgba(20,30,50,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+h1,h2,h3{margin:0;font-weight:650}
+button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);
+  background:#fff;padding:7px 13px;color:var(--ink)}
+button:hover{border-color:#b9c4d4}
+button.primario{background:var(--azul);border-color:var(--azul);color:#fff}
+button.primario:hover{background:#194e8a}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select{font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid var(--azul-claro);border-color:var(--azul)}
+input.num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---------- cabecera ---------- */
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 22px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+header .marca{font-size:17px;font-weight:700}
+header .marca span{color:var(--muted);font-weight:400;font-size:14px}
+.crece{flex:1}
+.chip{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--bg);
+  border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{background:var(--verde-claro);border-color:#bfe3ce;color:var(--verde)}
+.chip.no{background:var(--ambar-claro);border-color:#f0dcae;color:var(--ambar)}
+
+main{max-width:1280px;margin:0 auto;padding:20px 22px 90px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:11px;
+  box-shadow:var(--sombra);margin-bottom:18px;overflow:hidden}
+section > .cab{display:flex;align-items:center;gap:11px;padding:12px 16px;border-bottom:1px solid var(--line);background:#fbfcfe}
+section > .cab h2{font-size:15px}
+.paso{width:23px;height:23px;border-radius:50%;background:var(--azul);color:#fff;
+  display:grid;place-items:center;font-size:12.5px;font-weight:700;flex:none}
+.cuerpo{padding:16px}
+.pista{color:var(--muted);font-size:13px;margin:0 0 12px}
+
+/* ---------- zonas de archivo ---------- */
+.zonas{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.zonas{grid-template-columns:1fr}}
+.zona{border:2px dashed #c8d3e2;border-radius:10px;padding:20px;text-align:center;background:#fcfdff;transition:.12s}
+.zona.encima{border-color:var(--azul);background:var(--azul-claro)}
+.zona.lleno{border-style:solid;border-color:#bfe3ce;background:var(--verde-claro);text-align:left}
+.zona h3{font-size:14px;margin-bottom:4px}
+.zona p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.zona .archivo{font-weight:600;color:var(--verde);word-break:break-all;font-size:13.5px}
+
+/* ---------- datos de cabecera ---------- */
+.rejilla{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}
+.campo{display:flex;flex-direction:column;gap:4px}
+.campo label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+
+/* ---------- tablas ---------- */
+.tablaenv{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;white-space:nowrap}
+th{background:#fbfcfe;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;position:sticky;top:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.apagada{opacity:.42}
+tr.aviso td{background:var(--ambar-claro)}
+td .desc{max-width:190px;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap}
+
+/* ---------- resultado ---------- */
+.marcador{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:1px;background:var(--line)}
+@media(max-width:820px){.marcador{grid-template-columns:1fr 1fr}}
+.dato{background:#fff;padding:14px 16px}
+.dato .et{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+.dato .vl{font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:3px}
+.dato.veredicto{color:#fff}
+.dato.veredicto .et{color:rgba(255,255,255,.8)}
+.dato.cuadra{background:var(--verde)}
+.dato.nocuadra{background:var(--rojo)}
+.dato.espera{background:#8a97a8}
+.nota{padding:12px 16px;font-size:13.5px;border-top:1px solid var(--line);background:#fbfcfe;color:var(--muted)}
+.nota b{color:var(--ink)}
+.aviso-caja{margin:0 0 12px;padding:10px 13px;border-radius:8px;font-size:13.5px;
+  background:var(--ambar-claro);border:1px solid #f0dcae;color:#7d5205}
+.aviso-caja.rojo{background:var(--rojo-claro);border-color:#f3c9c4;color:#8c2b20}
+.aviso-caja.azul{background:var(--azul-claro);border-color:#c6dbf4;color:#194e8a}
+.barra{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:13px}
+.oculto{display:none!important}
+code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-claro);
+  padding:2px 7px;border-radius:5px;font-size:13px;color:#194e8a}
+#pie{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
+  padding:9px 22px;font-size:12.5px;color:var(--muted);display:flex;gap:14px;align-items:center;z-index:15}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="marca">Contabilizador de Cargos I <span>· Módulo 2 · calculadora de diferencias</span></div>
+  <div class="crece"></div>
+  <span class="chip" id="chipDatos">Archivo de datos: sin conectar</span>
+  <button id="btnConectar">Conectar archivo de datos</button>
+  <button id="btnNuevo">Cargo nuevo</button>
+</header>
+
+<main>
+
+  <!-- 1 · archivos -->
+  <section>
+    <div class="cab"><span class="paso">1</span><h2>Archivos del cargo</h2></div>
+    <div class="cuerpo">
+      <p class="pista">Arrastra el PDF. Se lee el texto real del archivo, sin OCR. El XPS/OXPS también vale como respaldo.</p>
+      <div class="zonas">
+        <div class="zona" id="zonaCargo" data-tipo="cargo">
+          <h3>Cargo del cliente</h3>
+          <p>Arrastra aquí el PDF del cargo<br>o haz clic para elegirlo</p>
+        </div>
+        <div class="zona" id="zonaFactura" data-tipo="factura">
+          <h3>Factura original (nuestra, de SAP)</h3>
+          <p>Arrastra aquí el PDF de la factura<br>o haz clic para elegirlo</p>
+        </div>
+      </div>
+      <input type="file" id="selArchivo" accept=".pdf,.xps,.oxps" class="oculto">
+      <div class="barra">
+        <button id="btnPegar">Pegar texto a mano…</button>
+        <button id="btnEjemplo" class="oculto">Cargar caso de ejemplo</button>
+        <span id="estadoLectura" class="chip oculto"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · cabecera -->
+  <section id="secCabecera" class="oculto">
+    <div class="cab"><span class="paso">2</span><h2>Datos del cargo</h2>
+      <div class="crece"></div><span class="chip" id="chipMemoria"></span></div>
+    <div class="cuerpo">
+      <div id="avisoRedondeo" class="aviso-caja oculto"></div>
+      <div class="rejilla">
+        <div class="campo"><label>Cliente</label><input id="fCliente"></div>
+        <div class="campo"><label>Nº de cargo</label><input id="fNumCargo"></div>
+        <div class="campo"><label>Nº de factura</label><input id="fNumFactura"></div>
+        <div class="campo"><label>Fecha del cargo</label><input id="fFecha"></div>
+        <div class="campo"><label>Importe SIN IVA del cargo</label><input id="fTotal" class="num"></div>
+        <div class="campo"><label>Tolerancia (€)</label><input id="fTolerancia" class="num" value="0,01"></div>
+        <div class="campo"><label>Base del ZNET</label>
+          <select id="fBase">
+            <option value="100UC">por 100 UC (unidades)</option>
+            <option value="100CJ">por 100 CJ (cajas)</option>
+            <option value="1UC">por 1 UC</option>
+            <option value="1CJ">por 1 CJ</option>
+          </select>
+        </div>
+        <div class="campo"><label>Modo de diferencia por defecto</label>
+          <select id="fModo">
+            <option value="importe">Importe de la línea (ya calculado en el cargo)</option>
+            <option value="precio_ud">Precio correcto por unidad (restar)</option>
+            <option value="precio_cj">Precio correcto por caja (restar)</option>
+            <option value="dif_ud">Diferencia por unidad (multiplicar)</option>
+            <option value="dif_cj">Diferencia por caja (multiplicar)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · lineas -->
+  <section id="secLineas" class="oculto">
+    <div class="cab"><span class="paso">3</span><h2>Líneas y diferencias</h2>
+      <div class="crece"></div>
+      <button id="btnTodas">Marcar todas</button>
+      <button id="btnNinguna">Desmarcar todas</button>
+      <button id="btnAplicarModo">Aplicar el modo a todas</button>
+    </div>
+    <div class="cuerpo" style="padding-bottom:6px">
+      <div id="avisoEmparejado" class="aviso-caja azul oculto"></div>
+      <div class="tablaenv">
+        <table id="tablaLineas">
+          <thead><tr>
+            <th style="width:34px">Sí</th><th>Pos.</th><th>Material</th><th>Descripción</th>
+            <th class="n">Cantidad</th><th class="n">Ud/cj</th><th class="n">P. factura</th>
+            <th>Línea del cargo</th><th>Modo</th><th class="n">Dato del cargo</th>
+            <th class="n">Diferencia</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · resultado -->
+  <section id="secResultado" class="oculto">
+    <div class="cab"><span class="paso">4</span><h2>Cuadre y valores para SAP</h2></div>
+    <div class="marcador" id="marcador"></div>
+    <div class="nota" id="notaCuadre"></div>
+    <div class="cuerpo">
+      <div id="avisosZnet"></div>
+      <div class="tablaenv">
+        <table id="tablaSalida">
+          <thead><tr>
+            <th>Pos.</th><th>Material</th><th>Descripción</th><th class="n">Cantidad</th>
+            <th class="n">ZNET</th><th>por</th><th class="n">Importe que dará SAP</th>
+            <th class="n">Objetivo</th><th class="n">Desvío</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="barra">
+        <button class="primario" id="btnCopiar">Copiar tabla para SAP</button>
+        <button id="btnCopiarZnet">Copiar solo los ZNET</button>
+        <button id="btnGuardar">Guardar en el archivo de datos</button>
+        <span id="estadoCopia" class="chip oculto"></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="pie">
+  <span id="pieEstado">Listo.</span>
+  <span class="crece"></span>
+  <span>Todo se calcula en tu equipo. Nada sale del ordenador.</span>
+</div>
+
+<!-- pdf.js (incrustado en la versión final) -->
+<script id="pdfjsWorkerSrc" type="text/plain">/*__PDFJS_WORKER__*/</script>
+<script type="module">
+/*__PDFJS_MAIN__*/
+try{
+  const src = document.getElementById('pdfjsWorkerSrc').textContent;
+  if(src && src.length > 1000){
+    GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
+  }
+  window.PDFJS = { getDocument };
+}catch(e){ console.error('pdf.js no disponible', e); }
+window.dispatchEvent(new Event('pdfjs-listo'));
+</script>
+
+<script>
+/* =====================================================================
+   Contabilizador de Cargos I — Módulo 2
+   Calculadora de diferencias.
+
+   El cuadre se hace SIEMPRE contra el importe sin IVA del cargo.
+   Mecanismo real en SAP (confirmado con el caso Alimerka 2025-1970008318):
+     ZNET por línea = diferencia x 100 / cantidad     (2 decimales)
+     importe línea  = ZNET x cantidad / 100           (lo que calcula SAP)
+     ZAJU cabecera  = total del cargo - suma de importes de línea
+   ===================================================================== */
+
+/* ---------------------------------------------------------------- útiles */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+const nf = new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
+const nf3 = new Intl.NumberFormat('es-ES',{minimumFractionDigits:0,maximumFractionDigits:3,useGrouping:'always'});
+const eur = v => (v==null||isNaN(v)) ? '—' : nf.format(v)+' €';
+const cant = v => (v==null||isNaN(v)) ? '—' : nf3.format(v);
+
+// "1.234,56" / "-90,720" -> número. Detecta también formato inglés.
+function num(txt){
+  if(txt==null) return NaN;
+  let s = String(txt).replace(/[€\s ]/g,'').trim();
+  if(!s) return NaN;
+  const neg = /^-/.test(s) || /-$/.test(s);
+  s = s.replace(/-/g,'');
+  const coma = s.lastIndexOf(','), punto = s.lastIndexOf('.');
+  if(coma>-1 && punto>-1){
+    if(coma>punto) s = s.replace(/\./g,'').replace(',','.');   // 1.234,56
+    else           s = s.replace(/,/g,'');                      // 1,234.56
+  } else if(coma>-1){
+    // Una sola coma: SIEMPRE decimal. Los documentos de SAP van en formato
+    // español, donde el separador de miles es el punto. Sin esta regla,
+    // "-90,720" (90 € con 3 decimales) se leería como 90.720 €.
+    s = s.replace(',','.');
+  } else if(punto>-1){
+    if(/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g,'');
+  }
+  const v = parseFloat(s);
+  return isNaN(v) ? NaN : (neg ? -v : v);
+}
+const r2 = v => Math.round((v+Number.EPSILON)*100)/100;
+const norm = t => (t||'').toUpperCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g,'')
+  .replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+
+function avisar(msg, ms=3200){
+  const p = $('#pieEstado'); p.textContent = msg;
+  clearTimeout(avisar._t); avisar._t = setTimeout(()=>p.textContent='Listo.', ms);
+}
+
+/* ------------------------------------------------------------ estado app */
+const E = {
+  cargo:   null,   // {numero, cliente, fecha, totalSinIva, ivaPct, lineas:[...], texto}
+  factura: null,   // {numero, fecha, lineas:[...]}
+  filas:   [],     // filas de trabajo (una por línea de factura)
+  memoria: {version:1, clientes:{}, log:[]},
+  handle:  null
+};
+
+/* ==================================================================
+   1 · LECTURA DE ARCHIVOS
+   ================================================================== */
+
+// Agrupa los fragmentos de texto del PDF en filas por coordenada Y.
+async function filasDePDF(file){
+  const doc = await window.PDFJS.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const filas = [];
+  for(let i=1;i<=doc.numPages;i++){
+    const pag = await doc.getPage(i);
+    const cont = await pag.getTextContent();
+    const mapa = new Map();
+    for(const it of cont.items){
+      if(!it.str || !it.str.trim()) continue;
+      const x = it.transform[4], y = it.transform[5];
+      let clave = null;
+      for(const k of mapa.keys()) if(Math.abs(k-y) <= 2.2){ clave = k; break; }
+      if(clave===null){ clave = y; mapa.set(clave,[]); }
+      mapa.get(clave).push({x, s:it.str.trim()});
+    }
+    [...mapa.entries()].sort((a,b)=>b[0]-a[0]).forEach(([y,cs])=>{
+      filas.push({pag:i, y, celdas: cs.sort((a,b)=>a.x-b.x)});
+    });
+  }
+  return filas;
+}
+
+// XPS/OXPS: paquete ZIP con XML por página. Respaldo cuando no hay PDF.
+async function filasDeXPS(file){
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const partes = await leerZip(buf);
+  const filas = [];
+  const paginas = [...partes.keys()].filter(n=>/\.fpage$/i.test(n)).sort();
+  for(let i=0;i<paginas.length;i++){
+    const xml = new TextDecoder('utf-8').decode(partes.get(paginas[i]));
+    const mapa = new Map();
+    for(const m of xml.matchAll(/<Glyphs\b[^>]*\/>/g)){
+      const tag = m[0];
+      const u = /UnicodeString="([^"]*)"/.exec(tag);
+      const ox = /OriginX="([-\d.]+)"/.exec(tag);
+      const oy = /OriginY="([-\d.]+)"/.exec(tag);
+      if(!u || !ox || !oy || !u[1].trim()) continue;
+      const x = parseFloat(ox[1]), y = -parseFloat(oy[1]);
+      let clave=null;
+      for(const k of mapa.keys()) if(Math.abs(k-y)<=3){ clave=k; break; }
+      if(clave===null){ clave=y; mapa.set(clave,[]); }
+      const txt = u[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+      const em  = parseFloat((/FontRenderingEmSize="([\d.]+)"/.exec(tag)||[])[1]) || 10;
+      const ind = (/Indices="([^"]*)"/.exec(tag)||[])[1] || '';
+      for(const parte of trocearGlifos(txt, ind, em, x)) mapa.get(clave).push(parte);
+    }
+    [...mapa.entries()].sort((a,b)=>b[0]-a[0]).forEach(([y,cs])=>{
+      filas.push({pag:i+1, y, celdas: cs.sort((a,b)=>a.x-b.x)});
+    });
+  }
+  return filas;
+}
+
+/* En XPS el texto no lleva espacios: cada carácter puede traer su avance en
+   el atributo Indices ("glifo,avance"), en centésimas de em. Un avance grande
+   es un salto de columna; uno mediano, un espacio entre palabras. Sin esto,
+   una fila entera llega pegada ("102007482 12MANZRELLENO...") y no hay
+   columnas que leer. */
+const SALTO_COLUMNA = 200;        // centésimas de em: hueco entre columnas
+const ANCHO_POR_DEFECTO = 52;
+
+function trocearGlifos(txt, indices, em, x0){
+  const items = indices ? indices.split(';') : [];
+  const avances = [];
+  for(let i=0;i<txt.length;i++){
+    const it = items[i] || '', coma = it.indexOf(',');
+    avances.push(coma >= 0 ? parseFloat(it.slice(coma+1)) : NaN);
+  }
+  // Un umbral fijo confunde las letras anchas (M, W) con espacios. El ancho
+  // normal de glifo se estima del propio texto y el espacio se detecta por
+  // encima de él.
+  const normales = avances.filter(a => isFinite(a) && a <= SALTO_COLUMNA).sort((a,b)=>a-b);
+  const tipico = normales.length ? normales[Math.floor(normales.length*0.6)] : ANCHO_POR_DEFECTO;
+  const saltoPalabra = Math.max(tipico * 1.45, 85);
+
+  const partes = [];
+  let actual = '', x = x0, xIni = x0;
+  for(let i=0;i<txt.length;i++){
+    const avance = avances[i];
+    const ancho = (isFinite(avance) ? avance : tipico) / 100 * em;
+    actual += txt[i];
+    if(isFinite(avance) && avance > SALTO_COLUMNA){
+      if(actual.trim()) partes.push({x:xIni, s:actual.trim()});
+      actual = ''; xIni = x + ancho;
+    } else if(isFinite(avance) && avance > saltoPalabra){
+      actual += ' ';
+    }
+    x += ancho;
+  }
+  if(actual.trim()) partes.push({x:xIni, s:actual.trim()});
+  return partes;
+}
+
+// Lector ZIP mínimo (STORE + DEFLATE con DecompressionStream, nativo en Edge).
+async function leerZip(buf){
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let fin = -1;
+  for(let i=buf.length-22;i>=0 && i>buf.length-66000;i--){
+    if(dv.getUint32(i,true)===0x06054b50){ fin=i; break; }
+  }
+  if(fin<0) throw new Error('El archivo no parece un XPS válido.');
+  const nEnt = dv.getUint16(fin+10,true);
+  let p = dv.getUint32(fin+16,true);
+  const partes = new Map();
+  for(let i=0;i<nEnt;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const metodo = dv.getUint16(p+10,true);
+    const compLen = dv.getUint32(p+20,true);
+    const nomLen = dv.getUint16(p+28,true);
+    const extLen = dv.getUint16(p+30,true);
+    const comLen = dv.getUint16(p+32,true);
+    const desp   = dv.getUint32(p+42,true);
+    const nombre = new TextDecoder().decode(buf.subarray(p+46, p+46+nomLen));
+    p += 46 + nomLen + extLen + comLen;
+    if(!/\.fpage$/i.test(nombre)) continue;
+    const nl = dv.getUint16(desp+26,true), el = dv.getUint16(desp+28,true);
+    const ini = desp + 30 + nl + el;
+    const datos = buf.subarray(ini, ini+compLen);
+    if(metodo===0){ partes.set(nombre, datos); }
+    else if(metodo===8){
+      const ds = new DecompressionStream('deflate-raw');
+      const salida = new Response(new Blob([datos]).stream().pipeThrough(ds));
+      partes.set(nombre, new Uint8Array(await salida.arrayBuffer()));
+    }
+  }
+  return partes;
+}
+
+const filaTexto = f => f.celdas.map(c=>c.s).join(' ');
+const filasTexto = fs => fs.map(filaTexto).join('\n');
+
+/* ==================================================================
+   2 · PARSER DE LA FACTURA (formato SAP de A.Camacho — igual para todos)
+   ================================================================== */
+// Busca el valor que va DEBAJO de una etiqueta, alineado con ella.
+// En estos PDF la etiqueta y su dato están en filas distintas ("FACTURA Nº"
+// arriba, "90224478" debajo), así que un regex sobre el texto plano no vale.
+function valorBajoEtiqueta(filas, reEtiqueta, reValor, margenX = 70, filasAbajo = 4){
+  for(let i=0;i<filas.length;i++){
+    const cel = filas[i].celdas.find(c => reEtiqueta.test(c.s));
+    if(!cel) continue;
+    for(let j=i+1; j<Math.min(filas.length, i+1+filasAbajo); j++){
+      if(filas[j].pag !== filas[i].pag) break;
+      const v = filas[j].celdas.find(c => Math.abs(c.x - cel.x) <= margenX && reValor.test(c.s));
+      if(v) return reValor.exec(v.s)[0];
+    }
+    // por si el dato va en la misma fila, a la derecha de la etiqueta
+    const mismaFila = filas[i].celdas.filter(c => c.x > cel.x).find(c => reValor.test(c.s));
+    if(mismaFila) return reValor.exec(mismaFila.s)[0];
+  }
+  return '';
+}
+
+// "10.080,000 UC" en una sola celda -> ["10.080,000", "UC"].
+// Pasa en el XPS, donde cantidad y unidad no siempre quedan separadas.
+const RE_UM = /^([\d.,]+)\s*(UC|CS|US|KG|UD|L|ML)$/i;
+function separarUnidades(celdas){
+  const salida = [];
+  for(const c of celdas){
+    const m = RE_UM.exec(c.s);
+    if(m){ salida.push({x:c.x, s:m[1]}, {x:c.x+1, s:m[2].toUpperCase()}); }
+    else salida.push(c);
+  }
+  return salida;
+}
+
+function parseFactura(filas){
+  const texto = filasTexto(filas);
+  const numero = valorBajoEtiqueta(filas, /^FACTURA\s*N[ºO°]?$/i, /^\d{6,}$/)
+              || (/FACTURA\s*N[ºO°]\s*\n?\s*(\d{6,})/i.exec(texto) || [])[1] || '';
+  const fecha  = valorBajoEtiqueta(filas, /^FECHA\s*FACT/i, /^\d{2}[.\/]\d{2}[.\/]\d{4}$/)
+              || (/FECHA\s*FACT\.?\s*\n?\s*(\d{2}[.\/]\d{2}[.\/]\d{4})/i.exec(texto) || [])[1] || '';
+
+  const lineas = [];
+  for(const f of filas){
+    const c = separarUnidades(f.celdas);
+    if(c.length < 6) continue;
+    // patrón de línea: pos | material | uds/caja | descripción | cantidad | UM | [p.bruto] p.neto | importe
+    if(!/^\d{1,4}$/.test(c[0].s)) continue;
+    if(!/^\d{5,10}$/.test(c[1].s)) continue;
+    const iUM = c.findIndex(x=>/^(UC|CS|US|KG|UD)$/i.test(x.s));
+    if(iUM < 3) continue;
+    const qty = num(c[iUM-1].s);
+    if(!isFinite(qty) || qty<=0) continue;
+    const numsDcha = c.slice(iUM+1).map(x=>num(x.s)).filter(v=>isFinite(v));
+    if(numsDcha.length < 2) continue;
+    const importe = numsDcha[numsDcha.length-1];
+    const precio  = numsDcha[numsDcha.length-2];
+    const udsCaja = /^\d{1,3}$/.test(c[2].s) ? parseInt(c[2].s,10) : null;
+    const desc = c.slice(3, iUM-1).map(x=>x.s).join(' ').trim();
+    lineas.push({
+      pos: parseInt(c[0].s,10), material: c[1].s, udsCaja,
+      desc, cantidad: qty, um: c[iUM].s.toUpperCase(), precio, importe
+    });
+  }
+  return {numero, fecha, lineas, texto};
+}
+
+/* ==================================================================
+   3 · PARSER DEL CARGO
+   Varía por cliente. Estrategia: buscar filas con importes a la derecha
+   y quedarnos con el importe neto (sin IVA) de cada una.
+   ================================================================== */
+function parseCargo(filas){
+  const texto = filasTexto(filas);
+
+  // --- cabecera ---
+  const numero = (/(?:Número de documento|N[ºo°]\s*documento|Factura n[ºo°])\D{0,40}?(\d{4}-\d{6,}|\d{8,})/i.exec(texto)||[])[1]
+              || (/\b(\d{4}-\d{10})\b/.exec(texto)||[])[1] || '';
+  const fecha  = (/Fecha de documento\D{0,30}?(\d{2}[.\/]\d{2}[.\/]\d{4})/i.exec(texto)||[])[1]
+              || (/\b(\d{2}[.\/]\d{2}[.\/]\d{4})\b/.exec(texto)||[])[1] || '';
+  const refFac = (/Ref\.?\s*Fact\.?\s*:?\s*(\d{6,})/i.exec(texto)||[])[1] || '';
+
+  // cliente = emisor del cargo (el que nos carga)
+  let cliente = '';
+  const mEm = /Emisor factura\s*(?:\d{8,}\s*)?([A-ZÁÉÍÓÚÑ][^\n]{2,60}?)(?:\s*\(ES[A-Z0-9]+\))/i.exec(texto);
+  if(mEm) cliente = mEm[1].trim();
+  if(!cliente){
+    const mA = /^\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,&-]{4,45}?(?:S\.A\.U?\.|S\.L\.U?\.|S\.A\.|S\.L\.))/m.exec(texto);
+    if(mA) cliente = mA[1].trim();
+  }
+
+  // --- total sin IVA ---
+  let total = NaN;
+  for(const re of [/Base imponible total\D{0,20}(-?[\d.,]+)/i,
+                   /Base imponible\D{0,20}(-?[\d.,]+)/i,
+                   /Neto total factura\D{0,20}(-?[\d.,]+)/i,
+                   /Total\s+sin\s+IVA\D{0,20}(-?[\d.,]+)/i,
+                   /Base\D{0,12}(-?[\d.,]+)/i]){
+    const m = re.exec(texto);
+    if(m){ const v = Math.abs(num(m[1])); if(isFinite(v) && v>0){ total = v; break; } }
+  }
+  const ivaPct = num((/IVA\D{0,10}(\d{1,2}[,.]\d{1,3})\s*%?/i.exec(texto)||[])[1]) || null;
+
+  // --- líneas: filas con nº de línea a la izquierda y varios importes a la derecha ---
+  const lineas = [];
+  for(const f of filas){
+    const c = f.celdas;
+    if(c.length < 4) continue;
+    const cifras = [];
+    for(let i=c.length-1;i>=0;i--){
+      const v = num(c[i].s);
+      if(isFinite(v) && /[\d]/.test(c[i].s) && /^-?[\d.,]+$/.test(c[i].s)) cifras.unshift({i, v});
+      else break;
+    }
+    if(cifras.length < 2) continue;
+    const desc = c.slice(0, cifras[0].i).map(x=>x.s)
+                  .filter(s=>!/^0+$/.test(s) && !/^\d{1,3}$/.test(s)).join(' ').trim();
+    if(desc.length < 4) continue;
+    // el importe neto de línea es el último; la cantidad, la primera cifra si es "1,000"-como
+    const importe = Math.abs(cifras[cifras.length-1].v);
+    if(!isFinite(importe) || importe===0) continue;
+    const nLin = /^\d{1,3}$/.test(c[0].s) ? parseInt(c[0].s,10)
+               : (c[1] && /^\d{1,3}$/.test(c[1].s) ? parseInt(c[1].s,10) : lineas.length+1);
+    lineas.push({n:nLin, desc, importe, precioCorrecto:null, difUnitaria:null, y:f.y, pag:f.pag, texto:filaTexto(f)});
+  }
+
+  // --- textos "DIF.DE PRECIO ES A x,xxx": precio correcto por línea ---
+  const precios = [];
+  for(const f of filas){
+    const t = filaTexto(f);
+    const m = /(?:ES A|PRECIO CORRECTO|DEBE SER|CORRECTO ES)\s*:?\s*(-?[\d.,]+)/i.exec(t);
+    if(m) precios.push({y:f.y, pag:f.pag, v:num(m[1]), t});
+  }
+  // cada texto pertenece a la línea inmediatamente superior de la misma página
+  for(const p of precios){
+    let mejor=null;
+    for(const l of lineas){
+      if(l.pag!==p.pag) continue;
+      if(l.y > p.y && (!mejor || l.y < mejor.y)) mejor = l;
+    }
+    if(mejor && mejor.precioCorrecto==null) mejor.precioCorrecto = p.v;
+  }
+
+  // descarta filas de resumen coladas (IVA, totales) usando el total
+  const limpias = lineas.filter(l => !/^(IVA|TOTAL|BASE|IMPORTE)/i.test(l.desc));
+  return {numero, cliente, fecha, refFactura:refFac, totalSinIva:total, ivaPct,
+          lineas:limpias, texto};
+}
+
+/* ==================================================================
+   4 · EMPAREJADO factura <-> cargo
+   ================================================================== */
+function parecido(a,b){
+  const A = new Set(norm(a).split(' ').filter(t=>t.length>2));
+  const B = new Set(norm(b).split(' ').filter(t=>t.length>2));
+  if(!A.size || !B.size) return 0;
+  let comunes = 0; A.forEach(t=>{ if(B.has(t)) comunes++; });
+  return comunes / Math.min(A.size, B.size);
+}
+
+function emparejar(){
+  const fac = E.factura?.lineas || [], car = E.cargo?.lineas || [];
+  const usados = new Set();
+  E.filas = fac.map((lf, idx) => {
+    let mejor = -1, mejorPunt = -1;
+    car.forEach((lc, j) => {
+      if(usados.has(j)) return;
+      let p = parecido(lf.desc, lc.desc);
+      if(j === idx) p += 0.45;                 // mismo orden: fuerte indicio
+      if(Math.abs(j-idx) <= 1) p += 0.10;
+      if(p > mejorPunt){ mejorPunt = p; mejor = j; }
+    });
+    if(mejor >= 0 && mejorPunt >= 0.25) usados.add(mejor); else mejor = -1;
+    return {
+      fac: lf,
+      cargoIdx: mejor,
+      afectada: mejor >= 0,
+      modo: $('#fModo').value,
+      manual: null            // valor tecleado a mano (dato del cargo)
+    };
+  });
+  const sin = car.length - usados.size;
+  const av = $('#avisoEmparejado');
+  if(sin > 0){
+    av.classList.remove('oculto');
+    av.innerHTML = `El cargo tiene <b>${car.length}</b> líneas y he emparejado <b>${usados.size}</b>. `+
+      `Revisa la columna «Línea del cargo»: hay ${sin} sin asignar.`;
+  } else if(car.length){
+    av.classList.remove('oculto');
+    av.innerHTML = `Emparejadas <b>${usados.size}</b> líneas del cargo con la factura. Comprueba que la correspondencia es la correcta.`;
+  } else av.classList.add('oculto');
+}
+
+/* ==================================================================
+   5 · CÁLCULO
+   ================================================================== */
+function baseZnet(){
+  const v = $('#fBase').value;
+  return { por: v.startsWith('100') ? 100 : 1, um: v.endsWith('CJ') ? 'CJ' : 'UC' };
+}
+
+// cantidad de la línea expresada en la unidad de la base del ZNET
+function cantidadEnBase(fila){
+  const {um} = baseZnet();
+  const lf = fila.fac;
+  if(um === 'CJ'){
+    if(lf.um === 'CS') return lf.cantidad;
+    return lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN;
+  }
+  if(lf.um === 'CS') return lf.udsCaja ? lf.cantidad * lf.udsCaja : NaN;
+  return lf.cantidad;
+}
+
+// dato que aporta el cargo para esa línea, según el modo
+function datoCargo(fila){
+  if(fila.manual != null && fila.manual !== '') return num(fila.manual);
+  const lc = fila.cargoIdx >= 0 ? E.cargo.lineas[fila.cargoIdx] : null;
+  if(!lc) return NaN;
+  switch(fila.modo){
+    case 'importe':               return lc.importe;
+    case 'precio_ud':
+    case 'precio_cj':             return lc.precioCorrecto != null ? lc.precioCorrecto : NaN;
+    case 'dif_ud':
+    case 'dif_cj':                return lc.difUnitaria != null ? lc.difUnitaria : NaN;
+  }
+  return NaN;
+}
+
+function diferenciaDe(fila){
+  const d = datoCargo(fila);
+  if(!isFinite(d)) return NaN;
+  const lf = fila.fac;
+  const uds = lf.um === 'CS' && lf.udsCaja ? lf.cantidad * lf.udsCaja : lf.cantidad;
+  const cjs = lf.um === 'CS' ? lf.cantidad : (lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN);
+  switch(fila.modo){
+    case 'importe':    return Math.abs(d);
+    case 'precio_ud':  return (lf.precio - d) * uds;
+    case 'dif_ud':     return Math.abs(d) * uds;
+    case 'precio_cj':  return (lf.precio * (lf.udsCaja||1) - d) * cjs;
+    case 'dif_cj':     return Math.abs(d) * cjs;
+  }
+  return NaN;
+}
+
+function calcular(){
+  const {por, um} = baseZnet();
+  const tol = Math.abs(num($('#fTolerancia').value)) || 0.01;
+  const total = num($('#fTotal').value);
+  const salida = [];
+  let suma = 0, avisos = [];
+
+  for(const fila of E.filas){
+    if(!fila.afectada) continue;
+    const objetivo = r2(diferenciaDe(fila));
+    const q = cantidadEnBase(fila);
+    let znet = NaN, importe = NaN;
+    if(isFinite(objetivo) && isFinite(q) && q>0){
+      znet = r2(objetivo * por / q);
+      importe = r2(znet * q / por);
+      suma = r2(suma + importe);
+    }
+    const desvio = (isFinite(importe)&&isFinite(objetivo)) ? r2(importe - objetivo) : NaN;
+    const fal = isFinite(desvio) && Math.abs(desvio) > 0.0001;
+    if(fal) avisos.push({fila, objetivo, importe, desvio, paso: r2(q/por*0.01)});
+    salida.push({fila, objetivo, q, znet, importe, desvio, por, um, alerta:fal});
+  }
+
+  const zaju = isFinite(total) ? r2(total - suma) : NaN;
+  pintarResultado({salida, suma, total, zaju, tol, avisos});
+}
+
+/* ==================================================================
+   6 · PINTADO
+   ================================================================== */
+function pintarCabecera(){
+  $('#secCabecera').classList.remove('oculto');
+  const c = E.cargo, f = E.factura;
+  if(c){
+    if(!$('#fCliente').value) $('#fCliente').value = c.cliente || '';
+    if(!$('#fNumCargo').value) $('#fNumCargo').value = c.numero || '';
+    if(!$('#fFecha').value) $('#fFecha').value = c.fecha || '';
+    if(!$('#fTotal').value && isFinite(c.totalSinIva)) $('#fTotal').value = nf.format(c.totalSinIva);
+  }
+  if(f && !$('#fNumFactura').value) $('#fNumFactura').value = f.numero || '';
+
+  // memoria del cliente
+  const clave = norm($('#fCliente').value);
+  const mem = E.memoria.clientes[clave];
+  const chip = $('#chipMemoria');
+  if(mem){
+    $('#fModo').value = mem.modo || $('#fModo').value;
+    if(mem.base) $('#fBase').value = mem.base;
+    chip.className = 'chip ok';
+    chip.textContent = `Memoria: ${mem.nombre} · ${etiquetaModo(mem.modo)} · ${mem.veces||1} cargo(s)`;
+  } else {
+    chip.className = 'chip no';
+    chip.textContent = clave ? 'Cliente nuevo: se recordará el modo al guardar' : '';
+  }
+
+  // cargo por redondeo
+  const tot = num($('#fTotal').value);
+  const av = $('#avisoRedondeo');
+  if(isFinite(tot) && tot > 0 && tot < 1){
+    av.classList.remove('oculto');
+    av.innerHTML = `<b>Posible cargo por redondeo.</b> El importe sin IVA son ${eur(tot)}. `+
+      `Lo habitual en estos casos es conformarlo sin desmenuzar las líneas.`;
+  } else av.classList.add('oculto');
+}
+
+const MODOS = {
+  importe:  'Importe de línea',
+  precio_ud:'Precio correcto/ud',
+  precio_cj:'Precio correcto/caja',
+  dif_ud:   'Diferencia/ud',
+  dif_cj:   'Diferencia/caja'
+};
+const etiquetaModo = m => MODOS[m] || m || '—';
+
+function pintarLineas(){
+  $('#secLineas').classList.remove('oculto');
+  const tb = $('#tablaLineas tbody');
+  tb.innerHTML = '';
+  E.filas.forEach((fila, i) => {
+    const lf = fila.fac;
+    const tr = document.createElement('tr');
+    if(!fila.afectada) tr.className = 'apagada';
+    const dato = datoCargo(fila), dif = diferenciaDe(fila);
+    const opciones = ['<option value="-1">— sin asignar —</option>']
+      .concat((E.cargo?.lineas||[]).map((lc,j)=>
+        `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${lc.desc.slice(0,34)} · ${eur(lc.importe)}</option>`));
+    tr.innerHTML = `
+      <td><input type="checkbox" data-i="${i}" class="chkAf" ${fila.afectada?'checked':''}></td>
+      <td>${lf.pos}</td>
+      <td>${lf.material}</td>
+      <td><span class="desc" title="${lf.desc.replace(/"/g,'')}">${lf.desc}</span></td>
+      <td class="n">${cant(lf.cantidad)} ${lf.um}</td>
+      <td class="n">${lf.udsCaja ?? '—'}</td>
+      <td class="n">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
+      <td><select data-i="${i}" class="selCargo">${opciones.join('')}</select></td>
+      <td><select data-i="${i}" class="selModo">${Object.entries(MODOS).map(([k,v])=>
+            `<option value="${k}" ${fila.modo===k?'selected':''}>${v}</option>`).join('')}</select></td>
+      <td class="n"><input class="num datoMan" data-i="${i}" style="width:92px"
+            value="${isFinite(dato)?nf3.format(dato):''}" placeholder="—"></td>
+      <td class="n"><b>${isFinite(dif)?eur(dif):'—'}</b></td>`;
+    tb.appendChild(tr);
+  });
+
+  $$('.chkAf').forEach(el=>el.onchange = e=>{
+    E.filas[+e.target.dataset.i].afectada = e.target.checked; refrescar(); });
+  $$('.selCargo').forEach(el=>el.onchange = e=>{
+    const f = E.filas[+e.target.dataset.i];
+    f.cargoIdx = +e.target.value; f.manual = null;
+    if(f.cargoIdx<0) f.afectada = false; refrescar(); });
+  $$('.selModo').forEach(el=>el.onchange = e=>{
+    const f = E.filas[+e.target.dataset.i]; f.modo = e.target.value; f.manual = null; refrescar(); });
+  $$('.datoMan').forEach(el=>el.onchange = e=>{
+    E.filas[+e.target.dataset.i].manual = e.target.value; refrescar(); });
+}
+
+function pintarResultado({salida, suma, total, zaju, tol, avisos}){
+  $('#secResultado').classList.remove('oculto');
+  const hayTotal = isFinite(total);
+  const desc = hayTotal ? r2(total - suma) : NaN;
+  const cuadra = hayTotal && Math.abs(desc) <= tol + 1e-9;
+
+  $('#marcador').innerHTML = `
+    <div class="dato veredicto ${!hayTotal?'espera':(cuadra?'cuadra':'nocuadra')}">
+      <div class="et">Cuadre contra el cargo (sin IVA)</div>
+      <div class="vl">${!hayTotal?'Falta el total':(cuadra?'CUADRA':'NO CUADRA')}</div></div>
+    <div class="dato"><div class="et">Suma de las líneas</div><div class="vl">${eur(suma)}</div></div>
+    <div class="dato"><div class="et">Importe del cargo</div><div class="vl">${hayTotal?eur(total):'—'}</div></div>
+    <div class="dato"><div class="et">Descuadre</div>
+      <div class="vl" style="color:${!hayTotal?'inherit':(cuadra?'var(--verde)':'var(--rojo)')}">
+        ${hayTotal?(desc>=0?'+':'')+eur(desc):'—'}</div></div>`;
+
+  const nota = $('#notaCuadre');
+  if(!hayTotal){
+    nota.innerHTML = 'Introduce el <b>importe sin IVA del cargo</b> en el paso 2 para poder cuadrar.';
+  } else if(Math.abs(zaju) < 0.005){
+    nota.innerHTML = 'Las líneas suman exactamente el importe del cargo. <b>No hace falta ZAJU.</b>';
+  } else {
+    nota.innerHTML = `Las líneas llegan a ${eur(suma)}. Para cerrar el cargo añade en cabecera `+
+      `<code class="zaju">ZAJU ${(zaju>=0?'+':'')}${nf.format(zaju)} €</code> y el abono quedará en ${eur(total)}.`;
+  }
+
+  const cajaAv = $('#avisosZnet');
+  cajaAv.innerHTML = '';
+  if(avisos.length){
+    const d = document.createElement('div');
+    d.className = 'aviso-caja';
+    d.innerHTML = `<b>${avisos.length} línea(s) no alcanzan el importe exacto con un ZNET de 2 decimales.</b><br>` +
+      avisos.map(a=>`Pos. ${a.fila.fac.pos}: objetivo ${eur(a.objetivo)}, SAP dará ${eur(a.importe)} `+
+        `(${(a.desvio>=0?'+':'')}${nf.format(a.desvio)} €). Cada céntimo de ZNET mueve ${eur(a.paso)} en esa línea.`).join('<br>');
+    cajaAv.appendChild(d);
+  }
+
+  const tb = $('#tablaSalida tbody'); tb.innerHTML='';
+  for(const s of salida){
+    const tr = document.createElement('tr');
+    if(s.alerta) tr.className = 'aviso';
+    tr.innerHTML = `
+      <td>${s.fila.fac.pos}</td><td>${s.fila.fac.material}</td>
+      <td><span class="desc">${s.fila.fac.desc}</span></td>
+      <td class="n">${cant(s.q)}</td>
+      <td class="n"><b>${isFinite(s.znet)?nf.format(s.znet):'—'}</b></td>
+      <td>${s.por} ${s.um}</td>
+      <td class="n">${eur(s.importe)}</td>
+      <td class="n">${eur(s.objetivo)}</td>
+      <td class="n">${isFinite(s.desvio)&&s.desvio!==0?(s.desvio>0?'+':'')+nf.format(s.desvio):'—'}</td>`;
+    tb.appendChild(tr);
+  }
+  E.ultimaSalida = {salida, suma, total, zaju};
+}
+
+function refrescar(){ pintarCabecera(); pintarLineas(); calcular(); }
+
+/* ==================================================================
+   7 · PERSISTENCIA (File System Access API, con plan B)
+   ================================================================== */
+const idb = {
+  db:null,
+  async abrir(){
+    if(this.db) return this.db;
+    return this.db = await new Promise((ok,ko)=>{
+      const p = indexedDB.open('cargosI',1);
+      p.onupgradeneeded = ()=>p.result.createObjectStore('kv');
+      p.onsuccess = ()=>ok(p.result); p.onerror = ()=>ko(p.error);
+    });
+  },
+  async set(k,v){ const db=await this.abrir(); return new Promise(ok=>{
+    const t=db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=ok; }); },
+  async get(k){ const db=await this.abrir(); return new Promise(ok=>{
+    const t=db.transaction('kv','readonly'); const r=t.objectStore('kv').get(k); r.onsuccess=()=>ok(r.result); }); }
+};
+
+async function conectarDatos(){
+  if(!window.showSaveFilePicker){
+    avisar('Este navegador no permite guardar directo: usaré descarga/carga manual.');
+    return descargarDatos();
+  }
+  try{
+    const h = await window.showSaveFilePicker({
+      suggestedName:'contabilizador_cargos_I.json',
+      types:[{description:'Datos del contabilizador', accept:{'application/json':['.json']}}]
+    });
+    E.handle = h; await idb.set('handle', h);
+    await cargarDesdeHandle(true);
+    await guardarDatos();
+    marcarChipDatos(h.name);
+  }catch(e){ if(e.name!=='AbortError') avisar('No se pudo conectar el archivo: '+e.message); }
+}
+
+async function cargarDesdeHandle(silencioso){
+  try{
+    const f = await E.handle.getFile();
+    if(f.size > 0){
+      const j = JSON.parse(await f.text());
+      if(j && j.clientes) E.memoria = Object.assign(E.memoria, j);
+    }
+  }catch(e){ if(!silencioso) avisar('No se pudo leer el archivo de datos.'); }
+}
+
+async function guardarDatos(){
+  E.memoria.version = 1;
+  if(E.handle){
+    try{
+      if(E.handle.queryPermission){
+        const p = await E.handle.queryPermission({mode:'readwrite'});
+        if(p !== 'granted'){
+          const r = await E.handle.requestPermission({mode:'readwrite'});
+          if(r !== 'granted') throw new Error('permiso denegado');
+        }
+      }
+      const w = await E.handle.createWritable();
+      await w.write(JSON.stringify(E.memoria,null,2)); await w.close();
+      avisar('Guardado en '+E.handle.name);
+      return true;
+    }catch(e){ avisar('No se pudo escribir: '+e.message+'. Usa descarga manual.'); }
+  }
+  return false;
+}
+
+function descargarDatos(){
+  const b = new Blob([JSON.stringify(E.memoria,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = 'contabilizador_cargos_I.json'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function marcarChipDatos(nombre){
+  const c = $('#chipDatos');
+  if(nombre){ c.className='chip ok'; c.textContent='Datos: '+nombre; }
+  else { c.className='chip'; c.textContent='Archivo de datos: sin conectar'; }
+}
+
+function recordarCliente(){
+  const clave = norm($('#fCliente').value);
+  if(!clave) return;
+  const previo = E.memoria.clientes[clave] || {};
+  E.memoria.clientes[clave] = {
+    nombre: $('#fCliente').value.trim(),
+    modo: $('#fModo').value,
+    base: $('#fBase').value,
+    veces: (previo.veces||0)+1,
+    ultimo: new Date().toISOString()
+  };
+  E.memoria.log = E.memoria.log || [];
+  E.memoria.log.push({
+    ts:new Date().toISOString(), accion:'calculo_cuadrado',
+    cliente:$('#fCliente').value.trim(), cargo:$('#fNumCargo').value,
+    factura:$('#fNumFactura').value, total:num($('#fTotal').value),
+    suma:E.ultimaSalida?.suma, zaju:E.ultimaSalida?.zaju
+  });
+}
+
+/* ==================================================================
+   8 · SALIDA / COPIAR
+   ================================================================== */
+function tsvSalida(){
+  const u = E.ultimaSalida; if(!u) return '';
+  const cab = ['Pos.','Material','Descripción','Cantidad','ZNET','por','Importe SAP','Objetivo'];
+  const fil = u.salida.map(s=>[
+    s.fila.fac.pos, s.fila.fac.material, s.fila.fac.desc,
+    nf3.format(s.q), nf.format(s.znet), s.por+' '+s.um,
+    nf.format(s.importe), nf.format(s.objetivo)
+  ].join('\t'));
+  let txt = [cab.join('\t'), ...fil].join('\n');
+  if(isFinite(u.zaju) && Math.abs(u.zaju) >= 0.005)
+    txt += `\n\nZAJU (cabecera)\t${nf.format(u.zaju)}`;
+  txt += `\nSuma líneas\t${nf.format(u.suma)}\nImporte del cargo\t${nf.format(u.total)}`;
+  return txt;
+}
+
+async function copiar(txt, msg){
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){
+    const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  const c=$('#estadoCopia'); c.className='chip ok'; c.textContent=msg;
+  setTimeout(()=>c.classList.add('oculto'), 2600); c.classList.remove('oculto');
+}
+
+/* ==================================================================
+   9 · ARRANQUE Y EVENTOS
+   ================================================================== */
+let tipoPendiente = 'cargo';
+
+async function procesarArchivo(file, tipo){
+  const est = $('#estadoLectura');
+  est.classList.remove('oculto'); est.className='chip'; est.textContent='Leyendo '+file.name+'…';
+  try{
+    const esXPS = /\.(xps|oxps)$/i.test(file.name);
+    const filas = esXPS ? await filasDeXPS(file) : await filasDePDF(file);
+    if(tipo === 'cargo'){
+      E.cargo = parseCargo(filas);
+      const z = $('#zonaCargo');
+      z.className = 'zona lleno';
+      z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">${file.name}</p>
+        <p>${E.cargo.lineas.length} línea(s) · total sin IVA ${eur(E.cargo.totalSinIva)}</p>`;
+    } else {
+      E.factura = parseFactura(filas);
+      const z = $('#zonaFactura');
+      z.className = 'zona lleno';
+      z.innerHTML = `<h3>Factura original</h3><p class="archivo">${file.name}</p>
+        <p>${E.factura.lineas.length} línea(s) · factura ${E.factura.numero||'—'}</p>`;
+    }
+    est.className='chip ok'; est.textContent='Leído: '+file.name;
+    if(E.factura){ emparejar(); refrescar(); }
+    else if(E.cargo){ pintarCabecera(); }
+  }catch(e){
+    est.className='chip no'; est.textContent='Error leyendo '+file.name+': '+e.message;
+    console.error(e);
+  }
+}
+
+function montarZona(el){
+  const tipo = el.dataset.tipo;
+  el.addEventListener('click', ()=>{ tipoPendiente = tipo; $('#selArchivo').click(); });
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev, e=>{
+    e.preventDefault(); el.classList.add('encima'); }));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev, e=>{
+    e.preventDefault(); el.classList.remove('encima'); }));
+  el.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files[0]; if(f) procesarArchivo(f, tipo); });
+}
+
+window.addEventListener('pdfjs-listo', async ()=>{
+  montarZona($('#zonaCargo')); montarZona($('#zonaFactura'));
+  $('#selArchivo').addEventListener('change', e=>{
+    const f = e.target.files[0]; if(f) procesarArchivo(f, tipoPendiente); e.target.value=''; });
+
+  $('#btnConectar').onclick = conectarDatos;
+  $('#btnNuevo').onclick = ()=>location.reload();
+  $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ if(f.cargoIdx>=0) f.afectada=true; }); refrescar(); };
+  $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); refrescar(); };
+  $('#btnAplicarModo').onclick = ()=>{ const m=$('#fModo').value;
+    E.filas.forEach(f=>{ f.modo=m; f.manual=null; }); refrescar(); };
+  $('#btnCopiar').onclick = ()=>copiar(tsvSalida(),'Tabla copiada');
+  $('#btnCopiarZnet').onclick = ()=>copiar(
+    (E.ultimaSalida?.salida||[]).map(s=>nf.format(s.znet)).join('\n'), 'ZNET copiados');
+  $('#btnGuardar').onclick = async ()=>{ recordarCliente();
+    if(!await guardarDatos()) descargarDatos(); };
+  $('#btnPegar').onclick = pegarTexto;
+
+  ['fTotal','fTolerancia','fBase','fCliente','fModo'].forEach(id=>{
+    $('#'+id).addEventListener('change', ()=>{ if(E.filas.length) refrescar(); else pintarCabecera(); });
+  });
+
+  // reconectar el archivo de datos de sesiones anteriores
+  try{
+    const h = await idb.get('handle');
+    if(h){
+      const p = h.queryPermission ? await h.queryPermission({mode:'readwrite'}) : 'granted';
+      if(p === 'granted'){ E.handle = h; await cargarDesdeHandle(true); marcarChipDatos(h.name); }
+      else { marcarChipDatos(null); $('#chipDatos').textContent = 'Datos: pulsa para reconectar'; }
+    }
+  }catch(e){}
+});
+
+/* Ganchos para las pruebas automáticas y para depurar desde la consola. */
+window.E = E;
+window.__num = num;
+window.__elegirZona = t => { tipoPendiente = t; };
+
+function pegarTexto(){
+  const t = prompt('Pega aquí el texto del cargo (una línea por artículo, con el importe al final):');
+  if(!t) return;
+  const lineas = [];
+  t.split('\n').forEach((l,i)=>{
+    const m = /^(.*?)[\s\t]+(-?[\d.,]+)\s*€?$/.exec(l.trim());
+    if(m && norm(m[1]).length>3){
+      lineas.push({n:i+1, desc:m[1].trim(), importe:Math.abs(num(m[2])), precioCorrecto:null, difUnitaria:null, y:-i, pag:1, texto:l});
+    }
+  });
+  if(!lineas.length){ avisar('No he reconocido ninguna línea en ese texto.'); return; }
+  E.cargo = Object.assign(E.cargo||{numero:'',cliente:'',fecha:'',totalSinIva:NaN}, {lineas, texto:t});
+  const z=$('#zonaCargo'); z.className='zona lleno';
+  z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">texto pegado a mano</p><p>${lineas.length} línea(s)</p>`;
+  if(E.factura){ emparejar(); refrescar(); } else pintarCabecera();
+}
+</script>
+</body>
+</html>
