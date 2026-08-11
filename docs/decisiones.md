@@ -253,3 +253,24 @@ El libro lleva cuatro hojas: **Cargos** (una fila por cargo, con la columna
 `mailto:`), **Calculadora** (el botón que abre el HTML y el recordatorio de la
 fórmula) y **Registro** (el log append-only). Cabecera fija, autofiltro y formato
 de moneda.
+
+## Aviso antes de sobrescribir el Excel (corrección de un fallo real)
+
+Un usuario conectó «Excel» apuntando a un archivo que ya tenía sus cargos
+trabajados, y el archivo quedó vacío. Causa: **«Conectar Excel» no lee el
+archivo elegido, lo sustituye entero** por lo que la herramienta tiene cargado
+en ese momento — a diferencia de «Conectar archivo de datos» (JSON), que si el
+archivo elegido ya existe, primero lo **lee** y solo después escribe. Si la
+sesión no tenía el JSON reconectado, la herramienta tenía 0 cargos en memoria,
+y ese 0 fue lo que se escribió encima del Excel real.
+
+Corrección: antes de la primera escritura, si el archivo elegido ya tiene
+contenido, se pide confirmación explícita con `confirm()`, indicando cuántos
+cargos hay cargados ahora mismo. Si son 0, el aviso lo dice sin rodeos y
+recomienda cancelar y conectar primero el archivo de datos. Solo se escribe si
+el usuario confirma después de leer eso.
+
+Esto no convierte el Excel en algo que se pueda leer de vuelta — sigue siendo
+un reflejo de solo escritura, por las razones ya explicadas (dos escritores
+sobre el mismo archivo pierden trabajo tarde o temprano). Lo que evita es que
+la sustitución ocurra **en silencio**.

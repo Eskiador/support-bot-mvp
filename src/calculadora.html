@@ -2433,6 +2433,16 @@ function hojasDelLibro(){
   ];
 }
 
+// «Conectar Excel» NO lee el archivo que se elige: lo sustituye entero por lo
+// que la herramienta tiene cargado en ese momento (ver escribirExcel). Si se
+// elige un archivo que ya existe, hay que avisar ANTES de escribir encima, o
+// se pierde su contenido en silencio — sobre todo si esta sesión todavía no
+// tiene cargos cargados (archivo de datos sin reconectar), porque entonces
+// el archivo elegido se vaciaría por completo.
+async function archivoTieneContenido(h){
+  try{ const f = await h.getFile(); return f.size > 200; }catch(e){ return false; }
+}
+
 async function conectarExcel(){
   if(!window.showSaveFilePicker){ descargarExcel(); return; }
   try{
@@ -2440,6 +2450,19 @@ async function conectarExcel(){
       suggestedName:'Cargos_I.xlsx',
       types:[{description:'Libro de Excel', accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]
     });
+    if(await archivoTieneContenido(h)){
+      const nCargos = Object.keys(E.memoria.cargos || {}).length;
+      const aviso = nCargos === 0
+        ? `Ese archivo ya tiene contenido, y ahora mismo esta herramienta NO tiene `+
+          `ningún cargo cargado (¿has conectado ya el archivo de datos JSON en esta `+
+          `sesión?).\n\nEste botón no lee el Excel: lo sustituye entero. Si continúas, `+
+          `el archivo se quedará VACÍO y perderás lo que tuviera.\n\nCancela, conecta `+
+          `primero el archivo de datos, y vuelve a intentarlo.`
+        : `Ese archivo ya tiene contenido. Este botón no lo lee: lo sustituye entero por `+
+          `los ${nCargos} cargo(s) que tiene ahora mismo la herramienta. Cualquier cambio `+
+          `hecho a mano en ese Excel se perderá.\n\n¿Seguro que quieres continuar?`;
+      if(!confirm(aviso)){ avisar('Cancelado. No se ha tocado el archivo.'); return; }
+    }
     E.excel = h; await idb.set('excel', h);
     await escribirExcel(true);
   }catch(e){ if(e.name !== 'AbortError') avisar('No se pudo conectar el Excel: '+e.message); }
@@ -2601,6 +2624,8 @@ window.__elegirZona = t => { tipoPendiente = t; };
 window.__textoCorreo = textoCorreo;
 window.__buscarDoc = buscarDoc;
 window.__descargarExcel = descargarExcel;
+window.__archivoTieneContenido = archivoTieneContenido;
+window.__conectarExcel = conectarExcel;
 window.__cambiarVista = cambiarVista;
 
 /* ---------------------------------------------- cargo escrito a mano */
