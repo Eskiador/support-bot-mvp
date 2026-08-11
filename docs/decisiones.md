@@ -195,3 +195,26 @@ abiertos, y el no conforme no se cierra hasta reclamarlo.
 Se genera con `mailto:`, que abre Outlook con destinatario, asunto y cuerpo ya
 escritos. **El PDF no se puede adjuntar desde el navegador**: eso queda a mano, y
 la ficha lo recuerda en pantalla. También hay botón para copiar solo el texto.
+
+## Carpeta de PDF conectada
+
+En vez de una macro en Excel (que además suele estar bloqueada en equipos de
+trabajo), la carpeta de cargos se conecta con la misma API que ya guarda el JSON.
+Se indexa una vez, recursivamente, y cada cargo encuentra su archivo por el
+nombre: se normalizan nombre y asignación quitando todo lo que no sea letra o
+número, y se busca la asignación dentro del nombre del archivo. Si hay varios
+candidatos, gana el que además lleve el cliente y, entre esos, el nombre más
+corto. Las asignaciones de menos de 5 caracteres se descartan para no provocar
+falsos positivos.
+
+Con eso, cada fila de la cola tiene su botón **Ver PDF**, y la ficha añade
+**Calcular con este PDF**, que lo abre directamente en la calculadora.
+
+Limitaciones reales:
+
+- El navegador **no da rutas absolutas**. Para los enlaces del Excel exportado hay
+  que teclear una vez la ruta de la carpeta en la unidad.
+- Edge **vuelve a pedir permiso** de lectura de la carpeta cada vez que se abre el
+  archivo. Es un clic, y la herramienta lo pide sola al arrancar.
+- La columna «Abrir» del Excel usa `=HIPERVINCULO(...;...)`, con el nombre y el
+  separador del Excel **en español**.
