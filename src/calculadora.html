@@ -1728,6 +1728,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
     E.indice = archivos.map(f=>({
       nombre:f.name, ruta:f.webkitRelativePath || f.name, clave:clavePdf(f.name), file:f
     }));
+    E.mapaDocs = null;
     pintarCarpeta(); pintarCola();
     avisar(`${E.indice.length} archivos indexados (solo para esta sesión).`);
   });
@@ -1807,30 +1808,8 @@ window.addEventListener('pdfjs-listo', async ()=>{
     }
   }catch(e){}
 
-  // reconectar la carpeta de PDF de sesiones anteriores (necesita un clic:
-  // el navegador no devuelve el permiso de lectura solo)
-  try{
-    const dir = await idb.get('carpeta');
-    if(dir){
-      const p = dir.queryPermission ? await dir.queryPermission({mode:'read'}) : 'granted';
-      if(p === 'granted'){ E.carpeta = dir; await releerCarpeta(); }
-      else {
-        const z = $('#zonaCarpeta');
-        z.innerHTML = `<h3>Carpeta de PDF</h3>
-          <p>Guardada de la última vez: <b>${dir.name}</b>.<br>
-             Edge pide permiso otra vez al abrir el archivo.</p>
-          <div class="barra" style="justify-content:center">
-            <button class="primario" id="btnPermiso">Volver a dar permiso</button></div>`;
-        $('#btnPermiso').onclick = async ()=>{
-          const r = await dir.requestPermission({mode:'read'});
-          if(r === 'granted'){ E.carpeta = dir; await releerCarpeta(); }
-          else avisar('Sin permiso no puedo abrir los PDF.');
-        };
-      }
-    }
-  }catch(e){}
-
-  // reconectar el archivo de datos de sesiones anteriores
+  // El archivo de datos va PRIMERO: dentro viene el índice de la carpeta, y sin
+  // él habría que releer los 25.000 archivos del disco en cada arranque.
   try{
     const h = await idb.get('handle');
     if(h){
@@ -1840,6 +1819,39 @@ window.addEventListener('pdfjs-listo', async ()=>{
         if(E.memoria.rutaHtml) $('#fRutaHtml').value = E.memoria.rutaHtml;
         pintarCola(); pintarComerciales(); }
       else { marcarChipDatos(null); $('#chipDatos').textContent = 'Datos: pulsa para reconectar'; }
+    }
+  }catch(e){}
+
+  // Y ahora la carpeta. Edge no conserva el permiso de lectura entre sesiones,
+  // así que hace falta un clic; pero el índice ya está cargado del archivo de
+  // datos, así que ese clic es instantáneo y no vuelve a recorrer el disco.
+  try{
+    const hayIndice = cargarIndiceGuardado();
+    if(hayIndice) pintarCarpeta();
+    const dir = await idb.get('carpeta');
+    if(dir){
+      const p = dir.queryPermission ? await dir.queryPermission({mode:'read'}) : 'granted';
+      if(p === 'granted'){
+        E.carpeta = dir;
+        if(!hayIndice) await releerCarpeta(); else { pintarCarpeta(); pintarCola(); }
+      } else {
+        const z = $('#zonaCarpeta');
+        z.className = 'zona';
+        z.innerHTML = `<h3>Carpeta de PDF</h3>
+          <p>Guardada de la última vez: <b>${dir.name}</b>.<br>
+             ${hayIndice ? `Índice de ${E.indice.length.toLocaleString('es-ES')} archivos ya cargado.
+             Edge solo necesita que le des permiso otra vez.`
+                         : 'Edge pide permiso otra vez al abrir el archivo.'}</p>
+          <div class="barra" style="justify-content:center">
+            <button class="primario" id="btnPermiso">Dar permiso</button></div>`;
+        $('#btnPermiso').onclick = async ()=>{
+          const r = await dir.requestPermission({mode:'read'});
+          if(r !== 'granted'){ avisar('Sin permiso no puedo abrir los PDF.'); return; }
+          E.carpeta = dir;
+          if(cargarIndiceGuardado()){ pintarCarpeta(); pintarCola(); avisar('Carpeta lista.'); }
+          else await releerCarpeta();
+        };
+      }
     }
   }catch(e){}
 });
@@ -2028,26 +2040,87 @@ const RE_DOC = /\.(pdf|xps|oxps)$/i;
 const clavePdf = s => (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
                        .replace(/[^A-Z0-9]/g,'');
 
-async function indexarCarpeta(dir, ruta = '', indice = [], nivel = 0){
-  if(nivel > 4) return indice;                       // no bajar hasta el infinito
+// Recorre la carpeta y devuelve solo RUTAS (texto). No se guardan los handles:
+// con 25.000 archivos ocupan memoria y además no sobreviven a cerrar el
+// navegador. El archivo concreto se resuelve al abrirlo, que es instantáneo.
+// Las subcarpetas se recorren en paralelo: ahí es donde se va el tiempo.
+async function indexarCarpeta(dir, ruta = '', salida = [], nivel = 0){
+  if(nivel > 4) return salida;                       // no bajar hasta el infinito
+  const subdirs = [];
   for await (const [nombre, h] of dir.entries()){
-    if(h.kind === 'directory') await indexarCarpeta(h, ruta+nombre+'/', indice, nivel+1);
-    else if(RE_DOC.test(nombre)) indice.push({nombre, ruta:ruta+nombre, clave:clavePdf(nombre), handle:h});
+    if(h.kind === 'directory') subdirs.push([nombre, h]);
+    else if(RE_DOC.test(nombre)){
+      salida.push(ruta + nombre);
+      if(salida.length % 500 === 0) mostrarAvance(salida.length);
+    }
   }
-  return indice;
+  await Promise.all(subdirs.map(([n, h]) => indexarCarpeta(h, ruta+n+'/', salida, nivel+1)));
+  return salida;
+}
+
+function mostrarAvance(n){
+  const z = $('#zonaCarpeta');
+  const p = z && z.querySelector('.avance');
+  if(p) p.textContent = `${n.toLocaleString('es-ES')} archivos leídos…`;
+}
+
+const entradaDeRuta = ruta => {
+  const nombre = ruta.split('/').pop();
+  return {nombre, ruta, clave: clavePdf(nombre)};
+};
+
+// Localiza el archivo en el momento de abrirlo, bajando por la ruta guardada.
+async function resolverArchivo(entrada){
+  if(entrada.file) return entrada.file;              // vino del selector de carpeta
+  if(entrada.handle) return await entrada.handle.getFile();
+  if(!E.carpeta) throw new Error('La carpeta no está conectada.');
+  const partes = entrada.ruta.split('/');
+  let dir = E.carpeta;
+  for(const p of partes.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
+  const fh = await dir.getFileHandle(partes[partes.length - 1]);
+  return await fh.getFile();
+}
+
+/* Recorrer 25.000 nombres por cada cargo son 9 ms cada uno: pintar la cola se
+   iría a más de diez segundos. En su lugar se monta una vez un índice de
+   búsqueda con las palabras del nombre de archivo y sus combinaciones de dos y
+   tres, que es donde caen las asignaciones ("SORIADIS_C-2405NC0147.pdf" indexa
+   SORIADIS, C, 2405NC0147, C2405NC0147, …). La consulta pasa a ser inmediata. */
+function construirMapaDocs(){
+  const m = new Map();
+  const meter = (k, e) => {
+    if(!k || k.length < 4) return;
+    let a = m.get(k);
+    if(!a) m.set(k, a = []);
+    if(a.length < 20) a.push(e);                     // nombres muy repetidos: basta una muestra
+  };
+  for(const e of E.indice){
+    const base = e.nombre.replace(/\.[a-z0-9]+$/i, '');
+    const t = base.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+                  .split(/[^A-Z0-9]+/).filter(Boolean);
+    meter(clavePdf(base), e);
+    for(let i = 0; i < t.length; i++){
+      meter(t[i], e);
+      if(i+1 < t.length) meter(t[i]+t[i+1], e);
+      if(i+2 < t.length) meter(t[i]+t[i+1]+t[i+2], e);
+    }
+  }
+  return m;
 }
 
 function buscarDoc(c){
   if(!E.indice || !E.indice.length) return null;
   const asig = clavePdf(c.asignacion);
-  if(asig.length < 5) return null;                   // demasiado corto: daría falsos
+  if(asig.length < 4) return null;                   // demasiado corto: daría falsos
+  if(!E.mapaDocs) E.mapaDocs = construirMapaDocs();
   const cli = clavePdf(c.cliente).slice(0,8);
-  let cand = E.indice.filter(f => f.clave.includes(asig));
-  if(cand.length > 1 && cli.length >= 4){
-    const conCliente = cand.filter(f => f.clave.includes(cli));
-    if(conCliente.length) cand = conCliente;
-  }
+  let cand = E.mapaDocs.get(asig) || [];
   if(!cand.length) return null;
+  const conCliente = cli.length >= 4 ? cand.filter(f => f.clave.includes(cli)) : [];
+  // Con asignaciones de 4 caracteres ("4188") el número solo no basta: podría
+  // ser una fecha o un importe dentro de otro nombre. Se exige el cliente.
+  if(asig.length < 5) return conCliente.length === 1 ? conCliente[0] : null;
+  if(cand.length > 1 && conCliente.length) cand = conCliente;
   // el nombre más corto es el más específico
   return cand.sort((a,b)=>a.nombre.length-b.nombre.length)[0];
 }
@@ -2070,12 +2143,34 @@ async function conectarCarpeta(){
   }catch(e){ if(e.name !== 'AbortError') avisar('No se pudo conectar la carpeta: '+e.message); }
 }
 
+// Releer 25.000 archivos tarda minutos, así que solo se hace cuando se pide.
+// El índice queda guardado en el archivo de datos y en los arranques siguientes
+// está disponible al instante.
 async function releerCarpeta(){
   if(!E.carpeta) return;
-  $('#chipListado').textContent = 'Leyendo la carpeta…';
-  E.indice = await indexarCarpeta(E.carpeta);
+  const z = $('#zonaCarpeta');
+  z.className = 'zona';
+  z.innerHTML = `<h3>Leyendo la carpeta…</h3><p class="avance">empezando…</p>
+    <p style="font-size:12.5px">Solo hay que hacerlo cuando añadas cargos nuevos.</p>`;
+  const t0 = Date.now();
+  const rutas = await indexarCarpeta(E.carpeta);
+  E.indice = rutas.map(entradaDeRuta);
+  E.mapaDocs = null;
+  E.memoria.pdfIndice = {carpeta: E.carpeta.name, fecha: new Date().toISOString(), rutas};
+  await guardarDatos();
   pintarCarpeta();
   pintarCola();
+  avisar(`${rutas.length.toLocaleString('es-ES')} archivos indexados en ${Math.round((Date.now()-t0)/1000)} s. `+
+         `Queda guardado: la próxima vez es instantáneo.`);
+}
+
+// Carga el índice guardado sin tocar el disco.
+function cargarIndiceGuardado(){
+  const g = E.memoria.pdfIndice;
+  if(!g || !Array.isArray(g.rutas) || !g.rutas.length) return false;
+  E.indice = g.rutas.map(entradaDeRuta);
+  E.mapaDocs = null;
+  return true;
 }
 
 function pintarCarpeta(){
@@ -2083,24 +2178,35 @@ function pintarCarpeta(){
   if(!E.indice || !E.indice.length) return;
   const localizados = contarDocs();
   const total = Object.keys(E.memoria.cargos || {}).length;
+  const g = E.memoria.pdfIndice;
+  const cuando = g && g.fecha
+    ? `índice del ${new Date(g.fecha).toLocaleDateString('es-ES')} `+
+      `${new Date(g.fecha).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`
+    : 'índice de esta sesión';
   z.className = 'zona lleno';
   z.innerHTML = `<h3>Carpeta conectada</h3>
-    <p class="archivo">${E.carpeta ? E.carpeta.name : 'carpeta elegida'}</p>
-    <p>${E.indice.length} archivo(s) indexados`+
+    <p class="archivo">${E.carpeta ? E.carpeta.name : (g ? g.carpeta : 'carpeta elegida')}</p>
+    <p>${E.indice.length.toLocaleString('es-ES')} archivo(s) · ${cuando}`+
     (total ? ` · PDF localizado en <b>${localizados}</b> de ${total} cargos` : '')+`</p>
     <div class="barra" style="justify-content:center">
-      <button id="btnRecargarCarpeta" class="mini">Volver a leer la carpeta</button></div>`;
+      <button id="btnRecargarCarpeta" class="mini">Volver a leer la carpeta</button>
+      <span style="font-size:12px;color:var(--muted)">solo si has añadido cargos nuevos</span>
+    </div>`;
   $('#btnRecargarCarpeta').onclick = releerCarpeta;
 }
 
 async function abrirDoc(c){
   const f = buscarDoc(c);
   if(!f){ avisar('No encuentro ningún PDF con la asignación '+c.asignacion); return; }
-  const file = f.handle ? await f.handle.getFile() : f.file;
-  const url = URL.createObjectURL(file);
-  window.open(url, '_blank');
-  setTimeout(()=>URL.revokeObjectURL(url), 60000);
-  registrar('pdf_abierto', {cliente:c.cliente, asignacion:c.asignacion, archivo:f.nombre});
+  try{
+    const url = URL.createObjectURL(await resolverArchivo(f));
+    window.open(url, '_blank');
+    setTimeout(()=>URL.revokeObjectURL(url), 60000);
+    registrar('pdf_abierto', {cliente:c.cliente, asignacion:c.asignacion, archivo:f.nombre});
+  }catch(e){
+    // el índice está guardado: si el archivo se movió o se borró, hay que releer
+    avisar(`No he podido abrir «${f.nombre}»: ${e.message}. Si has movido archivos, vuelve a leer la carpeta.`);
+  }
 }
 
 // Busca la factura en la carpeta por su número. Se excluye el archivo del
@@ -2114,7 +2220,7 @@ function buscarFactura(numero, excluirRuta){
   return cand.sort((a,b)=>a.nombre.length-b.nombre.length)[0];
 }
 
-const archivoDe = async f => f.handle ? await f.handle.getFile() : f.file;
+const archivoDe = resolverArchivo;
 
 async function calcularCon(c){
   const f = buscarDoc(c);
@@ -2197,8 +2303,12 @@ function semaforo(dias){
 }
 const fechaCorta = iso => iso ? iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4) : '—';
 
-// nombre con el que se guarda el PDF del cargo
-const nombrePdf = c => `${(c.cliente||'').replace(/[^\wÁÉÍÓÚÑáéíóúñ ]/g,'').trim().replace(/\s+/g,'_')}_${c.asignacion}`;
+// Nombre con el que se guarda el PDF del cargo. Hay asignaciones con barra
+// ("C/2405NC0147") y Windows no admite \ / : * ? " < > | en un nombre de
+// archivo, así que se limpian también.
+const nombrePdf = c =>
+  `${(c.cliente||'').replace(/[^\wÁÉÍÓÚÑáéíóúñ ]/g,'').trim().replace(/\s+/g,'_')}`+
+  `_${(c.asignacion||'').replace(/[\\/:*?"<>|]/g,'').trim()}`;
 
 function registrar(accion, datos){
   E.memoria.log = E.memoria.log || [];
@@ -2911,6 +3021,11 @@ window.__num = num;
 window.__elegirZona = t => { tipoPendiente = t; };
 window.__textoCorreo = textoCorreo;
 window.__buscarDoc = buscarDoc;
+window.__cargarIndiceGuardado = cargarIndiceGuardado;
+window.__contarDocs = contarDocs;
+window.__nombrePdf = nombrePdf;
+window.__pintarCola = pintarCola;
+window.__resolverArchivo = resolverArchivo;
 window.__descargarExcel = descargarExcel;
 window.__archivoTieneContenido = archivoTieneContenido;
 window.__conectarExcel = conectarExcel;

@@ -408,3 +408,44 @@ recibía la diferencia de la naranja). Al exigir el espacio se arregla.
 Además, el emparejado gana una pista fuerte: si el renglón del cargo menciona la
 cantidad de una línea de factura, casi seguro hablan del mismo artículo. Evita
 cruces entre artículos de nombre parecido.
+
+## Carpetas grandes: 25.000 archivos y 10 minutos de espera
+
+La carpeta real de cargos tiene ~25.000 archivos. Al recorrerla entera en cada
+arranque (Edge no conserva el permiso de lectura entre sesiones, así que hay que
+volver a darlo y eso disparaba la relectura) la herramienta tardaba diez minutos
+en estar lista. Inaceptable para una tarea diaria.
+
+Tres cambios, todos medidos con un índice simulado de 25.000 archivos:
+
+**1. El índice se guarda en el archivo de datos.** Solo las rutas, como texto:
+25.000 rutas ocupan unos 860 KB dentro del JSON. Al arrancar se cargan en **58
+ms** en vez de releer el disco. Recorrer la carpeta pasa a ser una acción
+explícita («Volver a leer la carpeta»), necesaria solo cuando se añaden cargos
+nuevos.
+
+**2. Los archivos se localizan al abrirlos, no al indexar.** Antes se guardaba
+el `FileSystemFileHandle` de cada archivo; ahora solo la ruta, y al pulsar «Ver
+PDF» se baja por ella (`getDirectoryHandle` por carpeta y `getFileHandle` al
+final). Es instantáneo y los handles no sobreviven a cerrar el navegador de
+todas formas.
+
+**3. Un índice de búsqueda, porque el problema no era solo leer el disco.**
+Recorrer 25.000 nombres por cada cargo costaba 9 ms; con 1.273 cargos, pintar la
+cola se iba a **más de once segundos**. Se construye una vez un `Map` con las
+palabras del nombre de archivo y sus combinaciones de dos y tres
+(`SORIADIS_C-2405NC0147.pdf` indexa `SORIADIS`, `C`, `2405NC0147`,
+`C2405NC0147`…), que es donde caen las asignaciones. Pintar la cola completa
+baja a **33 ms**.
+
+Medido sobre 300 cargos con el nombre que propone la propia herramienta: los 300
+se localizan, con 1 falso positivo entre los 973 restantes. Las asignaciones de
+menos de 4 caracteres se descartan, y las de 4 exigen que el nombre lleve
+también el cliente.
+
+### Efecto colateral que salió en la misma prueba
+
+`nombrePdf()` metía la asignación tal cual en el nombre sugerido, y hay
+asignaciones con barra (`C/2405NC0147`). Windows no admite `\ / : * ? " < > |`
+en un nombre de archivo, así que ese nombre no se podía usar para guardar. Ahora
+se limpian esos caracteres.
