@@ -357,3 +357,54 @@ Conviene entender la dirección, porque es contraintuitiva: el ZNET es
 más pequeño; pasar de UC a CJ **lo hace más grande**, porque hay menos cajas que
 unidades. Cambiar de base no altera el importe salvo por el redondeo a dos
 decimales, y ese desvío se ve en su columna y lo absorbe el ZAJU.
+
+## Medir en SAP en vez de estimar: la columna «Neto de la prueba»
+
+Caso Alcampo 098017625. La herramienta preveía 213,92 y 66,62; SAP devolvió
+**212,81 y 66,27** con esos mismos ZNET. El descuadre resultante era de 1,46 €,
+demasiado para taparlo con un ZAJU.
+
+Deducido de esas cifras, el factor real de SAP (euros de valor neto por unidad
+de ZNET) es 0,2387 y 0,7957, cuando `cantidad/100` daría 0,24 y 0,80: SAP aplica
+por dentro conversiones o descuentos que no se ven ni en el cargo ni en la
+factura. **No se puede modelar desde fuera.**
+
+La salida no es adivinar el factor, sino medirlo: se teclea un ZNET de prueba en
+la línea, se lee el valor neto que devuelve SAP y se anota en la columna «Neto de
+la prueba». A partir de ahí:
+
+```
+factor = neto de la prueba / ZNET de prueba
+ZNET   = diferencia / factor
+```
+
+Es la regla de 3 original, pero con el dato real en vez de una estimación. Con la
+medición puesta, el resultado sale exacto y el ZAJU desaparece.
+
+**El ZNET de prueba conviene que sea grande.** SAP muestra el neto con dos
+decimales, así que la precisión de la medida depende de cuántas cifras
+significativas tenga. Con ZNET 10 el neto sale 2,39 y arrastra un error de unos
+20 céntimos; con ZNET 1.000 sale 238,75 y el resultado es exacto. Por eso el
+valor por defecto es 1.000, no 10.
+
+La medición se invalida sola si se cambia la base de esa línea, porque se hizo
+con la anterior.
+
+## Dos fallos que destapó este cargo
+
+**El PDF de Alcampo no tiene texto.** 2.068 objetos vectoriales, cero
+caracteres, cero fuentes: el texto está dibujado como curvas. No es que el
+lector falle, es que no hay nada que leer, y sin OCR (descartado en el brief) no
+se puede extraer. Para estos cargos hay que usar la entrada manual, que ahora
+admite el modo **«dos importes: facturado y correcto»**, pensado justo para este
+formato: se pegan los dos números y la herramienta resta.
+
+**Limpiar el «ES A» se comía una letra.** El patrón `\s*(?:ES\s+)?A\s*$` no
+exigía espacio antes de la A, así que recortaba la última letra de cualquier
+palabra acabada en A: `MENTA` → `MENT`, `LIMA` → `LIM`. Con las descripciones
+mutiladas, el emparejado automático cruzaba los artículos (la mermelada de fresa
+recibía la diferencia de la naranja). Al exigir el espacio se arregla.
+
+Además, el emparejado gana una pista fuerte: si el renglón del cargo menciona la
+cantidad de una línea de factura, casi seguro hablan del mismo artículo. Evita
+cruces entre artículos de nombre parecido.

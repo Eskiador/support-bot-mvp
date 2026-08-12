@@ -329,6 +329,7 @@ td.acc{text-align:right}
             <option value="importe">el importe de la diferencia</option>
             <option value="precio">el precio correcto («es a…»)</option>
             <option value="dif_ud">la diferencia por unidad</option>
+            <option value="dos">dos importes: facturado y correcto (se restan)</option>
           </select></div>
       </div>
       <textarea id="mTexto" rows="7" spellcheck="false"
@@ -355,6 +356,8 @@ td.acc{text-align:right}
         <div class="campo"><label>Fecha del cargo</label><input id="fFecha"></div>
         <div class="campo"><label>Importe SIN IVA del cargo</label><input id="fTotal" class="num"></div>
         <div class="campo"><label>Tolerancia (€)</label><input id="fTolerancia" class="num" value="0,01"></div>
+        <div class="campo"><label>ZNET de prueba</label><input id="fZnetPrueba" class="num" value="1.000"
+          title="El ZNET que tecleas en SAP para medir. Cuanto más grande, más exacto sale el resultado."></div>
         <div class="campo"><label>Base del ZNET</label>
           <select id="fBase">
             <option value="100UC">por 100 UC (unidades)</option>
@@ -408,12 +411,14 @@ td.acc{text-align:right}
     <div class="marcador" id="marcador"></div>
     <div class="nota" id="notaCuadre"></div>
     <div class="cuerpo">
+      <div id="avisoMedicion" class="aviso-caja oculto"></div>
       <div id="accionCuadre"></div>
       <div id="avisosZnet"></div>
       <div class="tablaenv">
         <table id="tablaSalida">
           <thead><tr>
             <th>Pos.</th><th>Material</th><th>Descripción</th><th class="n">Cantidad</th>
+            <th class="n" title="Neto que devuelve SAP al meter el ZNET de prueba con esta misma base. Rellénalo y el ZNET sale exacto.">Neto de la prueba</th>
             <th class="n">ZNET</th><th>por</th><th class="n">Importe que dará SAP</th>
             <th class="n">Objetivo</th><th class="n">Desvío</th>
           </tr></thead>
@@ -89867,6 +89872,17 @@ function parecido(a,b){
   return comunes / Math.min(A.size, B.size);
 }
 
+// ¿El renglón del cargo contiene esta cantidad? Sirve para no cruzar artículos
+// cuando las descripciones se parecen entre sí (dos mermeladas, por ejemplo).
+function mencionaCantidad(lineaCargo, cantidad){
+  const t = lineaCargo.texto || '';
+  for(const m of t.matchAll(/-?\d[\d.,]*/g)){
+    const v = Math.abs(num(m[0]));
+    if(isFinite(v) && v > 0 && Math.abs(v - cantidad) < 0.005) return true;
+  }
+  return false;
+}
+
 function emparejar(){
   const fac = E.factura?.lineas || [], car = E.cargo?.lineas || [];
   const usados = new Set();
@@ -89878,6 +89894,9 @@ function emparejar(){
       let p = parecido(lf.desc, lc.desc);
       if(j === idx) p += 0.45;                 // mismo orden: fuerte indicio
       if(Math.abs(j-idx) <= 1) p += 0.10;
+      // si el renglón del cargo menciona la cantidad de esta línea de factura,
+      // es casi seguro que hablan del mismo artículo
+      if(lf.cantidad && mencionaCantidad(lc, lf.cantidad)) p += 0.60;
       if(p > mejorPunt){ mejorPunt = p; mejor = j; }
     });
     if(mejor >= 0 && mejorPunt >= 0.25) usados.add(mejor); else mejor = -1;
@@ -89888,7 +89907,8 @@ function emparejar(){
       modo: $('#fModo').value,
       manual: null,           // valor tecleado a mano (dato del cargo)
       objetivoForzado: null,  // importe fijado al cuadrar las líneas
-      base: null              // base propia del ZNET; si es null, la general
+      base: null,             // base propia del ZNET; si es null, la general
+      netoPrueba: null        // neto real que devolvió SAP con el ZNET de prueba
     };
   });
   const sin = car.length - usados.size;
@@ -89964,6 +89984,16 @@ function diferenciaDe(fila){
   return NaN;
 }
 
+// Euros de valor neto por cada unidad de ZNET.
+// Si hay medición real de SAP (neto obtenido con el ZNET de prueba), se usa
+// esa; si no, el modelo teórico cantidad/base.
+function factorDe(fila, q, por){
+  const prueba = num($('#fZnetPrueba').value) || 10;
+  const neto = num(fila.netoPrueba);
+  if(isFinite(neto) && neto > 0 && prueba > 0) return neto / prueba;
+  return (isFinite(q) && q > 0) ? q / por : NaN;
+}
+
 function calcular(){
   const tol = Math.abs(num($('#fTolerancia').value)) || 0.01;
   const total = num($('#fTotal').value);
@@ -89977,18 +90007,24 @@ function calcular(){
     const objetivo = fila.objetivoForzado != null            // lo que buscamos tras cuadrar
       ? fila.objetivoForzado : objetivoCargo;
     const q = cantidadEnBase(fila);
+    // «factor» = euros de valor neto por cada unidad de ZNET. Normalmente sale
+    // de la cantidad, pero SAP mete de por medio conversiones y descuentos que
+    // no se ven desde aquí; si el usuario ha medido el neto real con un ZNET de
+    // prueba, esa medición manda sobre cualquier cálculo teórico.
+    const factor = factorDe(fila, q, por);
     let znet = NaN, importe = NaN;
-    if(isFinite(objetivo) && isFinite(q) && q>0){
-      znet = r2(objetivo * por / q);
-      importe = r2(znet * q / por);
+    if(isFinite(objetivo) && isFinite(factor) && factor > 0){
+      znet = r2(objetivo / factor);
+      importe = r2(znet * factor);
       suma = r2(suma + importe);
     }
     // el desvío se mide siempre contra el cargo, esté ajustada la línea o no
     const desvio = (isFinite(importe)&&isFinite(objetivoCargo)) ? r2(importe - objetivoCargo) : NaN;
     const ajustada = fila.objetivoForzado != null;
     const fal = !ajustada && isFinite(desvio) && Math.abs(desvio) > 0.0001;
-    if(fal) avisos.push({fila, objetivo:objetivoCargo, importe, desvio, paso: r2(q/por*0.01)});
+    if(fal) avisos.push({fila, objetivo:objetivoCargo, importe, desvio, paso: r2(factor*0.01)});
     salida.push({fila, objetivo:objetivoCargo, q, znet, importe, desvio, por, um, clave,
+                 factor, medido: fila.netoPrueba != null && fila.netoPrueba !== '',
                  alerta:fal, ajustada});
   }
 
@@ -90010,8 +90046,9 @@ function cuadrarLineas(){
     const objetivo = r2(diferenciaDe(fila));
     const q = cantidadEnBase(fila);
     const por = baseZnetDe(fila).por;               // cada línea con su base
-    if(!isFinite(objetivo) || !isFinite(q) || q <= 0) continue;
-    piezas.push({fila, objetivo, q, por, paso: q/por*0.01});
+    const factor = factorDe(fila, q, por);
+    if(!isFinite(objetivo) || !isFinite(factor) || factor <= 0) continue;
+    piezas.push({fila, objetivo, q, por, factor, paso: factor*0.01});
   }
   if(!piezas.length) return {ok:false, motivo:'No hay líneas afectadas que ajustar.'};
 
@@ -90020,16 +90057,16 @@ function cuadrarLineas(){
 
   // punto de partida: lo que darían las líneas sin tocar nada
   for(const p of piezas){
-    p.znetIni = r2(p.objetivo * p.por / p.q);
-    p.importeIni = r2(p.znetIni * p.q / p.por);
+    p.znetIni = r2(p.objetivo / p.factor);
+    p.importeIni = r2(p.znetIni * p.factor);
   }
   const sumaInicial = r2(piezas.reduce((a,p)=>a+p.importeIni, 0));
 
   // 1 · reparto proporcional: cada línea cede en proporción a lo que pesa
-  const factor = total / sumaOriginal;
+  const proporcion = total / sumaOriginal;
   for(const p of piezas){
-    p.znet = r2(p.objetivo * factor * p.por / p.q);
-    p.importe = r2(p.znet * p.q / p.por);
+    p.znet = r2(p.objetivo * proporcion / p.factor);
+    p.importe = r2(p.znet * p.factor);
   }
 
   // 2 · afinado. Un céntimo de ZNET mueve "paso" euros, y el paso depende de la
@@ -90046,7 +90083,7 @@ function cuadrarLineas(){
     }
     if(!elegida) break;                                // ninguna puede afinar tan poco
     elegida.znet = r2(elegida.znet + Math.sign(resto) * 0.01);
-    elegida.importe = r2(elegida.znet * elegida.q / elegida.por);
+    elegida.importe = r2(elegida.znet * elegida.factor);
     resto = r2(total - piezas.reduce((a,p)=>a+p.importe, 0));
   }
 
@@ -90070,6 +90107,8 @@ function ajustarBases(){
   let cambiadas = 0;
   for(const fila of E.filas){
     if(!fila.afectada) continue;
+    // si la línea tiene medición de SAP, la base ya está fijada por ella
+    if(fila.netoPrueba != null && fila.netoPrueba !== '') continue;
     const objetivo = r2(fila.objetivoForzado != null ? fila.objetivoForzado : diferenciaDe(fila));
     if(!isFinite(objetivo) || objetivo === 0) continue;
     const original = fila.base;
@@ -90280,6 +90319,27 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
     };
   }
 
+  // Cuando SAP no da el importe previsto (conversiones o descuentos que no se
+  // ven desde el PDF), la salida es medir: teclear un ZNET de prueba, leer el
+  // neto que devuelve y anotarlo. Con eso el resultado es exacto.
+  const medidas = salida.filter(s => s.medido).length;
+  const cajaMed = $('#avisoMedicion');
+  if(cajaMed){
+    if(salida.length && medidas < salida.length){
+      cajaMed.classList.remove('oculto');
+      cajaMed.innerHTML = `<b>¿SAP no te da estos importes?</b> Teclea `+
+        `<b>ZNET ${$('#fZnetPrueba').value}</b> en la línea, mira el valor neto que devuelve `+
+        `y escríbelo en la columna «Neto de la prueba». El ZNET se recalcula exacto `+
+        `y desaparece el descuadre.`+
+        (medidas ? ` <b>(${medidas} de ${salida.length} líneas ya medidas.)</b>` : '');
+    } else if(salida.length){
+      cajaMed.classList.remove('oculto');
+      cajaMed.className = 'aviso-caja azul';
+      cajaMed.innerHTML = `<b>Las ${salida.length} líneas están medidas contra SAP.</b> `+
+        `Los ZNET salen de lo que devuelve SAP de verdad, no de una estimación.`;
+    } else cajaMed.classList.add('oculto');
+  }
+
   const cajaAv = $('#avisosZnet');
   cajaAv.innerHTML = '';
   if(avisos.length){
@@ -90300,6 +90360,8 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
       <td>${s.fila.fac.pos}</td><td>${s.fila.fac.material}</td>
       <td><span class="desc">${s.fila.fac.desc}</span></td>
       <td class="n">${cant(s.q)}</td>
+      <td class="n"><input class="num netoPrueba" data-pos="${s.fila.fac.pos}" style="width:86px"
+            value="${s.fila.netoPrueba != null ? s.fila.netoPrueba : ''}" placeholder="—"></td>
       <td class="n"><b>${isFinite(s.znet)?nf.format(s.znet):'—'}</b></td>
       <td><select class="baseLinea" data-pos="${s.fila.fac.pos}">${
         Object.entries(BASES).map(([k,v])=>
@@ -90315,7 +90377,13 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
   $$('.baseLinea').forEach(sel => sel.onchange = e=>{
     const pos = +e.target.dataset.pos;
     const fila = E.filas.find(f => f.fac.pos === pos);
-    if(fila){ fila.base = e.target.value; calcular(); }
+    // la medición se hizo con la base anterior: al cambiarla deja de valer
+    if(fila){ fila.base = e.target.value; fila.netoPrueba = null; limpiarAjuste(); calcular(); }
+  });
+  $$('.netoPrueba').forEach(inp => inp.onchange = e=>{
+    const pos = +e.target.dataset.pos;
+    const fila = E.filas.find(f => f.fac.pos === pos);
+    if(fila){ fila.netoPrueba = e.target.value.trim() || null; limpiarAjuste(); calcular(); }
   });
   E.ultimaSalida = {salida, suma, total, zaju};
 }
@@ -90658,7 +90726,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#mTexto').addEventListener('input', previoManual);
   $('#mTipo').addEventListener('change', previoManual);
 
-  ['fTotal','fTolerancia','fBase','fCliente','fModo'].forEach(id=>{
+  ['fTotal','fTolerancia','fBase','fCliente','fModo','fZnetPrueba'].forEach(id=>{
     $('#'+id).addEventListener('change', ()=>{
       limpiarAjuste();
       // la base general manda: al cambiarla se reponen las bases por línea
@@ -91790,16 +91858,22 @@ window.__cambiarVista = cambiarVista;
 /* ---------------------------------------------- cargo escrito a mano */
 // De cada renglón se toma el ÚLTIMO número como valor y el resto como
 // descripción. Así vale igual pegar del PDF, pegar de Excel o teclearlo.
-function leerLineasManuales(texto){
+function leerLineasManuales(texto, tipo){
   const salida = [];
+  const dos = (tipo || $('#mTipo').value) === 'dos';
   texto.split('\n').forEach((cruda,i)=>{
     const l = cruda.trim();
     if(!l) return;
-    const m = /^(.*?)[\s\t]+(-?\d[\d.,]*)\s*€?\s*$/.exec(l);
+    // «dos importes»: se toman los DOS últimos números y se restan. Es el caso
+    // de los cargos que ponen lo facturado y lo que debió facturarse.
+    const re = dos ? /^(.*?)[\s\t]+(-?\d[\d.,]*)[\s\t]+(-?\d[\d.,]*)\s*€?\s*$/
+                   : /^(.*?)[\s\t]+(-?\d[\d.,]*)\s*€?\s*$/;
+    const m = re.exec(l);
     if(!m) return;
-    const v = num(m[2]);
-    const desc = m[1].replace(/\s*(?:ES\s+)?A\s*$/i,'').replace(/[.:;,\-\s]+$/,'').trim();
-    if(!isFinite(v) || norm(desc).length < 3) return;
+    const v = dos ? r2(Math.abs(num(m[2])) - Math.abs(num(m[3]))) : num(m[2]);
+    // Ojo: hace falta el espacio antes de la A, o «MENTA» se queda en «MENT».
+    const desc = m[1].replace(/\s+(?:ES\s+)?A\s*$/i,'').replace(/[.:;,\-\s]+$/,'').trim();
+    if(!isFinite(v) || v === 0 || norm(desc).length < 3) return;
     salida.push({n:salida.length+1, desc, valor:Math.abs(v), y:-i, pag:1, texto:l});
   });
   return salida;
@@ -91814,11 +91888,12 @@ function previoManual(){
       : '';
     return lineas;
   }
-  const et = {importe:'Importe', precio:'Precio correcto', dif_ud:'Diferencia/ud'}[$('#mTipo').value];
+  const et = {importe:'Importe', precio:'Precio correcto', dif_ud:'Diferencia/ud',
+               dos:'Diferencia (resta)'}[$('#mTipo').value];
   const suma = lineas.reduce((a,l)=>a+l.valor,0);
   caja.innerHTML = `<div class="aviso-caja azul" style="margin-top:12px">`+
     `<b>${lineas.length} línea(s) reconocidas.</b>`+
-    ($('#mTipo').value==='importe' ? ` Suman ${eur(suma)}.` : '')+
+    (['importe','dos'].includes($('#mTipo').value) ? ` Suman ${eur(suma)}.` : '')+
     `<div class="tablaenv" style="margin-top:8px"><table><thead><tr>`+
     `<th>#</th><th>Descripción</th><th class="n">${et}</th></tr></thead><tbody>`+
     lineas.map(l=>`<tr><td>${l.n}</td><td>${l.desc}</td><td class="n">${nf3.format(l.valor)}</td></tr>`).join('')+
@@ -91836,16 +91911,16 @@ function usarLineasManuales(){
     fecha: '', refFactura: '',
     totalSinIva: num($('#mTotal').value),
     ivaPct: null,
-    sinImportes: tipo !== 'importe',
+    sinImportes: !(tipo === 'importe' || tipo === 'dos'),
     texto: $('#mTexto').value,
     lineas: lineas.map(l => ({
       n:l.n, desc:l.desc, y:l.y, pag:1, texto:l.texto,
-      importe:        tipo==='importe' ? l.valor : null,
+      importe:        (tipo==='importe' || tipo==='dos') ? l.valor : null,
       precioCorrecto: tipo==='precio'  ? l.valor : null,
       difUnitaria:    tipo==='dif_ud'  ? l.valor : null
     }))
   };
-  $('#fModo').value = {importe:'importe', precio:'precio_ud', dif_ud:'dif_ud'}[tipo];
+  $('#fModo').value = {importe:'importe', dos:'importe', precio:'precio_ud', dif_ud:'dif_ud'}[tipo];
   if($('#mTotal').value.trim())    $('#fTotal').value    = $('#mTotal').value.trim();
   if($('#mCliente').value.trim())  $('#fCliente').value  = $('#mCliente').value.trim();
   if($('#mNumCargo').value.trim()) $('#fNumCargo').value = $('#mNumCargo').value.trim();
