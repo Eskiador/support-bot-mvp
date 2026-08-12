@@ -346,6 +346,7 @@ td.acc{text-align:right}
     <div class="cab"><span class="paso">2</span><h2>Datos del cargo</h2>
       <div class="crece"></div><span class="chip" id="chipMemoria"></span></div>
     <div class="cuerpo">
+      <div id="avisoIva" class="aviso-caja rojo oculto"></div>
       <div id="avisoRedondeo" class="aviso-caja oculto"></div>
       <div class="rejilla">
         <div class="campo"><label>Cliente</label><input id="fCliente"></div>
@@ -420,6 +421,7 @@ td.acc{text-align:right}
         </table>
       </div>
       <div class="barra">
+        <button id="btnBaseAuto">Ajustar la base para que el ZNET sea manejable</button>
         <button class="primario" id="btnCopiar">Copiar tabla para SAP</button>
         <button id="btnCopiarZnet">Copiar solo los ZNET</button>
         <button class="primario" id="btnRegistrar">Registrar en el archivo de cargos</button>
@@ -89667,9 +89669,14 @@ function parseCargo(filas){
   const texto = filasTexto(filas);
 
   // --- cabecera ---
+  // El último patrón es un cajón de sastre y hay que protegerlo: sin el filtro
+  // del NIF, "NIF: ESA00000000" se colaba como número de cargo.
+  const esNif = s => /^(ES|[A-Z]{2})?[A-Z]\d{7,8}[A-Z]?$/i.test(s);
+  const sueltoNum = (/\b([A-Z]{2,3}\d{6,})\b/.exec(texto)||[])[1];
   const numero = (/(?:Número de documento|N[ºo°]\s*documento|Nota\s*contab\.?\s*n[ºo°]?)\s*:?\s*\n?\s*([A-Z]{0,3}\d{4,}(?:-\d{4,})?)/i.exec(texto)||[])[1]
               || (/\b(\d{4}-\d{10})\b/.exec(texto)||[])[1]
-              || (/\b([A-Z]{2,3}\d{6,})\b/.exec(texto)||[])[1] || '';
+              || (/REF\.?\s*\/?\s*PROV\.?\D{0,90}?(\d{5,})/i.exec(texto)||[])[1]
+              || (sueltoNum && !esNif(sueltoNum) ? sueltoNum : '') || '';
   const fecha  = (/Fecha(?:\s*de\s*documento)?\.*\s*:?\s*\n?\s*(\d{2}[.\/]\d{2}[.\/]\d{2,4})/i.exec(texto)||[])[1]
               || (/\b(\d{2}[.\/]\d{2}[.\/]\d{4})\b/.exec(texto)||[])[1] || '';
   const refFac = (/Ref\.?\s*Fact\.?\s*:?\s*(\d{6,})/i.exec(texto)||[])[1]
@@ -89687,17 +89694,23 @@ function parseCargo(filas){
   // --- total sin IVA ---
   // Los rótulos vienen rellenos de puntos ("BASE IMPONIBLE......... 39,02"),
   // así que entre la etiqueta y la cifra puede haber muchos caracteres.
-  let total = NaN;
   // El número tiene que empezar por dígito: si no, "BASE IMPONIBLE...." hace
   // que la propia fila de puntos del rótulo se lea como si fuera la cifra.
-  for(const re of [/Base imponible total\D{0,60}?(-?\d[\d.,]*)/i,
-                   /Base imponible\D{0,60}?(-?\d[\d.,]*)/i,
-                   /Neto total factura\D{0,60}?(-?\d[\d.,]*)/i,
-                   /Total\s+sin\s+IVA\D{0,60}?(-?\d[\d.,]*)/i,
-                   /Base\D{0,40}?(-?\d[\d.,]*)/i]){
+  const candidato = re => {
     const m = re.exec(texto);
-    if(m){ const v = Math.abs(num(m[1])); if(isFinite(v) && v>0){ total = v; break; } }
-  }
+    if(!m) return NaN;
+    const v = Math.abs(num(m[1]));
+    return (isFinite(v) && v > 0) ? v : NaN;
+  };
+  const cand = {
+    baseTotal:  candidato(/Base imponible total\D{0,60}?(-?\d[\d.,]*)/i),
+    base:       candidato(/Base imponible\D{0,60}?(-?\d[\d.,]*)/i),
+    netoTotal:  candidato(/Neto total factura\D{0,60}?(-?\d[\d.,]*)/i),
+    sinIva:     candidato(/Total\s+sin\s+IVA\D{0,60}?(-?\d[\d.,]*)/i),
+    importeNeto:candidato(/Importe\s+neto\D{0,60}?(-?\d[\d.,]*)/i),
+    totalFra:   candidato(/Total\s+factura\D{0,60}?(-?\d[\d.,]*)/i),
+    suelto:     candidato(/Base\D{0,40}?(-?\d[\d.,]*)/i)
+  };
   const ivaPct = num((/IVA\D{0,40}?(\d{1,2}[,.]\d{1,3})\s*%/i.exec(texto)||[])[1]) || null;
 
   // --- líneas: filas con nº de línea a la izquierda y varios importes a la derecha ---
@@ -89708,19 +89721,22 @@ function parseCargo(filas){
     const cifras = [];
     for(let i=c.length-1;i>=0;i--){
       const v = num(c[i].s);
-      if(isFinite(v) && /[\d]/.test(c[i].s) && /^-?[\d.,]+$/.test(c[i].s)) cifras.unshift({i, v});
+      // el signo puede ir DETRÁS ("189,52-"), como en los cargos de Alcampo
+      if(isFinite(v) && /\d/.test(c[i].s) && /^-?[\d.,]+-?$/.test(c[i].s)) cifras.unshift({i, v});
       else break;
     }
     if(cifras.length < 2) continue;
-    const desc = c.slice(0, cifras[0].i).map(x=>x.s)
-                  .filter(s=>!/^0+$/.test(s) && !/^\d{1,3}$/.test(s)).join(' ').trim();
+    const previas = c.slice(0, cifras[0].i).map(x=>x.s);
+    const desc = previas.filter(s=>!/^0+$/.test(s) && !/^\d{1,3}$/.test(s)).join(' ').trim();
     if(desc.length < 4) continue;
-    // el importe neto de línea es el último; la cantidad, la primera cifra si es "1,000"-como
-    const importe = Math.abs(cifras[cifras.length-1].v);
-    if(!isFinite(importe) || importe===0) continue;
+    const importeFirmado = cifras[cifras.length-1].v;
+    if(!isFinite(importeFirmado) || importeFirmado === 0) continue;
     const nLin = /^\d{1,3}$/.test(c[0].s) ? parseInt(c[0].s,10)
                : (c[1] && /^\d{1,3}$/.test(c[1].s) ? parseInt(c[1].s,10) : lineas.length+1);
-    lineas.push({n:nLin, desc, importe, precioCorrecto:null, difUnitaria:null, y:f.y, pag:f.pag, texto:filaTexto(f)});
+    // código de artículo del cliente (EAN o similar), si viene
+    const codigo = (previas.find(s=>/^\d{8,14}$/.test(s)) || '');
+    lineas.push({n:nLin, desc, codigo, importe:Math.abs(importeFirmado), importeFirmado,
+                 precioCorrecto:null, difUnitaria:null, y:f.y, pag:f.pag, texto:filaTexto(f)});
   }
 
   // --- precio correcto anunciado en texto ---
@@ -89763,9 +89779,81 @@ function parseCargo(filas){
     }));
   }
 
+  limpias = fundirPares(limpias);
+
+  // --- elegir el total sin IVA ---
+  // Varios cargos traen a la vez la base imponible y el total con IVA, y los
+  // rótulos no siempre distinguen ("Importe Neto" en Alcampo es CON IVA). La
+  // suma de las líneas es el mejor árbitro: si coincide con un candidato, ese
+  // es el bueno. Si no, se prefiere la base imponible declarada.
+  const sumaLineas = limpias.some(l => l.importe != null)
+    ? r2(limpias.reduce((a,l)=>a + (l.importeFirmado != null ? l.importeFirmado : (l.importe||0)), 0))
+    : NaN;
+  const orden = ['baseTotal','base','sinIva','netoTotal','importeNeto','totalFra','suelto'];
+  let total = NaN, comoSeEligio = '';
+  if(isFinite(sumaLineas) && Math.abs(sumaLineas) > 0.005){
+    for(const k of orden){
+      if(isFinite(cand[k]) && Math.abs(cand[k] - Math.abs(sumaLineas)) <= 0.02){
+        total = cand[k]; comoSeEligio = 'coincide con la suma de las líneas'; break;
+      }
+    }
+  }
+  if(!isFinite(total)){
+    for(const k of orden){
+      if(isFinite(cand[k])){ total = cand[k]; comoSeEligio = 'rótulo del documento'; break; }
+    }
+  }
+  // último recurso: si solo hay total con IVA y se conoce el tipo, quitarlo
+  if(!isFinite(total) && isFinite(cand.totalFra) && ivaPct){
+    total = r2(cand.totalFra / (1 + ivaPct/100));
+    comoSeEligio = `calculado quitando el ${nf3.format(ivaPct)} % de IVA`;
+  }
+
+  // aviso si el total elegido parece llevar IVA incorporado
+  let dudaIva = '';
+  if(isFinite(total) && ivaPct){
+    const base = r2(total / (1 + ivaPct/100));
+    for(const k of orden){
+      if(isFinite(cand[k]) && Math.abs(cand[k] - base) <= 0.02 && cand[k] !== total){
+        dudaIva = `El importe leído (${nf.format(total)} €) parece llevar el IVA: `+
+                  `sin él serían ${nf.format(cand[k])} €.`;
+        break;
+      }
+    }
+  }
+
   const sinImportes = limpias.length > 0 && limpias.every(l => l.importe == null);
   return {numero, cliente, fecha, refFactura:refFac, totalSinIva:total, ivaPct,
-          lineas:limpias, sinImportes, texto};
+          lineas:limpias, sinImportes, texto, comoSeEligio, dudaIva, sumaLineas};
+}
+
+// Algunos cargos expresan la diferencia en DOS renglones por artículo: lo
+// facturado en positivo y lo que debió facturarse en negativo (Alcampo). La
+// diferencia real es la suma con signo de los dos, así que se funden en uno.
+function fundirPares(lineas){
+  const porCodigo = {};
+  for(const l of lineas){
+    if(!l.codigo || /^0+$/.test(l.codigo)) continue;
+    (porCodigo[l.codigo] = porCodigo[l.codigo] || []).push(l);
+  }
+  const fundidas = new Map();
+  for(const cod in porCodigo){
+    const g = porCodigo[cod];
+    if(g.length !== 2) continue;
+    const [a, b] = g;
+    if(!isFinite(a.importeFirmado) || !isFinite(b.importeFirmado)) continue;
+    if(Math.sign(a.importeFirmado) === Math.sign(b.importeFirmado)) continue;
+    const neto = r2(a.importeFirmado + b.importeFirmado);
+    if(Math.abs(neto) < 0.005) continue;          // se anulan: no es una diferencia
+    fundidas.set(a, Object.assign({}, a, {
+      importe: Math.abs(neto), importeFirmado: neto,
+      texto: a.texto + ' || ' + b.texto,
+      fundida: `${nf.format(a.importeFirmado)} ${b.importeFirmado<0?'−':'+'} ${nf.format(Math.abs(b.importeFirmado))}`
+    }));
+    fundidas.set(b, null);                        // el segundo renglón desaparece
+  }
+  if(!fundidas.size) return lineas;
+  return lineas.map(l => fundidas.has(l) ? fundidas.get(l) : l).filter(Boolean);
 }
 
 /* ==================================================================
@@ -89799,7 +89887,8 @@ function emparejar(){
       afectada: mejor >= 0,
       modo: $('#fModo').value,
       manual: null,           // valor tecleado a mano (dato del cargo)
-      objetivoForzado: null   // importe fijado al cuadrar las líneas
+      objetivoForzado: null,  // importe fijado al cuadrar las líneas
+      base: null              // base propia del ZNET; si es null, la general
     };
   });
   const sin = car.length - usados.size;
@@ -89817,14 +89906,24 @@ function emparejar(){
 /* ==================================================================
    5 · CÁLCULO
    ================================================================== */
+const BASES = {
+  '1UC':'1 UC', '100UC':'100 UC', '1000UC':'1.000 UC',
+  '1CJ':'1 CJ', '100CJ':'100 CJ', '1000CJ':'1.000 CJ'
+};
 function baseZnet(){
   const v = $('#fBase').value;
-  return { por: parseInt(v, 10) || 1, um: v.endsWith('CJ') ? 'CJ' : 'UC' };
+  return { por: parseInt(v, 10) || 1, um: v.endsWith('CJ') ? 'CJ' : 'UC', clave:v };
+}
+// Cada línea puede llevar su propia base: en cantidades grandes el ZNET se
+// dispara y conviene expresarlo en otra unidad para teclear un número manejable.
+function baseZnetDe(fila){
+  const v = (fila && fila.base) || $('#fBase').value;
+  return { por: parseInt(v, 10) || 1, um: v.endsWith('CJ') ? 'CJ' : 'UC', clave:v };
 }
 
 // cantidad de la línea expresada en la unidad de la base del ZNET
 function cantidadEnBase(fila){
-  const {um} = baseZnet();
+  const {um} = baseZnetDe(fila);
   const lf = fila.fac;
   if(um === 'CJ'){
     if(lf.um === 'CS') return lf.cantidad;
@@ -89866,7 +89965,6 @@ function diferenciaDe(fila){
 }
 
 function calcular(){
-  const {por, um} = baseZnet();
   const tol = Math.abs(num($('#fTolerancia').value)) || 0.01;
   const total = num($('#fTotal').value);
   const salida = [];
@@ -89874,6 +89972,7 @@ function calcular(){
 
   for(const fila of E.filas){
     if(!fila.afectada) continue;
+    const {por, um, clave} = baseZnetDe(fila);              // cada línea, su base
     const objetivoCargo = r2(diferenciaDe(fila));           // lo que dice el cargo
     const objetivo = fila.objetivoForzado != null            // lo que buscamos tras cuadrar
       ? fila.objetivoForzado : objetivoCargo;
@@ -89889,7 +89988,7 @@ function calcular(){
     const ajustada = fila.objetivoForzado != null;
     const fal = !ajustada && isFinite(desvio) && Math.abs(desvio) > 0.0001;
     if(fal) avisos.push({fila, objetivo:objetivoCargo, importe, desvio, paso: r2(q/por*0.01)});
-    salida.push({fila, objetivo:objetivoCargo, q, znet, importe, desvio, por, um,
+    salida.push({fila, objetivo:objetivoCargo, q, znet, importe, desvio, por, um, clave,
                  alerta:fal, ajustada});
   }
 
@@ -89902,7 +90001,6 @@ function calcular(){
    cargo. No inventa importes: solo mueve lo justo y deja constancia del desvío
    que queda en cada línea. */
 function cuadrarLineas(){
-  const {por} = baseZnet();
   const total = num($('#fTotal').value);
   if(!isFinite(total)) return {ok:false, motivo:'Falta el importe del cargo.'};
 
@@ -89911,8 +90009,9 @@ function cuadrarLineas(){
     if(!fila.afectada) continue;
     const objetivo = r2(diferenciaDe(fila));
     const q = cantidadEnBase(fila);
+    const por = baseZnetDe(fila).por;               // cada línea con su base
     if(!isFinite(objetivo) || !isFinite(q) || q <= 0) continue;
-    piezas.push({fila, objetivo, q, paso: q/por*0.01});
+    piezas.push({fila, objetivo, q, por, paso: q/por*0.01});
   }
   if(!piezas.length) return {ok:false, motivo:'No hay líneas afectadas que ajustar.'};
 
@@ -89921,16 +90020,16 @@ function cuadrarLineas(){
 
   // punto de partida: lo que darían las líneas sin tocar nada
   for(const p of piezas){
-    p.znetIni = r2(p.objetivo * por / p.q);
-    p.importeIni = r2(p.znetIni * p.q / por);
+    p.znetIni = r2(p.objetivo * p.por / p.q);
+    p.importeIni = r2(p.znetIni * p.q / p.por);
   }
   const sumaInicial = r2(piezas.reduce((a,p)=>a+p.importeIni, 0));
 
   // 1 · reparto proporcional: cada línea cede en proporción a lo que pesa
   const factor = total / sumaOriginal;
   for(const p of piezas){
-    p.znet = r2(p.objetivo * factor * por / p.q);
-    p.importe = r2(p.znet * p.q / por);
+    p.znet = r2(p.objetivo * factor * p.por / p.q);
+    p.importe = r2(p.znet * p.q / p.por);
   }
 
   // 2 · afinado. Un céntimo de ZNET mueve "paso" euros, y el paso depende de la
@@ -89947,7 +90046,7 @@ function cuadrarLineas(){
     }
     if(!elegida) break;                                // ninguna puede afinar tan poco
     elegida.znet = r2(elegida.znet + Math.sign(resto) * 0.01);
-    elegida.importe = r2(elegida.znet * elegida.q / por);
+    elegida.importe = r2(elegida.znet * elegida.q / elegida.por);
     resto = r2(total - piezas.reduce((a,p)=>a+p.importe, 0));
   }
 
@@ -89962,6 +90061,38 @@ function cuadrarLineas(){
     restante: resto,
     mayor: movido.reduce((a,b)=>Math.abs(b)>Math.abs(a)?b:a, 0)
   };
+}
+
+/* Para cada línea afectada elige la base que deja el ZNET más cómodo de teclear
+   sin perder ni un céntimo: de entre las que alcanzan el importe exacto, la que
+   da el número más pequeño. Si ninguna lo alcanza, la más aproximada. */
+function ajustarBases(){
+  let cambiadas = 0;
+  for(const fila of E.filas){
+    if(!fila.afectada) continue;
+    const objetivo = r2(fila.objetivoForzado != null ? fila.objetivoForzado : diferenciaDe(fila));
+    if(!isFinite(objetivo) || objetivo === 0) continue;
+    const original = fila.base;
+    let mejor = null;
+    for(const clave of Object.keys(BASES)){
+      fila.base = clave;
+      const q = cantidadEnBase(fila);
+      const por = parseInt(clave,10) || 1;
+      if(!isFinite(q) || q <= 0) continue;
+      const znet = r2(objetivo * por / q);
+      if(Math.abs(znet) < 0.01) continue;            // no se puede teclear
+      const importe = r2(znet * q / por);
+      const error = Math.abs(importe - objetivo);
+      const cand = {clave, znet:Math.abs(znet), error};
+      if(!mejor) mejor = cand;
+      else if(cand.error < mejor.error - 0.0001) mejor = cand;
+      else if(Math.abs(cand.error - mejor.error) <= 0.0001 && cand.znet < mejor.znet) mejor = cand;
+    }
+    fila.base = mejor ? mejor.clave : original;
+    if(fila.base !== original) cambiadas++;
+  }
+  calcular();
+  avisar(cambiadas ? `Base ajustada en ${cambiadas} línea(s).` : 'La base actual ya es la mejor.');
 }
 
 function limpiarAjuste(){
@@ -89998,6 +90129,15 @@ function pintarCabecera(){
     chip.className = 'chip no';
     chip.textContent = clave ? 'Cliente nuevo: se recordará el modo al guardar' : '';
   }
+
+  // el cuadre va SIEMPRE contra la base imponible: si el importe leído parece
+  // llevar el IVA dentro, hay que decirlo antes de calcular nada
+  const avIva = $('#avisoIva');
+  if(c && c.dudaIva && Math.abs(num($('#fTotal').value) - c.totalSinIva) < 0.005){
+    avIva.classList.remove('oculto');
+    avIva.innerHTML = `<b>Ojo con el IVA.</b> ${c.dudaIva} `+
+      `El cuadre va siempre contra la base imponible: corrige el importe si hace falta.`;
+  } else avIva.classList.add('oculto');
 
   // cargo por redondeo
   const tot = num($('#fTotal').value);
@@ -90161,12 +90301,22 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
       <td><span class="desc">${s.fila.fac.desc}</span></td>
       <td class="n">${cant(s.q)}</td>
       <td class="n"><b>${isFinite(s.znet)?nf.format(s.znet):'—'}</b></td>
-      <td>${s.por} ${s.um}</td>
+      <td><select class="baseLinea" data-pos="${s.fila.fac.pos}">${
+        Object.entries(BASES).map(([k,v])=>
+          `<option value="${k}"${k===s.clave?' selected':''}>${v}</option>`).join('')
+      }</select></td>
       <td class="n">${eur(s.importe)}</td>
       <td class="n">${eur(s.objetivo)}</td>
       <td class="n">${isFinite(s.desvio)&&s.desvio!==0?(s.desvio>0?'+':'')+nf.format(s.desvio):'—'}</td>`;
     tb.appendChild(tr);
   }
+  // cambiar la base de una línea no altera el importe, solo el número que se
+  // teclea en SAP: sirve para no meter ZNET de cuatro cifras
+  $$('.baseLinea').forEach(sel => sel.onchange = e=>{
+    const pos = +e.target.dataset.pos;
+    const fila = E.filas.find(f => f.fac.pos === pos);
+    if(fila){ fila.base = e.target.value; calcular(); }
+  });
   E.ultimaSalida = {salida, suma, total, zaju};
 }
 
@@ -90488,6 +90638,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); limpiarAjuste(); refrescar(); };
   $('#btnAplicarModo').onclick = ()=>{ const m=$('#fModo').value;
     E.filas.forEach(f=>{ f.modo=m; f.manual=null; }); limpiarAjuste(); refrescar(); };
+  $('#btnBaseAuto').onclick = ajustarBases;
   $('#btnCopiar').onclick = ()=>copiar(tsvSalida(),'Tabla copiada');
   $('#btnCopiarZnet').onclick = ()=>copiar(
     (E.ultimaSalida?.salida||[]).map(s=>nf.format(s.znet)).join('\n'), 'ZNET copiados');
@@ -90510,6 +90661,8 @@ window.addEventListener('pdfjs-listo', async ()=>{
   ['fTotal','fTolerancia','fBase','fCliente','fModo'].forEach(id=>{
     $('#'+id).addEventListener('change', ()=>{
       limpiarAjuste();
+      // la base general manda: al cambiarla se reponen las bases por línea
+      if(id === 'fBase') E.filas.forEach(f => f.base = null);
       if(E.filas.length) refrescar(); else pintarCabecera();
     });
   });

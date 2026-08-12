@@ -310,3 +310,50 @@ Cambios:
 
 Al buscar la factura se excluye el archivo del propio cargo, porque su nombre
 suele llevar también el número de factura y se encontraría a sí mismo.
+
+## Perfil Alcampo: tres fallos de golpe
+
+Primer cargo real que rompió varias cosas a la vez. Formato:
+
+```
+1  8410134028337  F-MERMELADA NARANJA...  80,00 KG   10   5,043   403,44
+2  8410134028337  F-MERMELADA NARANJA...  80,00- KG  10   2,369   189,52-
+```
+
+**1. El signo va detrás del número.** `189,52-` no pasaba el filtro de celda
+numérica (`/^-?[\d.,]+$/`), así que esas líneas se descartaban enteras. Ahora se
+admite el signo final, que es como lo escriben los sistemas antiguos.
+
+**2. La diferencia viene en dos renglones por artículo**: lo facturado en
+positivo y lo que debió facturarse en negativo. La diferencia real es la suma
+con signo (`403,44 − 189,52 = 213,92`). Se funden los pares que comparten código
+de artículo y tienen signos opuestos. No afecta a Alimerka, donde el código es
+`00000000` en todas las líneas y por eso se excluye.
+
+**3. El total elegido llevaba el IVA dentro.** El documento declara
+`Importe Neto: 308,59` (que es CON IVA, pese al nombre) y `Base Imponible:
+280,54`. Se leía el primero y todo el cuadre salía inflado un 10 %.
+
+La corrección no es añadir más rótulos a una lista de prioridades, porque cada
+cliente los nombra a su manera. **La suma de las líneas es el árbitro**: si
+coincide con alguno de los candidatos, ese es el bueno. Aquí las cuatro líneas
+suman 280,54 y eligen la base imponible sin ambigüedad. Si ninguno coincide, se
+mantiene el orden por rótulo, y si el importe elegido resulta ser otro candidato
+multiplicado por el IVA, se avisa en rojo antes de calcular.
+
+De paso, el patrón comodín del número de cargo leía el NIF del cliente
+(`ESA00000000`) como si fuera el número. Ahora descarta lo que tenga forma de
+NIF y prefiere `REF./PROV.`.
+
+## Base del ZNET por línea
+
+Con cantidades pequeñas el ZNET se dispara (24 unidades y 66,62 € dan 277,58 por
+100 UC). Cada línea puede llevar ahora su propia base, elegible en la tabla de
+salida, y hay un botón que busca automáticamente la que deja el número más
+pequeño **sin perder ni un céntimo**.
+
+Conviene entender la dirección, porque es contraintuitiva: el ZNET es
+`diferencia × base / cantidad`. Bajar la base (de 100 UC a 1 UC) da un número
+más pequeño; pasar de UC a CJ **lo hace más grande**, porque hay menos cajas que
+unidades. Cambiar de base no altera el importe salvo por el redondeo a dos
+decimales, y ese desvío se ve en su columna y lo absorbe el ZAJU.

@@ -1,0 +1,30 @@
+{
+  "nombre": "Perfil Alcampo (sintético) · dos renglones por artículo y base imponible junto al total con IVA",
+  "notas": [
+    "PDF generado por pruebas/generar_casos_sinteticos.py — no es un documento real,",
+    "pero replica el formato y las cifras de un cargo que dio problemas en producción.",
+    "Comprueba tres cosas que fallaban:",
+    "1. el signo va DETRÁS del número ('189,52-'), y esas líneas se descartaban;",
+    "2. la diferencia viene en dos renglones por artículo (facturado + / correcto −),",
+    "   y hay que fundirlos: 403,44 − 189,52 = 213,92 y 125,71 − 59,09 = 66,62;",
+    "3. el documento declara 'Importe Neto: 308,59' (CON IVA) y 'Base Imponible: 280,54'.",
+    "   El cuadre va contra 280,54, que es lo que suman las líneas."
+  ],
+  "archivos": {
+    "cargo": "CARGO_TIPO_ALCAMPO.pdf",
+    "factura": "FACTURA_TIPO_ALCAMPO.pdf"
+  },
+  "esperado": {
+    "numCargo": "0085465",
+    "numFactura": "509000271",
+    "lineasCargo": 2,
+    "lineasFactura": 2,
+    "totalSinIva": 280.54,
+    "sumaLineas": 280.54,
+    "zaju": 0,
+    "znet": [
+      { "pos": 220, "znet": 277.58, "importe": 66.62, "objetivo": 66.62 },
+      { "pos": 230, "znet": 267.40, "importe": 213.92, "objetivo": 213.92 }
+    ]
+  }
+}
