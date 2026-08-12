@@ -288,3 +288,25 @@ Cursor de mano y resaltado al pasar por encima para que se note que es
 clicable, y una frase fija encima de la tabla («Haz clic en cualquier parte de
 una fila para abrir su ficha»). Los botones de la fila conservan su
 comportamiento propio y no disparan también la apertura de la ficha.
+
+## Del PDF abierto a la calculadora, sin volver a la carpeta
+
+Segundo aviso de uso real: «Ver PDF» abre el cargo en otra pestaña del navegador
+para leerlo, pero de ahí **no se puede arrastrar nada** a la calculadora, así que
+había que ir a la carpeta a buscar el mismo archivo otra vez. El atajo existía
+(«Calcular con este PDF») pero estaba escondido dentro de la ficha.
+
+Cambios:
+
+- Botón **«Calcular»** en cada fila de la cola, al lado de «Ver PDF». Un clic
+  lleva a la calculadora con el cargo ya leído.
+- Ese mismo clic **busca también la factura** en la carpeta conectada, por el
+  número que el propio cargo menciona (`Ref. Fact. …`). Si la encuentra, la carga
+  sola: el cuadre sale hecho sin arrastrar ni un archivo.
+- Barra en la calculadora con el cargo que se está trabajando: botón para
+  **reabrir su PDF** en otra pestaña mientras se calcula (hace falta para
+  clasificar mercancía/precio) y, si la factura no apareció sola, botón para
+  **buscarla por número** en la carpeta.
+
+Al buscar la factura se excluye el archivo del propio cargo, porque su nombre
+suele llevar también el número de factura y se encontraría a sí mismo.

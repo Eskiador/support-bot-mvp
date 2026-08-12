@@ -291,6 +291,7 @@ td.acc{text-align:right}
   <section>
     <div class="cab"><span class="paso">1</span><h2>Archivos del cargo</h2></div>
     <div class="cuerpo">
+      <div id="enlaceCargo" class="oculto"></div>
       <p class="pista">Arrastra el PDF. Se lee el texto real del archivo, sin OCR. El XPS/OXPS también vale como respaldo.</p>
       <div class="zonas">
         <div class="zona" id="zonaCargo" data-tipo="cargo">
@@ -1399,6 +1400,7 @@ async function procesarArchivo(file, tipo){
     est.className='chip ok'; est.textContent='Leído: '+file.name;
     pintarCabecera();                       // aplica la memoria del cliente...
     if(E.factura){ emparejar(); refrescar(); }   // ...antes de repartir modos
+    pintarEnlaceCargo();
   }catch(e){
     est.className='chip no'; est.textContent='Error leyendo '+file.name+': '+e.message;
     console.error(e);
@@ -1490,6 +1492,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
     const b = e.target.closest('button');
     if(b){
       if(b.dataset.pdf) abrirDoc(Object.assign({id:b.dataset.pdf}, E.memoria.cargos[b.dataset.pdf]));
+      else if(b.dataset.calc) calcularCon(Object.assign({id:b.dataset.calc}, E.memoria.cargos[b.dataset.calc]));
       else if(b.dataset.abrir) abrirFicha(b.dataset.abrir);
       return;
     }
@@ -1879,18 +1882,69 @@ async function abrirDoc(c){
   registrar('pdf_abierto', {cliente:c.cliente, asignacion:c.asignacion, archivo:f.nombre});
 }
 
+// Busca la factura en la carpeta por su número. Se excluye el archivo del
+// propio cargo, porque su nombre suele llevar también el nº de factura.
+function buscarFactura(numero, excluirRuta){
+  if(!E.indice || !E.indice.length || !numero) return null;
+  const clave = clavePdf(numero);
+  if(clave.length < 5) return null;
+  const cand = E.indice.filter(f => f.clave.includes(clave) && f.ruta !== excluirRuta);
+  if(!cand.length) return null;
+  return cand.sort((a,b)=>a.nombre.length-b.nombre.length)[0];
+}
+
+const archivoDe = async f => f.handle ? await f.handle.getFile() : f.file;
+
 async function calcularCon(c){
   const f = buscarDoc(c);
   if(!f){ avisar('No encuentro el PDF de ese cargo.'); return; }
-  const file = f.handle ? await f.handle.getFile() : f.file;
   E.cargoAbierto = c.id;
+  E.docCargo = f;                       // para poder reabrirlo desde la calculadora
   cambiarVista('calc');
   $('#fCliente').value = c.cliente;
   $('#fNumCargo').value = c.asignacion;
-  await procesarArchivo(file, 'cargo');
+  await procesarArchivo(await archivoDe(f), 'cargo');
   if(!$('#fTotal').value) $('#fTotal').value = nf.format(Math.abs(c.importe));
+
+  // el cargo suele decir de qué factura viene: si está en la carpeta, se carga sola
+  const num = (E.cargo && E.cargo.refFactura) || $('#fNumFactura').value.trim();
+  const fac = buscarFactura(num, f.ruta);
+  if(fac){
+    await procesarArchivo(await archivoDe(fac), 'factura');
+    avisar(`Cargo y factura ${num} cargados desde la carpeta.`);
+  } else {
+    avisar(num ? `Cargo cargado. Falta la factura ${num}.` : 'Cargo cargado. Falta la factura.');
+  }
   pintarCabecera();
-  avisar('Cargo cargado. Arrastra ahora la factura.');
+  pintarEnlaceCargo();
+}
+
+// Barra de la calculadora: recuerda qué cargo se está trabajando y da acceso
+// directo a su PDF y a la búsqueda de la factura, sin volver a la carpeta.
+function pintarEnlaceCargo(){
+  const caja = $('#enlaceCargo');
+  if(!caja) return;
+  const num = $('#fNumFactura').value.trim() || (E.cargo && E.cargo.refFactura) || '';
+  const hayCarpeta = E.indice && E.indice.length;
+  if(!E.docCargo && !hayCarpeta){ caja.classList.add('oculto'); return; }
+  caja.classList.remove('oculto');
+  caja.innerHTML = `<div class="aviso-caja azul" style="margin:0 0 12px">
+    ${E.docCargo ? `<b>Cargo abierto:</b> ${E.docCargo.nombre}` : '<b>Carpeta conectada.</b>'}
+    <div class="barra">
+      ${E.docCargo ? '<button id="btnVerCargoCalc">Ver el PDF del cargo</button>' : ''}
+      ${num && !E.factura ? `<button class="primario" id="btnBuscarFac">Buscar la factura ${num} en la carpeta</button>` : ''}
+      ${E.factura ? `<span style="font-size:13px">Factura ${E.factura.numero||''} cargada.</span>` : ''}
+    </div></div>`;
+  if($('#btnVerCargoCalc')) $('#btnVerCargoCalc').onclick = async ()=>{
+    const url = URL.createObjectURL(await archivoDe(E.docCargo));
+    window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  };
+  if($('#btnBuscarFac')) $('#btnBuscarFac').onclick = async ()=>{
+    const fac = buscarFactura(num, E.docCargo ? E.docCargo.ruta : '');
+    if(!fac){ avisar(`No encuentro ningún archivo con el número ${num} en la carpeta.`); return; }
+    await procesarArchivo(await archivoDe(fac), 'factura');
+    pintarEnlaceCargo();
+  };
 }
 
 /* ------------------------------------------------ estado y presentación */
@@ -2010,7 +2064,8 @@ function pintarCola(){
       <td>${c.compensado ? '<span class="pill verde">sí</span>' : '<span class="pill gris">no</span>'}</td>
       <td>${c.conforme === false ? (c.reclamado ? '<span class="pill verde">sí</span>' : '<span class="pill rojo">pendiente</span>') : '—'}</td>
       <td>${buscarDoc(c)
-            ? `<button class="mini" data-pdf="${c.id}" title="Abrir el PDF del cargo">Ver PDF</button>`
+            ? `<button class="mini" data-pdf="${c.id}" title="Abrir el PDF del cargo">Ver PDF</button>`+
+              `<button class="mini" data-calc="${c.id}" title="Abrirlo en la calculadora, sin buscar el archivo" style="margin-left:4px">Calcular</button>`
             : '<span style="color:var(--muted)">—</span>'}</td>
       <td class="acc"><button class="mini" data-abrir="${c.id}">Abrir</button></td>`;
     tb.appendChild(tr);
@@ -2626,6 +2681,7 @@ function cambiarVista(v){
   $('#vistaComerciales').classList.toggle('oculto', v !== 'comerciales');
   if(v === 'cargos') pintarCola();
   if(v === 'comerciales') pintarComerciales();
+  if(v === 'calc') pintarEnlaceCargo();
 }
 
 /* Ganchos para las pruebas automáticas y para depurar desde la consola. */
