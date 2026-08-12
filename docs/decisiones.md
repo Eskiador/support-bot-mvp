@@ -449,3 +449,39 @@ también el cliente.
 asignaciones con barra (`C/2405NC0147`). Windows no admite `\ / : * ? " < > |`
 en un nombre de archivo, así que ese nombre no se podía usar para guardar. Ahora
 se limpian esos caracteres.
+
+## La fórmula, tal cual se hace en Excel
+
+Corrección de rumbo pedida por el usuario. La hoja de Excel que venía usando a
+mano hace exactamente esto, y es lo que la herramienta implementa ahora:
+
+```
+diferencia = (precio de SAP − precio del cargo) × unidades      ← o se teclea directa
+ZNET       = diferencia × 10 / precio neto que da SAP con ZNET 10
+```
+
+Comprobado contra sus dos ejemplos reales:
+
+| Diferencia | Neto con ZNET 10 | Excel | La herramienta |
+|---|---|---|---|
+| 90,72 | 1.008 | 0,9 | **0,90** |
+| 3,20 | 0,77 | 41,5584416 | **41,56** |
+
+El ZNET de prueba vuelve a ser **10** por defecto, no 1.000. Yo lo había subido
+para ganar cifras significativas, pero se trabaja con 10 y con 10 funciona; el
+campo sigue estando por si algún día hace falta afinar.
+
+**Solo quedan dos bases: 100 UC y 100 CJ**, que son las que se usan de verdad.
+Las de 1 y 1.000 eran ruido.
+
+## El precio de la factura no sirve para restar
+
+Cuando la diferencia sale de restar dos precios, el de nuestra factura **no
+vale**: lleva IVA y otros impuestos, y el neto real solo se ve en SAP. Antes se
+cogía automáticamente de la factura, y de ahí venían descuadres que no se
+explicaban solos.
+
+Ahora hay una columna **«Precio SAP»** que se teclea a mano. La de la factura se
+queda al lado, en gris, solo como referencia. Si falta en alguna línea, la
+diferencia no se calcula —en vez de calcularse mal— y se dice qué posiciones
+faltan.

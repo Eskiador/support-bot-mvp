@@ -356,16 +356,12 @@ td.acc{text-align:right}
         <div class="campo"><label>Fecha del cargo</label><input id="fFecha"></div>
         <div class="campo"><label>Importe SIN IVA del cargo</label><input id="fTotal" class="num"></div>
         <div class="campo"><label>Tolerancia (€)</label><input id="fTolerancia" class="num" value="0,01"></div>
-        <div class="campo"><label>ZNET de prueba</label><input id="fZnetPrueba" class="num" value="1.000"
-          title="El ZNET que tecleas en SAP para medir. Cuanto más grande, más exacto sale el resultado."></div>
+        <div class="campo"><label>ZNET de prueba</label><input id="fZnetPrueba" class="num" value="10"
+          title="El ZNET que tecleas en SAP para medir el precio neto. Normalmente 10."></div>
         <div class="campo"><label>Base del ZNET</label>
           <select id="fBase">
             <option value="100UC">por 100 UC (unidades)</option>
-            <option value="1000UC">por 1.000 UC — más fino</option>
             <option value="100CJ">por 100 CJ (cajas)</option>
-            <option value="1000CJ">por 1.000 CJ — más fino</option>
-            <option value="1UC">por 1 UC</option>
-            <option value="1CJ">por 1 CJ</option>
           </select>
         </div>
         <div class="campo"><label>Modo de diferencia por defecto</label>
@@ -395,8 +391,11 @@ td.acc{text-align:right}
         <table id="tablaLineas">
           <thead><tr>
             <th style="width:34px">Sí</th><th>Pos.</th><th>Material</th><th>Descripción</th>
-            <th class="n">Cantidad</th><th class="n">Ud/cj</th><th class="n">P. factura</th>
-            <th>Línea del cargo</th><th>Modo</th><th class="n">Dato del cargo</th>
+            <th class="n">Cantidad</th><th class="n">Ud/cj</th>
+            <th class="n" title="Solo de referencia: lleva IVA e impuestos, no sirve para restar">P. factura</th>
+            <th class="n" title="El precio neto que ves en SAP. Se teclea a mano.">Precio SAP</th>
+            <th>Línea del cargo</th><th>Modo</th>
+            <th class="n" title="El precio o el importe que dice el cargo">Dato del cargo</th>
             <th class="n">Diferencia</th>
           </tr></thead>
           <tbody></tbody>
@@ -411,6 +410,7 @@ td.acc{text-align:right}
     <div class="marcador" id="marcador"></div>
     <div class="nota" id="notaCuadre"></div>
     <div class="cuerpo">
+      <div id="avisoPrecioSap" class="aviso-caja rojo oculto"></div>
       <div id="avisoMedicion" class="aviso-caja oculto"></div>
       <div id="accionCuadre"></div>
       <div id="avisosZnet"></div>
@@ -89908,7 +89908,8 @@ function emparejar(){
       manual: null,           // valor tecleado a mano (dato del cargo)
       objetivoForzado: null,  // importe fijado al cuadrar las líneas
       base: null,             // base propia del ZNET; si es null, la general
-      netoPrueba: null        // neto real que devolvió SAP con el ZNET de prueba
+      netoPrueba: null,       // neto real que devolvió SAP con el ZNET de prueba
+      precioSap: null         // precio neto de SAP, tecleado (no vale el de la factura)
     };
   });
   const sin = car.length - usados.size;
@@ -89926,10 +89927,8 @@ function emparejar(){
 /* ==================================================================
    5 · CÁLCULO
    ================================================================== */
-const BASES = {
-  '1UC':'1 UC', '100UC':'100 UC', '1000UC':'1.000 UC',
-  '1CJ':'1 CJ', '100CJ':'100 CJ', '1000CJ':'1.000 CJ'
-};
+// Solo las dos que se usan en SAP de verdad.
+const BASES = { '100UC':'100 UC', '100CJ':'100 CJ' };
 function baseZnet(){
   const v = $('#fBase').value;
   return { por: parseInt(v, 10) || 1, um: v.endsWith('CJ') ? 'CJ' : 'UC', clave:v };
@@ -89968,18 +89967,24 @@ function datoCargo(fila){
   return NaN;
 }
 
+// ¿Este modo necesita el precio neto de SAP tecleado a mano?
+const necesitaPrecioSap = modo => modo === 'precio_ud' || modo === 'precio_cj';
+
 function diferenciaDe(fila){
   const d = datoCargo(fila);
   if(!isFinite(d)) return NaN;
   const lf = fila.fac;
   const uds = lf.um === 'CS' && lf.udsCaja ? lf.cantidad * lf.udsCaja : lf.cantidad;
   const cjs = lf.um === 'CS' ? lf.cantidad : (lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN);
+  // El precio de la factura NO sirve para restar: lleva IVA y otros impuestos.
+  // El neto de verdad solo se ve en SAP, así que se teclea.
+  const pSap = num(fila.precioSap);
   switch(fila.modo){
     case 'importe':    return Math.abs(d);
-    case 'precio_ud':  return (lf.precio - d) * uds;
     case 'dif_ud':     return Math.abs(d) * uds;
-    case 'precio_cj':  return (lf.precio * (lf.udsCaja||1) - d) * cjs;
     case 'dif_cj':     return Math.abs(d) * cjs;
+    case 'precio_ud':  return isFinite(pSap) ? (pSap - d) * uds : NaN;
+    case 'precio_cj':  return isFinite(pSap) ? (pSap - d) * cjs : NaN;
   }
   return NaN;
 }
@@ -90219,7 +90224,11 @@ function pintarLineas(){
       <td><span class="desc" title="${lf.desc.replace(/"/g,'')}">${lf.desc}</span></td>
       <td class="n">${cant(lf.cantidad)} ${lf.um}</td>
       <td class="n">${lf.udsCaja ?? '—'}</td>
-      <td class="n">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
+      <td class="n" style="color:var(--muted)">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
+      <td class="n"><input class="num precioSap" data-i="${i}" style="width:86px"
+            value="${fila.precioSap != null ? fila.precioSap : ''}"
+            placeholder="${necesitaPrecioSap(fila.modo) ? 'teclea' : '—'}"
+            ${necesitaPrecioSap(fila.modo) ? '' : 'disabled'}></td>
       <td><select data-i="${i}" class="selCargo">${opciones.join('')}</select></td>
       <td><select data-i="${i}" class="selModo">${Object.entries(MODOS).map(([k,v])=>
             `<option value="${k}" ${fila.modo===k?'selected':''}>${v}</option>`).join('')}</select></td>
@@ -90241,6 +90250,9 @@ function pintarLineas(){
     limpiarAjuste(); refrescar(); });
   $$('.datoMan').forEach(el=>el.onchange = e=>{
     E.filas[+e.target.dataset.i].manual = e.target.value; limpiarAjuste(); refrescar(); });
+  $$('.precioSap').forEach(el=>el.onchange = e=>{
+    E.filas[+e.target.dataset.i].precioSap = e.target.value.trim() || null;
+    limpiarAjuste(); refrescar(); });
 }
 
 function pintarResultado({salida, suma, total, zaju, tol, avisos}){
@@ -90322,6 +90334,21 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
   // Cuando SAP no da el importe previsto (conversiones o descuentos que no se
   // ven desde el PDF), la salida es medir: teclear un ZNET de prueba, leer el
   // neto que devuelve y anotarlo. Con eso el resultado es exacto.
+  // líneas en modo «precio» a las que les falta el precio neto de SAP
+  const faltaPrecio = E.filas.filter(f => f.afectada && necesitaPrecioSap(f.modo)
+                                       && !isFinite(num(f.precioSap)));
+  const cajaPrecio = $('#avisoPrecioSap');
+  if(cajaPrecio){
+    if(faltaPrecio.length){
+      cajaPrecio.classList.remove('oculto');
+      cajaPrecio.innerHTML = `<b>Faltan ${faltaPrecio.length} precio(s) de SAP.</b> `+
+        `En el modo «precio correcto» la diferencia se calcula restando dos precios, y el `+
+        `de la factura no vale porque lleva IVA e impuestos. Escribe en la columna `+
+        `<b>«Precio SAP»</b> el neto que ves en SAP: `+
+        faltaPrecio.map(f=>`pos. ${f.fac.pos}`).join(', ')+'.';
+    } else cajaPrecio.classList.add('oculto');
+  }
+
   const medidas = salida.filter(s => s.medido).length;
   const cajaMed = $('#avisoMedicion');
   if(cajaMed){
