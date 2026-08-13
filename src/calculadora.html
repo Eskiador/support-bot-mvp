@@ -2285,7 +2285,16 @@ async function conectarCarpeta(){
     const dir = await window.showDirectoryPicker({mode:'read'});
     E.carpeta = dir;
     await idb.set('carpeta', dir);
-    await releerCarpeta();
+    // Si el índice guardado es de esta misma carpeta, no hay que releer nada:
+    // 25.000 archivos son minutos y ya están apuntados.
+    const g = E.memoria.pdfIndice;
+    if(g && g.carpeta === dir.name && cargarIndiceGuardado()){
+      pintarCarpeta(); pintarCola();
+      avisar(`Carpeta conectada. Índice guardado de ${E.indice.length.toLocaleString('es-ES')} `+
+             `archivos: no hace falta releerla.`);
+    } else {
+      await releerCarpeta();
+    }
   }catch(e){ if(e.name !== 'AbortError') avisar('No se pudo conectar la carpeta: '+e.message); }
 }
 
@@ -2293,7 +2302,12 @@ async function conectarCarpeta(){
 // El índice queda guardado en el archivo de datos y en los arranques siguientes
 // está disponible al instante.
 async function releerCarpeta(){
-  if(!E.carpeta) return;
+  // Sin carpeta enganchada no hay nada que leer: en vez de no hacer nada en
+  // silencio, se pide conectarla.
+  if(!E.carpeta){
+    avisar('La carpeta no está conectada: elígela primero.');
+    return conectarCarpeta();
+  }
   const z = $('#zonaCarpeta');
   z.className = 'zona';
   z.innerHTML = `<h3>Leyendo la carpeta…</h3><p class="avance">empezando…</p>
@@ -2319,6 +2333,10 @@ function cargarIndiceGuardado(){
   return true;
 }
 
+/* Tener el índice guardado NO es tener la carpeta conectada: el índice dice qué
+   archivos hay y dónde, pero para abrir uno hace falta el permiso de lectura de
+   la carpeta, que Edge no conserva entre sesiones. Decir «carpeta conectada»
+   teniendo solo el índice era mentir, y los botones «Ver PDF» fallaban después. */
 function pintarCarpeta(){
   const z = $('#zonaCarpeta');
   if(!E.indice || !E.indice.length) return;
@@ -2329,11 +2347,26 @@ function pintarCarpeta(){
     ? `índice del ${new Date(g.fecha).toLocaleDateString('es-ES')} `+
       `${new Date(g.fecha).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`
     : 'índice de esta sesión';
+  const detalle = `<p>${E.indice.length.toLocaleString('es-ES')} archivo(s) · ${cuando}`+
+    (total ? ` · PDF localizado en <b>${localizados}</b> de ${total} cargos` : '')+`</p>`;
+
+  if(!E.carpeta){
+    z.className = 'zona';
+    z.innerHTML = `<h3>Índice cargado, pero falta conectar la carpeta</h3>
+      <p class="archivo">${g ? g.carpeta : ''}</p>
+      ${detalle}
+      <p style="font-size:12.5px">Para <b>abrir</b> los PDF, Edge necesita permiso sobre la
+         carpeta y no lo guarda de una sesión a otra. Es un clic y no vuelve a leerla.</p>
+      <div class="barra" style="justify-content:center">
+        <button class="primario" id="btnEngancharCarpeta">Conectar la carpeta</button></div>`;
+    $('#btnEngancharCarpeta').onclick = conectarCarpeta;
+    return;
+  }
+
   z.className = 'zona lleno';
   z.innerHTML = `<h3>Carpeta conectada</h3>
-    <p class="archivo">${E.carpeta ? E.carpeta.name : (g ? g.carpeta : 'carpeta elegida')}</p>
-    <p>${E.indice.length.toLocaleString('es-ES')} archivo(s) · ${cuando}`+
-    (total ? ` · PDF localizado en <b>${localizados}</b> de ${total} cargos` : '')+`</p>
+    <p class="archivo">${E.carpeta.name}</p>
+    ${detalle}
     <div class="barra" style="justify-content:center">
       <button id="btnRecargarCarpeta" class="mini">Volver a leer la carpeta</button>
       <span style="font-size:12px;color:var(--muted)">solo si has añadido cargos nuevos</span>
@@ -2350,8 +2383,13 @@ async function abrirDoc(c){
     setTimeout(()=>URL.revokeObjectURL(url), 60000);
     registrar('pdf_abierto', {cliente:c.cliente, asignacion:c.asignacion, archivo:f.nombre});
   }catch(e){
-    // el índice está guardado: si el archivo se movió o se borró, hay que releer
-    avisar(`No he podido abrir «${f.nombre}»: ${e.message}. Si has movido archivos, vuelve a leer la carpeta.`);
+    if(!E.carpeta){
+      avisar('La carpeta no está conectada: pulsa «Conectar la carpeta» arriba y vuelve a intentarlo.');
+      $('#zonaCarpeta').scrollIntoView({behavior:'smooth', block:'center'});
+    } else {
+      // el índice está guardado: si el archivo se movió o se borró, hay que releer
+      avisar(`No he podido abrir «${f.nombre}»: ${e.message}. Si has movido archivos, vuelve a leer la carpeta.`);
+    }
   }
 }
 
@@ -3170,6 +3208,7 @@ window.__textoCorreo = textoCorreo;
 window.__buscarDoc = buscarDoc;
 window.__cargarIndiceGuardado = cargarIndiceGuardado;
 window.__contarDocs = contarDocs;
+window.__pintarCarpeta = pintarCarpeta;
 window.__nombrePdf = nombrePdf;
 window.__pintarCola = pintarCola;
 window.__resolverArchivo = resolverArchivo;

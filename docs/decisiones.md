@@ -541,3 +541,30 @@ Ahora la lectura distingue tres situaciones:
 Lo mismo al reconectar en el arranque: si el archivo guardado no se puede leer,
 se deja desconectado a propósito y la cabecera lo dice, en vez de quedarse
 conectado esperando a pisarlo.
+
+## «Carpeta conectada» cuando no lo estaba
+
+Primer uso del índice guardado en un ordenador donde el navegador ya no tenía
+apuntada la carpeta. La pantalla decía **«Carpeta conectada», 25.337 archivos,
+PDF localizado en 754 de 1279 cargos**… y al pulsar «Ver PDF» fallaba, y «Volver
+a leer la carpeta» no hacía nada.
+
+Dos fallos, y el primero es de los feos: **estado que miente**. `pintarCarpeta()`
+daba por conectada la carpeta con solo tener el índice cargado, y son cosas
+distintas: el índice dice qué archivos hay y dónde, pero para **abrir** uno hace
+falta el permiso de lectura, que Edge no conserva de una sesión a otra. La
+pantalla mostraba lo que sabía del JSON, no lo que realmente podía hacer.
+
+El segundo: `releerCarpeta()` empezaba con `if(!E.carpeta) return;`. Sin carpeta
+enganchada el botón no hacía absolutamente nada, ni siquiera decirlo.
+
+Ahora:
+
+- Con índice pero sin carpeta, la zona lo dice tal cual — «Índice cargado, pero
+  falta conectar la carpeta»— y ofrece el botón para engancharla.
+- «Volver a leer la carpeta» sin carpeta conectada abre el diálogo en vez de
+  callarse.
+- «Ver PDF» sin carpeta explica qué falta y lleva la vista al botón.
+- Y lo que hace el arreglo indoloro: **al reconectar la carpeta, si el índice
+  guardado es de esa misma carpeta, no se relee nada**. Medido: 0 recorridos del
+  disco, 25.050 archivos disponibles al instante.
