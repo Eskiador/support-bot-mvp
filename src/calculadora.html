@@ -2244,31 +2244,63 @@ function construirMapaDocs(){
     const base = e.nombre.replace(/\.[a-z0-9]+$/i, '');
     const t = base.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
                   .split(/[^A-Z0-9]+/).filter(Boolean);
-    meter(clavePdf(base), e);
+    // Un archivo llamado solo con el número ("5300011861.pdf") genera la misma
+    // clave por dos caminos; sin esto quedaría repetido y «candidato único»
+    // nunca se cumpliría.
+    const puestas = new Set();
+    const meterUna = k => { if(k && !puestas.has(k)){ puestas.add(k); meter(k, e); } };
+    meterUna(clavePdf(base));
     for(let i = 0; i < t.length; i++){
-      meter(t[i], e);
-      if(i+1 < t.length) meter(t[i]+t[i+1], e);
-      if(i+2 < t.length) meter(t[i]+t[i+1]+t[i+2], e);
+      meterUna(t[i]);
+      if(i+1 < t.length) meterUna(t[i]+t[i+1]);
+      if(i+2 < t.length) meterUna(t[i]+t[i+1]+t[i+2]);
     }
   }
   return m;
 }
 
+/* En SAP muchas asignaciones llevan delante el tipo de documento con barra
+   ("C/5300011522"), pero en la carpeta el archivo se llama solo con el número,
+   porque Windows no admite la barra en un nombre de archivo. Por eso se busca
+   con dos claves: la asignación entera y, si no aparece, solo el número. */
+function clavesDeAsignacion(asig){
+  const claves = [];
+  const añadir = (clave, exigeCliente) => {
+    if(clave && clave.length >= 4 && !claves.some(k => k.clave === clave))
+      claves.push({clave, exigeCliente});
+  };
+  // Una clave corta es frágil (puede ser una fecha o un importe dentro de otro
+  // nombre), así que en ese caso se exige que además case el cliente.
+  const entera = clavePdf(asig);
+  añadir(entera, entera.length < 5);
+  const numero = ((asig || '').match(/\d{4,}/g) || []).sort((a,b)=>b.length-a.length)[0];
+  añadir(numero, !numero || numero.length < 7);
+  return claves;
+}
+
+// ¿El archivo lleva el nombre del cliente, en el nombre o en la carpeta?
+const PALABRAS_VACIAS = /^(SOCIEDAD|LIMITADA|ANONIMA|GRUPO|CENTRO|COMERCIAL|SUPERMERCADOS|DISTRIBUCION)$/;
+function clienteCoincide(f, cliente){
+  const toks = norm(cliente).split(' ').filter(t => t.length >= 4 && !PALABRAS_VACIAS.test(t));
+  if(!toks.length) return false;
+  const donde = f.clave + '|' + clavePdf(f.ruta);
+  return toks.some(t => donde.includes(t));
+}
+
 function buscarDoc(c){
   if(!E.indice || !E.indice.length) return null;
-  const asig = clavePdf(c.asignacion);
-  if(asig.length < 4) return null;                   // demasiado corto: daría falsos
   if(!E.mapaDocs) E.mapaDocs = construirMapaDocs();
-  const cli = clavePdf(c.cliente).slice(0,8);
-  let cand = E.mapaDocs.get(asig) || [];
-  if(!cand.length) return null;
-  const conCliente = cli.length >= 4 ? cand.filter(f => f.clave.includes(cli)) : [];
-  // Con asignaciones de 4 caracteres ("4188") el número solo no basta: podría
-  // ser una fecha o un importe dentro de otro nombre. Se exige el cliente.
-  if(asig.length < 5) return conCliente.length === 1 ? conCliente[0] : null;
-  if(cand.length > 1 && conCliente.length) cand = conCliente;
-  // el nombre más corto es el más específico
-  return cand.sort((a,b)=>a.nombre.length-b.nombre.length)[0];
+  const masCorto = lista => lista.sort((a,b)=>a.nombre.length-b.nombre.length)[0];
+
+  for(const {clave, exigeCliente} of clavesDeAsignacion(c.asignacion)){
+    const cand = [...new Set(E.mapaDocs.get(clave) || [])];
+    if(!cand.length) continue;
+    const conCliente = cand.filter(f => clienteCoincide(f, c.cliente));
+    if(conCliente.length) return masCorto(conCliente);   // número + cliente: seguro
+    if(exigeCliente) continue;                            // sin cliente no me fío
+    if(cand.length === 1) return cand[0];                 // único candidato: vale
+  }
+  return null;
 }
 
 function contarDocs(){
@@ -3206,6 +3238,7 @@ window.__num = num;
 window.__elegirZona = t => { tipoPendiente = t; };
 window.__textoCorreo = textoCorreo;
 window.__buscarDoc = buscarDoc;
+window.__clavesDeAsignacion = clavesDeAsignacion;
 window.__cargarIndiceGuardado = cargarIndiceGuardado;
 window.__contarDocs = contarDocs;
 window.__pintarCarpeta = pintarCarpeta;

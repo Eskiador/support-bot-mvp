@@ -568,3 +568,39 @@ Ahora:
 - Y lo que hace el arreglo indoloro: **al reconectar la carpeta, si el índice
   guardado es de esa misma carpeta, no se relee nada**. Medido: 0 recorridos del
   disco, 25.050 archivos disponibles al instante.
+
+## La barra de la asignación: «C/5300011522»
+
+Muchos clientes (Hiper Usera y más) llevan en SAP la asignación con el tipo de
+documento delante y una barra: `C/5300011522`. En la carpeta el archivo se llama
+solo con el número, **porque Windows no admite la barra en un nombre de
+archivo**. Así que ninguno de esos cargos encontraba su PDF.
+
+La búsqueda pasa a intentar dos claves, en este orden:
+
+1. la asignación entera sin separadores (`C5300011522`)
+2. **solo el número** (`5300011522`)
+
+Y al caer en la segunda se exige que el archivo lleve además el **cliente**, en
+el nombre o en la carpeta que lo contiene, salvo que el número tenga 7 cifras o
+más y sea el único candidato. Así `C/5300011522` encuentra
+`HIPER USERA/HIPER_USERA_5300011522.pdf` y descarta
+`ruido/FACTURA_5300011522_OTRA_COSA.pdf`.
+
+El cliente se compara por palabras significativas (≥ 4 letras, saltando
+«sociedad», «limitada», «supermercados» y similares), lo que además hace que
+funcione cuando el cliente está en la carpeta y no en el nombre:
+`COVIRAN/COVIRAN NC000051086.pdf`.
+
+### Un archivo indexado dos veces
+
+Encontrado al probar esto. Un archivo llamado solo con el número
+(`5300011861.pdf`) generaba la misma clave por dos caminos —el nombre completo y
+su único token— y quedaba **repetido en el índice**. Como la regla de
+desempate era «si solo hay un candidato, vale», con el duplicado nunca se
+cumplía y ese archivo no se encontraba jamás. Se deduplican las claves por
+archivo al indexar, y los candidatos al buscar.
+
+Sobre el nombre para guardar el PDF: ya se limpiaban `\ / : * ? " < > |` desde
+la corrección anterior, así que el nombre que propone la herramienta nunca lleva
+barra.
