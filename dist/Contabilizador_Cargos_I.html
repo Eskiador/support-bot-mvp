@@ -90480,38 +90480,98 @@ const idb = {
     const t=db.transaction('kv','readonly'); const r=t.objectStore('kv').get(k); r.onsuccess=()=>ok(r.result); }); }
 };
 
+const TIPO_JSON = [{description:'Datos del contabilizador', accept:{'application/json':['.json']}}];
+
 async function conectarDatos(){
   if(!window.showSaveFilePicker){
     avisar('Este navegador no permite guardar directo: usaré descarga/carga manual.');
     return descargarDatos();
   }
+  // Para abrir uno que ya existe se usa el diálogo de ABRIR, no el de guardar:
+  // así Windows no pregunta «¿seguro que quieres reemplazarlo?», que asusta sin
+  // motivo (nunca se escribe al elegirlo, solo al guardar).
+  const existe = confirm(
+    '¿El archivo de datos ya existe?\n\n'+
+    'Aceptar → elegir el que ya tengo (se conserva todo lo guardado)\n'+
+    'Cancelar → crear uno nuevo vacío');
   try{
-    const h = await window.showSaveFilePicker({
-      suggestedName:'contabilizador_cargos_I.json',
-      types:[{description:'Datos del contabilizador', accept:{'application/json':['.json']}}]
-    });
-    E.handle = h; await idb.set('handle', h);
-    await cargarDesdeHandle(true);
+    let h;
+    if(existe && window.showOpenFilePicker){
+      [h] = await window.showOpenFilePicker({types:TIPO_JSON, multiple:false});
+      const permiso = h.requestPermission ? await h.requestPermission({mode:'readwrite'}) : 'granted';
+      if(permiso !== 'granted'){ avisar('Sin permiso de escritura no puedo guardar en ese archivo.'); return; }
+      const r = await leerArchivoDatos(h);
+      if(r.estado === 'ilegible'){
+        alert(`«${h.name}» tiene contenido pero no puedo leerlo como archivo de datos.\n\n`+
+              `NO lo voy a conectar, para no escribir encima y perderlo.\n\n`+
+              `Detalle: ${r.motivo}`);
+        return;
+      }
+      E.handle = h;
+      aplicarDatos(r.datos);
+      if(r.estado === 'vacio') avisar('Archivo vacío conectado: empezamos de cero.');
+      else avisar(`Cargados ${Object.keys(E.memoria.cargos||{}).length} cargos de ${h.name}.`);
+    } else {
+      h = await window.showSaveFilePicker({suggestedName:'contabilizador_cargos_I.json', types:TIPO_JSON});
+      const r = await leerArchivoDatos(h);
+      if(r.estado === 'ok' && !confirm(
+          `«${h.name}» ya tiene datos dentro (${Object.keys(r.datos.cargos||{}).length} cargos).\n\n`+
+          `¿Quieres conectarlo y conservarlos?\n\n`+
+          `Cancelar = no tocar ese archivo.`)) return;
+      if(r.estado === 'ilegible'){
+        alert(`«${h.name}» tiene contenido que no reconozco. No lo conecto para no pisarlo.`);
+        return;
+      }
+      E.handle = h;
+      aplicarDatos(r.datos);
+    }
+    await idb.set('handle', E.handle);
     await guardarDatos();
-    marcarChipDatos(h.name);
+    marcarChipDatos(E.handle.name);
+    if(E.memoria.rutaCarpeta) $('#fRutaCarpeta').value = E.memoria.rutaCarpeta;
+    if(E.memoria.rutaHtml) $('#fRutaHtml').value = E.memoria.rutaHtml;
+    if(cargarIndiceGuardado()) pintarCarpeta();
     pintarCola(); pintarComerciales();
   }catch(e){ if(e.name!=='AbortError') avisar('No se pudo conectar el archivo: '+e.message); }
 }
 
-async function cargarDesdeHandle(silencioso){
+// Lee sin tocar nada. Distingue vacío (se puede usar) de ilegible (no tocar).
+async function leerArchivoDatos(h){
   try{
-    const f = await E.handle.getFile();
-    if(f.size > 0){
-      const j = JSON.parse(await f.text());
-      if(j && (j.clientes || j.cargos)){
-        E.memoria = Object.assign(E.memoria, j);
-        E.memoria.clientes    = E.memoria.clientes    || {};
-        E.memoria.cargos      = E.memoria.cargos      || {};
-        E.memoria.comerciales = E.memoria.comerciales || {};
-        E.memoria.log         = E.memoria.log         || [];
-      }
-    }
-  }catch(e){ if(!silencioso) avisar('No se pudo leer el archivo de datos.'); }
+    const f = await h.getFile();
+    if(f.size === 0) return {estado:'vacio', datos:null};
+    const txt = await f.text();
+    let j;
+    try{ j = JSON.parse(txt); }
+    catch(e){ return {estado:'ilegible', motivo:'no es un JSON válido'}; }
+    if(!j || typeof j !== 'object' || !(j.clientes || j.cargos))
+      return {estado:'ilegible', motivo:'es un JSON, pero no tiene cargos ni clientes dentro'};
+    return {estado:'ok', datos:j};
+  }catch(e){ return {estado:'ilegible', motivo:e.message}; }
+}
+
+function aplicarDatos(j){
+  if(j) E.memoria = Object.assign(E.memoria, j);
+  E.memoria.clientes    = E.memoria.clientes    || {};
+  E.memoria.cargos      = E.memoria.cargos      || {};
+  E.memoria.comerciales = E.memoria.comerciales || {};
+  E.memoria.log         = E.memoria.log         || [];
+}
+
+// Si el archivo tiene contenido y no se puede leer, hay que DESCONECTARLO: si
+// se deja conectado, el primer guardado lo sustituye por el estado vacío que
+// hay en memoria y se pierde todo.
+async function cargarDesdeHandle(silencioso){
+  const r = await leerArchivoDatos(E.handle);
+  if(r.estado === 'ilegible'){
+    E.handle = null;
+    alert(`No he podido leer el archivo de datos (${r.motivo}).\n\n`+
+          `Lo dejo DESCONECTADO a propósito, para no escribir encima. `+
+          `Revisa el archivo o conecta una copia de seguridad.`);
+    return false;
+  }
+  aplicarDatos(r.datos);
+  return true;
 }
 
 async function guardarDatos(){
@@ -90835,7 +90895,11 @@ window.addEventListener('pdfjs-listo', async ()=>{
     const h = await idb.get('handle');
     if(h){
       const p = h.queryPermission ? await h.queryPermission({mode:'readwrite'}) : 'granted';
-      if(p === 'granted'){ E.handle = h; await cargarDesdeHandle(true); marcarChipDatos(h.name);
+      if(p === 'granted'){
+        E.handle = h;
+        const ok = await cargarDesdeHandle(true);
+        marcarChipDatos(ok ? h.name : null);
+        if(!ok) $('#chipDatos').textContent = 'Datos: ilegible, sin conectar';
         if(E.memoria.rutaCarpeta) $('#fRutaCarpeta').value = E.memoria.rutaCarpeta;
         if(E.memoria.rutaHtml) $('#fRutaHtml').value = E.memoria.rutaHtml;
         pintarCola(); pintarComerciales(); }

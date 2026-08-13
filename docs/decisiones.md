@@ -509,3 +509,35 @@ Tres medidas:
 Además, un aviso en rojo cuando la factura cargada no es la que menciona el
 cargo: compara el número que trae el cargo con el de la factura abierta. Es el
 síntoma típico de haber encadenado dos cargos sin darse cuenta.
+
+## Conectar un archivo de datos que ya existe
+
+Al conectar el archivo de datos se usaba `showSaveFilePicker`, y Windows soltaba
+un «¿seguro que quieres reemplazarlo?» que asusta con razón: parece que vaya a
+vaciar el archivo con todo el trabajo dentro.
+
+No lo vaciaba —se lee antes de escribir— pero el diálogo equivocado para la
+tarea equivocada. Ahora se pregunta primero si el archivo ya existe:
+
+- **ya existe** → diálogo de ABRIR, sin aviso de reemplazo, y se cargan los datos
+- **crear uno nuevo** → diálogo de guardar, como antes; si resulta que el archivo
+  elegido ya tenía cargos dentro, se pide confirmación antes de conectarlo
+
+### El fallo que había debajo
+
+`cargarDesdeHandle` se llamaba con `silencioso = true` y **se tragaba cualquier
+error**. Si el JSON estuviera dañado, no cargaba nada, dejaba el archivo
+conectado, y el primer guardado lo sustituía por el estado vacío que había en
+memoria. El archivo se perdía de verdad, y en silencio.
+
+Ahora la lectura distingue tres situaciones:
+
+| Estado | Qué se hace |
+|---|---|
+| vacío | se conecta y se empieza de cero |
+| legible | se cargan los datos |
+| **ilegible** | **no se conecta**, se avisa y no se escribe nada |
+
+Lo mismo al reconectar en el arranque: si el archivo guardado no se puede leer,
+se deja desconectado a propósito y la cabecera lo dice, en vez de quedarse
+conectado esperando a pisarlo.
