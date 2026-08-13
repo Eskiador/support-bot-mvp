@@ -485,3 +485,27 @@ Ahora hay una columna **«Precio SAP»** que se teclea a mano. La de la factura 
 queda al lado, en gris, solo como referencia. Si falta en alguna línea, la
 diferencia no se calcula —en vez de calcularse mal— y se dice qué posiciones
 faltan.
+
+## Un cargo, un cálculo
+
+Al montar las pestañas desapareció el botón «Cargo nuevo» y no quedó forma de
+vaciar la calculadora salvo recargar la página, que además obliga a volver a dar
+todos los permisos.
+
+Y detrás había algo peor: los campos de cabecera solo se rellenaban **si estaban
+vacíos** (`if(!$('#fTotal').value)`). Al encadenar un segundo cargo sin recargar,
+el importe del primero se quedaba puesto y el cuadre se hacía **contra el total
+equivocado**. Un abono mal por un campo que nadie mira.
+
+Tres medidas:
+
+- Botón **«Vaciar y empezar otro cargo»**, que deja la calculadora como recién
+  abierta sin tocar los ajustes (tolerancia, base, ZNET de prueba) ni la carpeta
+  conectada. Pide confirmación si había un cálculo hecho.
+- Abrir un cargo desde la cola limpia sola: cada cargo empieza de cero.
+- Cargar un PDF de cargo borra los campos que vienen de él (importe, nº de cargo,
+  fecha) para que se rellenen con los nuevos.
+
+Además, un aviso en rojo cuando la factura cargada no es la que menciona el
+cargo: compara el número que trae el cargo con el de la factura abierta. Es el
+síntoma típico de haber encadenado dos cargos sin darse cuenta.

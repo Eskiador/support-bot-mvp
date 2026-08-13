@@ -289,7 +289,9 @@ td.acc{text-align:right}
 
   <!-- 1 · archivos -->
   <section>
-    <div class="cab"><span class="paso">1</span><h2>Archivos del cargo</h2></div>
+    <div class="cab"><span class="paso">1</span><h2>Archivos del cargo</h2>
+      <div class="crece"></div>
+      <button class="primario" id="btnVaciar">Vaciar y empezar otro cargo</button></div>
     <div class="cuerpo">
       <div id="enlaceCargo" class="oculto"></div>
       <p class="pista">Arrastra el PDF. Se lee el texto real del archivo, sin OCR. El XPS/OXPS también vale como respaldo.</p>
@@ -347,6 +349,7 @@ td.acc{text-align:right}
     <div class="cab"><span class="paso">2</span><h2>Datos del cargo</h2>
       <div class="crece"></div><span class="chip" id="chipMemoria"></span></div>
     <div class="cuerpo">
+      <div id="avisoFactura" class="aviso-caja rojo oculto"></div>
       <div id="avisoIva" class="aviso-caja rojo oculto"></div>
       <div id="avisoRedondeo" class="aviso-caja oculto"></div>
       <div class="rejilla">
@@ -1237,6 +1240,18 @@ function pintarCabecera(){
 
   // el cuadre va SIEMPRE contra la base imponible: si el importe leído parece
   // llevar el IVA dentro, hay que decirlo antes de calcular nada
+  // ¿la factura cargada es la que menciona el cargo?
+  const avFac = $('#avisoFactura');
+  if(avFac){
+    const ref = c && c.refFactura;
+    if(ref && f && f.numero && clavePdf(f.numero) !== clavePdf(ref)){
+      avFac.classList.remove('oculto');
+      avFac.innerHTML = `<b>La factura cargada no es la del cargo.</b> El cargo dice `+
+        `<b>${ref}</b> y la factura abierta es la <b>${f.numero}</b>. `+
+        `Si vienes de otro cargo, pulsa «Vaciar y empezar otro cargo».`;
+    } else avFac.classList.add('oculto');
+  }
+
   const avIva = $('#avisoIva');
   if(c && c.dudaIva && Math.abs(num($('#fTotal').value) - c.totalSinIva) < 0.005){
     avIva.classList.remove('oculto');
@@ -1478,6 +1493,35 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
 
 function refrescar(){ pintarCabecera(); pintarLineas(); calcular(); }
 
+/* Deja la calculadora como recién abierta. Un cargo es un cálculo: arrastrar
+   datos del anterior es la forma más fácil de abonar un importe equivocado.
+   No toca los ajustes (tolerancia, base, ZNET de prueba) ni la carpeta. */
+function limpiarCalculadora(){
+  E.cargo = null; E.factura = null; E.filas = [];
+  E.ultimaSalida = null; E.docCargo = null; E.ajuste = null; E.cargoAbierto = null;
+
+  ['fCliente','fNumCargo','fNumFactura','fFecha','fTotal'].forEach(id => $('#'+id).value = '');
+
+  const zc = $('#zonaCargo');
+  zc.className = 'zona'; zc.dataset.tipo = 'cargo';
+  zc.innerHTML = `<h3>Cargo del cliente</h3>
+    <p>Arrastra aquí el PDF del cargo<br>o haz clic para elegirlo</p>`;
+  const zf = $('#zonaFactura');
+  zf.className = 'zona'; zf.dataset.tipo = 'factura';
+  zf.innerHTML = `<h3>Factura original (nuestra, de SAP)</h3>
+    <p>Arrastra aquí el PDF de la factura<br>o haz clic para elegirlo</p>`;
+
+  ['secCabecera','secLineas','secResultado','secManual'].forEach(id => $('#'+id).classList.add('oculto'));
+  ['avisoIva','avisoRedondeo','avisoEmparejado','avisoPrecioSap','avisoMedicion','enlaceCargo']
+    .forEach(id => { const e = $('#'+id); if(e) e.classList.add('oculto'); });
+  $('#estadoLectura').classList.add('oculto');
+  $('#tablaLineas tbody').innerHTML = '';
+  $('#tablaSalida tbody').innerHTML = '';
+  ['mTexto','mTotal','mCliente','mNumCargo'].forEach(id => { const e = $('#'+id); if(e) e.value = ''; });
+  const prev = $('#mPrevio'); if(prev) prev.innerHTML = '';
+  pintarCola();
+}
+
 /* ==================================================================
    7 · PERSISTENCIA (File System Access API, con plan B)
    ================================================================== */
@@ -1625,6 +1669,11 @@ async function procesarArchivo(file, tipo){
     const esXPS = /\.(xps|oxps)$/i.test(file.name);
     const filas = esXPS ? await filasDeXPS(file) : await filasDePDF(file);
     if(tipo === 'cargo'){
+      // Cargo nuevo, datos nuevos: si no se limpian, el importe del anterior se
+      // queda pegado (solo se rellenaban cuando estaban vacíos) y se cuadraría
+      // contra el total equivocado.
+      ['fTotal','fNumCargo','fFecha'].forEach(id => $('#'+id).value = '');
+      E.ajuste = null;
       E.cargo = parseCargo(filas);
       // Muchos cargos no nombran al cliente: lo llevan solo en el nombre del
       // archivo (ALIPENSA_NC2417589_...). Vale como propuesta editable.
@@ -1795,6 +1844,12 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); limpiarAjuste(); refrescar(); };
   $('#btnAplicarModo').onclick = ()=>{ const m=$('#fModo').value;
     E.filas.forEach(f=>{ f.modo=m; f.manual=null; }); limpiarAjuste(); refrescar(); };
+  $('#btnVaciar').onclick = ()=>{
+    if(E.ultimaSalida && !confirm('¿Vaciar la calculadora y empezar otro cargo?\n\n'+
+       'Lo que ya hayas registrado en el archivo de cargos no se toca.')) return;
+    limpiarCalculadora();
+    avisar('Calculadora vacía. Arrastra el cargo siguiente.');
+  };
   $('#btnBaseAuto').onclick = ajustarBases;
   $('#btnCopiar').onclick = ()=>copiar(tsvSalida(),'Tabla copiada');
   $('#btnCopiarZnet').onclick = ()=>copiar(
@@ -2252,6 +2307,7 @@ const archivoDe = resolverArchivo;
 async function calcularCon(c){
   const f = buscarDoc(c);
   if(!f){ avisar('No encuentro el PDF de ese cargo.'); return; }
+  limpiarCalculadora();                 // cada cargo empieza de cero
   E.cargoAbierto = c.id;
   E.docCargo = f;                       // para poder reabrirlo desde la calculadora
   cambiarVista('calc');
