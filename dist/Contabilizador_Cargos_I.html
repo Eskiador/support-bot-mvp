@@ -89635,7 +89635,7 @@ function valorBajoEtiqueta(filas, reEtiqueta, reValor, margenX = 70, filasAbajo 
 
 // "10.080,000 UC" en una sola celda -> ["10.080,000", "UC"].
 // Pasa en el XPS, donde cantidad y unidad no siempre quedan separadas.
-const RE_UM = /^([\d.,]+)\s*(UC|CS|US|KG|UD|L|ML)$/i;
+const RE_UM = /^([\d.,]+)\s*(UC|CS|CJ|US|KG|UD|L|ML)$/i;
 function separarUnidades(celdas){
   const salida = [];
   for(const c of celdas){
@@ -89660,7 +89660,7 @@ function parseFactura(filas){
     // patrón de línea: pos | material | uds/caja | descripción | cantidad | UM | [p.bruto] p.neto | importe
     if(!/^\d{1,4}$/.test(c[0].s)) continue;
     if(!/^\d{5,10}$/.test(c[1].s)) continue;
-    const iUM = c.findIndex(x=>/^(UC|CS|US|KG|UD)$/i.test(x.s));
+    const iUM = c.findIndex(x=>/^(UC|CS|CJ|US|KG|UD)$/i.test(x.s));
     if(iUM < 3) continue;
     const qty = num(c[iUM-1].s);
     if(!isFinite(qty) || qty<=0) continue;
@@ -89954,14 +89954,18 @@ function baseZnetDe(fila){
 }
 
 // cantidad de la línea expresada en la unidad de la base del ZNET
+// Nuestras facturas expresan la cantidad en unidades de consumo (UC) o en
+// cajas, y a las cajas les llaman CS o CJ según el cliente.
+const enCajas = um => /^(CS|CJ)$/i.test(um || '');
+
 function cantidadEnBase(fila){
   const {um} = baseZnetDe(fila);
   const lf = fila.fac;
   if(um === 'CJ'){
-    if(lf.um === 'CS') return lf.cantidad;
+    if(enCajas(lf.um)) return lf.cantidad;
     return lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN;
   }
-  if(lf.um === 'CS') return lf.udsCaja ? lf.cantidad * lf.udsCaja : NaN;
+  if(enCajas(lf.um)) return lf.udsCaja ? lf.cantidad * lf.udsCaja : NaN;
   return lf.cantidad;
 }
 
@@ -89987,8 +89991,8 @@ function diferenciaDe(fila){
   const d = datoCargo(fila);
   if(!isFinite(d)) return NaN;
   const lf = fila.fac;
-  const uds = lf.um === 'CS' && lf.udsCaja ? lf.cantidad * lf.udsCaja : lf.cantidad;
-  const cjs = lf.um === 'CS' ? lf.cantidad : (lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN);
+  const uds = enCajas(lf.um) && lf.udsCaja ? lf.cantidad * lf.udsCaja : lf.cantidad;
+  const cjs = enCajas(lf.um) ? lf.cantidad : (lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN);
   // El precio de la factura NO sirve para restar: lleva IVA y otros impuestos.
   // El neto de verdad solo se ve en SAP, así que se teclea.
   const pSap = num(fila.precioSap);
@@ -92279,7 +92283,7 @@ function leerLineasFacturaManual(texto){
     if(campos.length < 2) campos = l.split(/\s+/);          // último recurso
     let um = 'UC';
     campos = campos.filter(c => {
-      if(/^(UC|CS|US|KG|UD)$/i.test(c)){ um = c.toUpperCase(); return false; }
+      if(/^(UC|CS|CJ|US|KG|UD)$/i.test(c)){ um = c.toUpperCase(); return false; }
       return true;
     });
     // números pegados al final

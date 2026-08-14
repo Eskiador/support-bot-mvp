@@ -129,8 +129,10 @@ se hace por orden y parecido de texto, y siempre se puede corregir a mano.
 
 ## Pendiente de resolver con más cargos
 
-- Ningún cliente visto todavía expresa el cargo en cajas. El modo existe y usa la
-  columna `UC/US` de la factura, pero no está probado contra un cargo real.
+- Ningún **cargo** visto todavía viene expresado en cajas. El modo existe y usa la
+  columna `UC/US` de la factura, pero no está probado contra un cargo real. Sí ha
+  aparecido ya una **factura** en cajas (ver «La factura que venía en CJ»), así que
+  al menos la conversión tiene un documento real detrás por un lado.
 - ~~Falta ver el export del listado de cargos I de SAP~~ → resuelto, ver más abajo.
 - Los cargos de diferencia de **mercancía** quedan fuera: se abonan poniendo la
   mercancía que el cliente dice que no le llegó, y el importe cuadra solo. No
@@ -644,3 +646,36 @@ cuadre que leyéndola del PDF, con los mismos nueve ZNET.
 
 Además, leer un archivo y sacar cero líneas ya no se queda en un número
 silencioso: la zona lo dice y ofrece el botón para escribirlas a mano ahí mismo.
+
+## Por qué aquella factura salía con 0 líneas: venía en CJ
+
+La factura 1509010571 de la sección anterior —la que obligó a montar la entrada
+manual— no tenía en realidad «un formato distinto al de las demás». El formato
+era exactamente el de siempre. Lo que cambiaba era **una sola columna**: la
+unidad de medida ponía `CJ` en vez de `UC` o `CS`.
+
+La localización de las columnas se apoya en encontrar la de la unidad de medida,
+y las tres expresiones que la reconocían llevaban la lista escrita a mano
+`UC|CS|US|KG|UD`. Sin `CJ` no se encontraba la columna, cada renglón se
+descartaba por no encajar, y la factura salía con cero líneas — sin ningún aviso
+de por qué.
+
+Se ha añadido `CJ` a las tres (la de la cantidad con unidad pegada, la de buscar
+la columna y la del panel de escribir a mano). Y como el nombre de la caja
+depende del cliente —unos dicen `CS` y otros `CJ`— ahora hay un único sitio que
+lo decide:
+
+```js
+const enCajas = um => /^(CS|CJ)$/i.test(um || '');
+```
+
+que usan tanto la conversión a la base del ZNET como el cálculo de la diferencia,
+en lugar de repetir la lista por el código. Si mañana aparece un tercer nombre,
+se toca ahí y ya.
+
+Resultado con el archivo real: **13 líneas**, y la suma de importes da
+`37.261,67`, que es exactamente el SUBTOTAL que la propia factura imprime en la
+página 2. Queda como caso de prueba permanente
+(`pruebas/casos/hiperusera-factura-CJ.json`), y para eso la batería admite ahora
+casos de **solo factura**, sin cargo: hay formatos que conviene tener cubiertos
+aunque no haya todavía un abono con el que compararlos.

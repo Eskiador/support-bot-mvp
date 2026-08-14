@@ -1,0 +1,20 @@
+{
+  "nombre": "Hiper Usera · factura 1509010571 · cantidades en CJ",
+  "notas": [
+    "Caso de solo factura: no hay cargo asociado, lo que se prueba es la lectura.",
+    "Es la primera factura real que expresa la cantidad en CJ (cajas) en vez de",
+    "UC o CS. Las tres expresiones que reconocían la unidad de medida no tenían",
+    "CJ en la lista, así que la columna no se localizaba y se rechazaban las 13",
+    "líneas: la factura salía con 0 líneas y no se podía seleccionar nada.",
+    "La suma de importes coincide con el SUBTOTAL que la propia factura imprime",
+    "en la página 2 (37.261,67), así que no se ha colado ni perdido ninguna línea."
+  ],
+  "archivos": {
+    "factura": "HIPERUSERA_FACTURA_12.pdf"
+  },
+  "esperado": {
+    "numFactura": "1509010571",
+    "lineasFactura": 13,
+    "sumaFactura": 37261.67
+  }
+}
