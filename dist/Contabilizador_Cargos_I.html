@@ -316,13 +316,20 @@ td.acc{text-align:right}
 
   <!-- 1b · cargo a mano -->
   <section id="secManual" class="oculto">
-    <div class="cab"><span class="paso">✎</span><h2>Escribir el cargo a mano</h2>
+    <div class="cab"><span class="paso">✎</span><h2 id="tituloManual">Escribir a mano</h2>
       <div class="crece"></div><button id="btnCerrarManual">Cerrar</button></div>
     <div class="cuerpo">
-      <p class="pista">Para cuando el PDF no se deja leer. Selecciona el texto en el PDF,
+      <div class="campo" style="max-width:340px;margin-bottom:12px">
+        <label>¿Qué vas a escribir?</label>
+        <select id="mQue">
+          <option value="cargo">Las líneas del cargo del cliente</option>
+          <option value="factura">Las líneas de la factura</option>
+        </select>
+      </div>
+      <p class="pista" id="pistaManual">Para cuando el PDF no se deja leer. Selecciona el texto en el PDF,
         cópialo y pégalo aquí tal cual: una línea por artículo, con su número al final.
         Vale también pegar desde Excel o teclearlo a mano.</p>
-      <div class="rejilla" style="margin-bottom:12px">
+      <div class="rejilla" style="margin-bottom:12px" id="camposCargoManual">
         <div class="campo"><label>Importe sin IVA del cargo</label><input id="mTotal" class="num" placeholder="39,02"></div>
         <div class="campo"><label>Cliente</label><input id="mCliente"></div>
         <div class="campo"><label>Nº de cargo</label><input id="mNumCargo"></div>
@@ -333,6 +340,9 @@ td.acc{text-align:right}
             <option value="dif_ud">la diferencia por unidad</option>
             <option value="dos">dos importes: facturado y correcto (se restan)</option>
           </select></div>
+      </div>
+      <div class="rejilla oculto" style="margin-bottom:12px" id="camposFacturaManual">
+        <div class="campo"><label>Nº de factura</label><input id="mNumFactura"></div>
       </div>
       <textarea id="mTexto" rows="7" spellcheck="false"
         placeholder="MERMELADA ARANDANOS 263 ES A 2,125&#10;MERMELADA HIGO 263 ES A 2,01&#10;MERMELADA TOMATE 263 ES A 2,01"></textarea>
@@ -90679,16 +90689,27 @@ async function procesarArchivo(file, tipo){
       if(!E.cargo.cliente) E.cargo.cliente = clienteDeArchivo(file.name);
       if(E.cargo.sinImportes) $('#fModo').value = 'precio_ud';
       const z = $('#zonaCargo');
-      z.className = 'zona lleno';
+      // Leer el archivo y no sacar ni una línea deja al usuario sin salida: hay
+      // que ofrecerle escribirlas a mano ahí mismo.
+      const vacio = !E.cargo.lineas.length;
+      z.className = vacio ? 'zona' : 'zona lleno';
       z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">${file.name}</p>
         <p>${E.cargo.lineas.length} línea(s) · total sin IVA ${eur(E.cargo.totalSinIva)}`+
-        `${E.cargo.sinImportes ? ' · sin importes por línea' : ''}</p>`;
+        `${E.cargo.sinImportes ? ' · sin importes por línea' : ''}</p>`+
+        (vacio ? `<p style="font-size:12.5px">No he reconocido ninguna línea en este cargo.</p>
+          <div class="barra" style="justify-content:center">
+            <button class="mini primario" onclick="abrirManual('cargo')">Escribirlas a mano</button></div>` : '');
     } else {
       E.factura = parseFactura(filas);
       const z = $('#zonaFactura');
-      z.className = 'zona lleno';
+      const vacio = !E.factura.lineas.length;
+      z.className = vacio ? 'zona' : 'zona lleno';
       z.innerHTML = `<h3>Factura original</h3><p class="archivo">${file.name}</p>
-        <p>${E.factura.lineas.length} línea(s) · factura ${E.factura.numero||'—'}</p>`;
+        <p>${E.factura.lineas.length} línea(s) · factura ${E.factura.numero||'—'}</p>`+
+        (vacio ? `<p style="font-size:12.5px">He leído el archivo pero no reconozco sus
+            líneas: será un formato distinto al habitual.</p>
+          <div class="barra" style="justify-content:center">
+            <button class="mini primario" onclick="abrirManual('factura')">Escribirlas a mano</button></div>` : '');
     }
     est.className='chip ok'; est.textContent='Leído: '+file.name;
     pintarCabecera();                       // aplica la memoria del cliente...
@@ -90855,19 +90876,25 @@ window.addEventListener('pdfjs-listo', async ()=>{
     (E.ultimaSalida?.salida||[]).map(s=>nf.format(s.znet)).join('\n'), 'ZNET copiados');
   $('#btnGuardar').onclick = async ()=>{ recordarCliente();
     if(!await guardarDatos()) descargarDatos(); };
-  $('#btnPegar').onclick = ()=>{
+  window.abrirManual = (que)=>{
     $('#secManual').classList.remove('oculto');
+    if(que) $('#mQue').value = que;
     if(!$('#mTotal').value) $('#mTotal').value = $('#fTotal').value;
     if(!$('#mCliente').value) $('#mCliente').value = $('#fCliente').value;
     if(!$('#mNumCargo').value) $('#mNumCargo').value = $('#fNumCargo').value;
+    if(!$('#mNumFactura').value) $('#mNumFactura').value = $('#fNumFactura').value;
+    pintarPanelManual();
     $('#mTexto').focus();
     $('#secManual').scrollIntoView({behavior:'smooth', block:'start'});
   };
+  $('#btnPegar').onclick = ()=>abrirManual();
   $('#btnCerrarManual').onclick = ()=>$('#secManual').classList.add('oculto');
-  $('#btnUsarManual').onclick = usarLineasManuales;
-  $('#btnLimpiarManual').onclick = ()=>{ $('#mTexto').value=''; previoManual(); $('#mTexto').focus(); };
-  $('#mTexto').addEventListener('input', previoManual);
-  $('#mTipo').addEventListener('change', previoManual);
+  $('#btnUsarManual').onclick = ()=>
+    ($('#mQue').value === 'factura' ? usarLineasFacturaManual() : usarLineasManuales());
+  $('#btnLimpiarManual').onclick = ()=>{ $('#mTexto').value=''; refrescarPrevio(); $('#mTexto').focus(); };
+  $('#mTexto').addEventListener('input', refrescarPrevio);
+  $('#mTipo').addEventListener('change', refrescarPrevio);
+  $('#mQue').addEventListener('change', pintarPanelManual);
 
   ['fTotal','fTolerancia','fBase','fCliente','fModo','fZnetPrueba'].forEach(id=>{
     $('#'+id).addEventListener('change', ()=>{
@@ -92211,6 +92238,113 @@ function leerLineasManuales(texto, tipo){
     salida.push({n:salida.length+1, desc, valor:Math.abs(v), y:-i, pag:1, texto:l});
   });
   return salida;
+}
+
+const refrescarPrevio = () =>
+  $('#mQue').value === 'factura' ? previoFacturaManual() : previoManual();
+
+// El panel sirve para el cargo y para la factura: cambia lo que se pide.
+function pintarPanelManual(){
+  const esFactura = $('#mQue').value === 'factura';
+  $('#tituloManual').textContent = esFactura
+    ? 'Escribir la factura a mano' : 'Escribir el cargo a mano';
+  $('#camposCargoManual').classList.toggle('oculto', esFactura);
+  $('#camposFacturaManual').classList.toggle('oculto', !esFactura);
+  $('#pistaManual').innerHTML = esFactura
+    ? 'Una línea por artículo, con los campos separados por tabulador o por dos espacios '+
+      'o más (así queda al copiar del PDF o de Excel). El orden esperado es '+
+      '<b>posición · material · descripción · cantidad · precio</b>, y lo que falte se '+
+      'deduce: basta con que cada renglón acabe en la cantidad.'
+    : 'Para cuando el PDF no se deja leer. Selecciona el texto en el PDF, cópialo y '+
+      'pégalo aquí tal cual: una línea por artículo, con su número al final. '+
+      'Vale también pegar desde Excel o teclearlo a mano.';
+  $('#mTexto').placeholder = esFactura
+    ? '10\t2007482\t12\tMANZ RELLENO DE ANCHOA\t10080\t0,847\n'+
+      '20\t2012734\t24\tACEITUNAS SIN HUESO\t3240\t0,345'
+    : 'MERMELADA ARANDANOS 263 ES A 2,125\nMERMELADA HIGO 263 ES A 2,01';
+  refrescarPrevio();
+}
+
+/* Líneas de factura escritas o pegadas a mano. Se separa por tabuladores o por
+   dos espacios o más, que es como queda al copiar de un PDF o de Excel. De los
+   números del final se toman, en este orden, cantidad · precio · importe; lo de
+   delante es posición, material y descripción. */
+function leerLineasFacturaManual(texto){
+  const salida = [];
+  const esNum = c => /\d/.test(c) && isFinite(num(c));
+  texto.split('\n').forEach(cruda => {
+    const l = cruda.trim();
+    if(!l) return;
+    let campos = l.split(/\t|\s{2,}/).map(s => s.trim()).filter(Boolean);
+    if(campos.length < 2) campos = l.split(/\s+/);          // último recurso
+    let um = 'UC';
+    campos = campos.filter(c => {
+      if(/^(UC|CS|US|KG|UD)$/i.test(c)){ um = c.toUpperCase(); return false; }
+      return true;
+    });
+    // números pegados al final
+    const cola = [];
+    for(let i = campos.length - 1; i >= 0 && cola.length < 3; i--){
+      if(esNum(campos[i])) cola.unshift(num(campos[i])); else break;
+    }
+    if(!cola.length) return;
+    const cantidad = cola[0];
+    const precio   = cola.length > 1 ? cola[1] : null;
+    const importe  = cola.length > 2 ? cola[2] : null;
+    if(!isFinite(cantidad) || cantidad <= 0) return;
+
+    const delante = campos.slice(0, campos.length - cola.length);
+    let pos = null, material = '', udsCaja = null;
+    if(delante.length && /^\d{1,4}$/.test(delante[0])) pos = parseInt(delante.shift(), 10);
+    if(delante.length && /^\d{5,10}$/.test(delante[0])) material = delante.shift();
+    if(delante.length && /^\d{1,3}$/.test(delante[0])) udsCaja = parseInt(delante.shift(), 10);
+    const desc = delante.join(' ').trim();
+    if(!desc && !material) return;
+
+    salida.push({
+      pos: pos != null ? pos : (salida.length + 1) * 10,
+      material: material || '—', udsCaja, desc: desc || material,
+      cantidad, um, precio, importe
+    });
+  });
+  return salida;
+}
+
+function previoFacturaManual(){
+  const lineas = leerLineasFacturaManual($('#mTexto').value);
+  const caja = $('#mPrevio');
+  if(!lineas.length){
+    caja.innerHTML = $('#mTexto').value.trim()
+      ? '<div class="aviso-caja" style="margin-top:12px">No reconozco ninguna línea. '+
+        'Cada renglón debe acabar en la cantidad, o en cantidad y precio.</div>'
+      : '';
+    return lineas;
+  }
+  caja.innerHTML = `<div class="aviso-caja azul" style="margin-top:12px">`+
+    `<b>${lineas.length} línea(s) reconocidas.</b>`+
+    `<div class="tablaenv" style="margin-top:8px"><table><thead><tr>`+
+    `<th>Pos.</th><th>Material</th><th>Descripción</th><th class="n">Cantidad</th>`+
+    `<th class="n">Precio</th></tr></thead><tbody>`+
+    lineas.map(l=>`<tr><td>${l.pos}</td><td>${l.material}</td><td>${l.desc}</td>`+
+      `<td class="n">${cant(l.cantidad)} ${l.um}</td>`+
+      `<td class="n">${l.precio!=null?nf3.format(l.precio):'—'}</td></tr>`).join('')+
+    `</tbody></table></div></div>`;
+  return lineas;
+}
+
+function usarLineasFacturaManual(){
+  const lineas = leerLineasFacturaManual($('#mTexto').value);
+  if(!lineas.length){ avisar('No hay líneas que usar.'); return; }
+  E.factura = {numero: $('#mNumFactura').value.trim(), fecha:'', lineas, texto:$('#mTexto').value};
+  if(E.factura.numero) $('#fNumFactura').value = E.factura.numero;
+  const z = $('#zonaFactura');
+  z.className = 'zona lleno';
+  z.innerHTML = `<h3>Factura original</h3><p class="archivo">escrita a mano</p>
+    <p>${lineas.length} línea(s)${E.factura.numero ? ' · factura '+E.factura.numero : ''}</p>`;
+  $('#secManual').classList.add('oculto');
+  limpiarAjuste();
+  emparejar(); refrescar();
+  avisar(`${lineas.length} línea(s) de factura cargadas a mano.`);
 }
 
 function previoManual(){

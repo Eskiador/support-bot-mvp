@@ -625,3 +625,22 @@ archivo al indexar, y los candidatos al buscar.
 Sobre el nombre para guardar el PDF: ya se limpiaban `\ / : * ? " < > |` desde
 la corrección anterior, así que el nombre que propone la herramienta nunca lleva
 barra.
+
+## Cuando la factura no se deja leer
+
+Apareció una factura (nº 1509010571) de la que el lector saca el número pero
+**ninguna línea**: un formato distinto al de las demás. El problema no era solo
+ese archivo, era que **no había salida**: la entrada manual existía para el cargo
+pero no para la factura, así que con la factura en blanco no se podía seguir.
+
+Ahora el panel de escribir a mano sirve para las dos cosas, con un selector
+arriba. Para la factura se pegan los campos separados por tabulador o por dos
+espacios o más —así queda al copiar de un PDF o de Excel— en el orden
+**posición · material · descripción · cantidad · precio**. Lo que falte se
+deduce: basta con que cada renglón acabe en la cantidad.
+
+Comprobado pegando a mano las nueve líneas de la factura 90224478: sale el mismo
+cuadre que leyéndola del PDF, con los mismos nueve ZNET.
+
+Además, leer un archivo y sacar cero líneas ya no se queda en un número
+silencioso: la zona lo dice y ofrece el botón para escribirlas a mano ahí mismo.
