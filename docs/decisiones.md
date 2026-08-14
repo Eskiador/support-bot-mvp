@@ -77,6 +77,17 @@ líneas del cargo de Alimerka: salen los mismos ZNET (0,009 → 0,90; 0,023 → 
 Cuando el cargo da el importe de la línea en vez del precio, es
 `ZNET = importe × 100 / cantidad`. Tampoco hace falta la regla de 3.
 
+> **MATIZADO.** Esto vale mientras SAP calcule el importe de línea como
+> `ZNET / 100 × cantidad`, que es lo que hace en la mayoría de los casos. Pero no
+> siempre: en el cargo de Alcampo 098017625 el factor real era 0,2387 en vez de
+> 0,24, por conversiones o descuentos internos que no se ven desde fuera. Ahí la
+> regla de 3 **sí hace falta**, y con el neto medido en SAP, no estimado. La
+> fórmula de arriba se queda como estimación de partida; la medición manda.
+
+> **CORREGIDO.** Restar el precio de **nuestra factura** era un error: lleva IVA y
+> otros impuestos, y no es el neto. El precio de SAP se teclea a mano en la
+> columna «Precio SAP», y si falta, la línea no se calcula.
+
 ### Subir la base del ZNET quita el descuadre
 
 El salto mínimo de una línea es `cantidad / base × 0,01`. Con base 100 y 10.080
@@ -86,8 +97,12 @@ Pasando la base de **100 a 1.000 unidades** el salto se divide entre diez y el
 cargo de Alimerka cuadra **exacto, sin ZAJU**: la línea 70 alcanza sus 17,67 €
 (ZNET 23,01 por 1.000 UC) y el total sale 232,83 €.
 
-Falta confirmar en SAP que el campo *por* admite 1.000. La herramienta ya ofrece
-esa base para poder probarlo.
+> **SUPERADO.** Probado en SAP: el campo *por* **sí admite 1.000**, pero no vale:
+> «aunque el precio disminuye, la cantidad sube mucho». El ZNET baja, sí, pero
+> SAP escala la cantidad en la misma proporción y el importe de la línea no gana
+> precisión. Las bases se han reducido a las dos que se usan de verdad, **100 UC
+> y 100 CJ**, y el descuadre se resuelve midiendo el neto real (ver «Medir en SAP
+> en vez de estimar»).
 
 ## Perfiles de cargo reconocidos
 
@@ -95,6 +110,8 @@ esa base para poder probarlo.
 |---|---|---|
 | Alimerka | Tabla con importe por línea, y además el precio correcto en el texto | Importe de línea |
 | Alipensa | Sin importes: solo "ARTÍCULO ES A 2,125" y un total | Precio correcto por unidad |
+| Alcampo | Dos renglones por artículo (facturado + / correcto −) y el signo detrás del número | Importe de línea, fundiendo los pares |
+| Hiper Usera y otros | La asignación lleva "C/" delante; el archivo de la carpeta va sin ella | — (afecta al emparejado, no al cálculo) |
 
 En el perfil sin importes la diferencia solo se puede calcular con la factura
 delante, porque el precio facturado no está en el cargo. El cargo sí dice de qué
@@ -114,8 +131,12 @@ se hace por orden y parecido de texto, y siempre se puede corregir a mano.
 
 - Ningún cliente visto todavía expresa el cargo en cajas. El modo existe y usa la
   columna `UC/US` de la factura, pero no está probado contra un cargo real.
-- Falta ver el export del listado de cargos I de SAP (Módulo 1).
-- Falta un cargo de diferencia de **mercancía**: hasta ahora solo hay de precio.
+- ~~Falta ver el export del listado de cargos I de SAP~~ → resuelto, ver más abajo.
+- Los cargos de diferencia de **mercancía** quedan fuera: se abonan poniendo la
+  mercancía que el cliente dice que no le llegó, y el importe cuadra solo. No
+  necesitan calculadora.
+- Queda pendiente el descuadre de 0,72 € del cargo de Alipensa NC2417589: hace
+  falta la factura 90194273 para saber si el cliente cuenta otras cantidades.
 
 ## Cuadrar las líneas a la fuerza
 

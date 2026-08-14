@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /*
- * Prueba la calculadora contra casos reales ya resueltos en SAP.
+ * Prueba la herramienta en dos frentes:
+ *
+ *  1. el CUADRE, contra cargos reales ya resueltos en SAP
+ *  2. el EMPAREJADO de cada cargo con su archivo en la carpeta
  *
  * Los PDF de cargos y facturas NO se guardan en el repositorio (llevan datos
  * de clientes). Se leen de una carpeta local que se indica al ejecutar:
  *
  *   CASOS=/ruta/a/mis/casos node pruebas/probar.js
  *
- * Cada caso es un JSON en pruebas/casos/*.json con los archivos que usa y el
- * resultado que se dio por bueno en SAP.
+ * Las pruebas de emparejado no necesitan ningún archivo: van con nombres
+ * inventados, así que se ejecutan siempre.
  */
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +21,7 @@ const raiz = path.join(__dirname, '..');
 const dirCasos = path.join(__dirname, 'casos');
 const baseArchivos = process.env.CASOS || path.join(raiz, '..', 'casos-reales');
 const ejecutable = process.env.CHROME || undefined;
+const casosEmparejado = require('./casos_emparejado');
 
 const num = v => Number(v);
 const eur = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2).replace('.', ',') + ' €';
@@ -113,6 +117,31 @@ const eur = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2).replace('.', ','
 
     await pagina.close();
   }
+
+  // ---------------------------------------------------------------------
+  // Emparejado de cada cargo con su archivo. Sin PDF de por medio: se inyecta
+  // un índice de nombres inventados y se mira a cuál llega.
+  // ---------------------------------------------------------------------
+  console.log('\n=== Emparejado de cargos con los archivos de la carpeta ===');
+  const pagina = await navegador.newPage();
+  pagina.on('pageerror', e => console.log('  error JS:', e.message));
+  await pagina.goto('file://' + path.join(raiz, 'dist', 'Contabilizador_Cargos_I.html'));
+
+  for (const caso of casosEmparejado) {
+    const obtenido = await pagina.evaluate(({ cargo, archivos }) => {
+      window.E.memoria.pdfIndice = { carpeta: 'CARGOS', fecha: new Date().toISOString(), rutas: archivos };
+      window.__cargarIndiceGuardado();
+      const d = window.__buscarDoc(cargo);
+      return d ? d.ruta : null;
+    }, caso);
+
+    const bien = obtenido === caso.espera;
+    if (!bien) fallos++;
+    console.log(`  [${bien ? 'OK ' : 'MAL'}] ${caso.nombre}`);
+    if (!bien) console.log(`        esperado: ${caso.espera}\n        obtenido: ${obtenido}`);
+    else if (caso.porque) console.log(`        (${caso.porque})`);
+  }
+  await pagina.close();
 
   await navegador.close();
   console.log(fallos === 0 ? '\nTodas las comprobaciones han pasado.' : `\n${fallos} comprobación(es) han fallado.`);
