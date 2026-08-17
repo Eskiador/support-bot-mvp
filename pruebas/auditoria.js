@@ -264,6 +264,44 @@ const dice = (bien, etiqueta, detalle='') => {
   }
 
   // ------------------------------------------------------------------
+  // Con este perfil de cargo la diferencia aparece sola al asignar la línea,
+  // sin teclear precios, porque el cargo trae lo facturado y lo correcto en dos
+  // renglones. Desde la pantalla no había forma de saberlo.
+  console.log('\n=== 5c · Se explica de dónde sale la diferencia ===');
+  const cargoPar = path.join(base, 'CARGO_TIPO_ALCAMPO.pdf');
+  const facPar = path.join(base, 'FACTURA_TIPO_ALCAMPO.pdf');
+  if(fs.existsSync(cargoPar) && fs.existsSync(facPar)){
+    const hoja = await navegador.newPage();
+    hoja.on('pageerror', e => console.log('  !! error JS:', e.message));
+    await hoja.goto('file://' + path.join(raiz, 'dist', 'Contabilizador_Cargos_I.html'));
+    await hoja.evaluate(() => window.__elegirZona('cargo'));
+    await hoja.setInputFiles('#selArchivo', cargoPar);
+    await hoja.waitForFunction(() => window.E.cargo, {timeout:40000});
+    await hoja.evaluate(() => window.__elegirZona('factura'));
+    await hoja.setInputFiles('#selArchivo', facPar);
+    await hoja.waitForFunction(() => window.E.factura, {timeout:40000});
+    const explica = await hoja.evaluate(() => ({
+      fundidas: window.E.cargo.lineas.filter(l => l.fundida).length,
+      restas: window.E.cargo.lineas.map(l => l.fundida).filter(Boolean),
+      aviso: document.querySelector('#avisoEmparejado').textContent,
+      opcion: [...document.querySelectorAll('.selCargo option')]
+        .map(o => o.textContent).find(t => /\(/.test(t)) || '',
+      pista: document.querySelector('.datoMan') ? document.querySelector('.datoMan').title : ''
+    }));
+    await hoja.close();
+    dice(explica.fundidas > 0, 'el cargo se lee fundiendo los dos renglones de cada artículo',
+         explica.restas.join(' · '));
+    dice(/dos renglones por/.test(explica.aviso),
+         'se avisa en pantalla de que la diferencia ya viene restada');
+    dice(/\(.+[−+].+\)/.test(explica.opcion),
+         'el desplegable enseña la resta concreta de esa línea', explica.opcion.trim());
+    dice(/resta de los dos/.test(explica.pista),
+         'el dato del cargo explica su origen al pasar el ratón', explica.pista.slice(0,70));
+  } else {
+    console.log('  OMITIDO (no encuentro el cargo de pares en '+base+')');
+  }
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {

@@ -111,6 +111,7 @@ cargo de Alimerka cuadra **exacto, sin ZAJU**: la línea 70 alcanza sus 17,67 �
 | Alimerka | Tabla con importe por línea, y además el precio correcto en el texto | Importe de línea |
 | Alipensa | Sin importes: solo "ARTÍCULO ES A 2,125" y un total | Precio correcto por unidad |
 | Alcampo | Dos renglones por artículo (facturado + / correcto −) y el signo detrás del número | Importe de línea, fundiendo los pares |
+| Peninsulaco | Dos renglones por artículo, etiquetados `ART.FACTURADO` y `ART.ENTREGADO` | Importe de línea, fundiendo los pares |
 | Hiper Usera y otros | La asignación lleva "C/" delante; el archivo de la carpeta va sin ella | — (afecta al emparejado, no al cálculo) |
 
 En el perfil sin importes la diferencia solo se puede calcular con la factura
@@ -800,3 +801,27 @@ después.
 De paso, el lector reconoce ya la numeración con guion. Se exigen seis cifras
 para no confundirla con cosas como «IVA-2024», que también aparecen en estos
 documentos.
+
+### «¿De dónde saca la diferencia, si el cargo no la trae?»
+
+Pregunta de un cargo de PENINSULACO: al asignar la línea, la diferencia aparece
+sola, sin teclear ningún precio. La respuesta es que **el cargo sí la trae**,
+solo que repartida en dos renglones por artículo:
+
+```
+1  8410134037506 MERMELADA DE FRESAS  12,000  3,296   39,551   Agrupacion 24->ART.FACTURADO
+2  8410134037506 MERMELADA DE FRESAS   0,000  3,055  -36,660   Agrupacion 24->ART.ENTREGADO
+```
+
+Uno es lo que se facturó y el otro, en negativo, lo que debió facturarse. La
+resta de los dos —2,891 €— es la diferencia, y coincide con hacerlo por unidad:
+`(3,296 − 3,055) × 12 = 2,892`. Es el mismo perfil de Alcampo, y lo resuelve
+`fundirPares()`: mismo código de artículo, importes de signo contrario, se
+funden en una sola línea con el neto.
+
+Lo que fallaba no era el cálculo, era que **no se veía**. La resta se calculaba
+desde el principio pero no se enseñaba en ninguna parte, así que la diferencia
+parecía salir de la nada. Ahora se dice en tres sitios: un aviso sobre la tabla
+de líneas, la resta concreta dentro del desplegable «Línea del cargo»
+(`213,92 € (403,44 − 189,52)`) y, al pasar el ratón por «Dato del cargo», de
+dónde sale ese número exacto en cualquiera de los modos.

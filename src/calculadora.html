@@ -999,14 +999,25 @@ function emparejar(){
     };
   });
   const sin = car.length - usados.size;
+  // Cuando el cargo trae dos renglones por artículo, la diferencia aparece sola
+  // en cuanto se asigna la línea, sin teclear ningún precio. Visto desde fuera
+  // parece que se la inventa, así que hay que decir de dónde sale.
+  const fundidas = car.filter(l => l.fundida).length;
+  const notaFundidas = fundidas
+    ? `<br><b>Ojo, de dónde sale la diferencia:</b> este cargo pone <b>dos renglones por `+
+      `artículo</b> —lo facturado y lo que debió facturarse— y en ${fundidas} línea(s) la `+
+      `diferencia es la resta de los dos, que ya viene hecha. Por eso no hay que teclear `+
+      `precios. La resta concreta se ve en el desplegable «Línea del cargo».`
+    : '';
   const av = $('#avisoEmparejado');
   if(sin > 0){
     av.classList.remove('oculto');
     av.innerHTML = `El cargo tiene <b>${car.length}</b> líneas y he emparejado <b>${usados.size}</b>. `+
-      `Revisa la columna «Línea del cargo»: hay ${sin} sin asignar.`;
+      `Revisa la columna «Línea del cargo»: hay ${sin} sin asignar.` + notaFundidas;
   } else if(car.length){
     av.classList.remove('oculto');
-    av.innerHTML = `Emparejadas <b>${usados.size}</b> líneas del cargo con la factura. Comprueba que la correspondencia es la correcta.`;
+    av.innerHTML = `Emparejadas <b>${usados.size}</b> líneas del cargo con la factura. `+
+      `Comprueba que la correspondencia es la correcta.` + notaFundidas;
   } else av.classList.add('oculto');
 }
 
@@ -1059,6 +1070,28 @@ function datoCargo(fila){
 
 // ¿Este modo necesita el precio neto de SAP tecleado a mano?
 const necesitaPrecioSap = modo => modo === 'precio_ud' || modo === 'precio_cj';
+
+/* De dónde sale el número de la columna «Dato del cargo». Es la pregunta que
+   uno se hace al ver una diferencia aparecer sola, sin haber tecleado precios,
+   y hasta ahora no había forma de saberlo desde la pantalla. */
+function origenDelDato(fila){
+  if(fila.manual != null && fila.manual !== '') return 'Escrito a mano.';
+  const lc = fila.cargoIdx >= 0 && E.cargo ? E.cargo.lineas[fila.cargoIdx] : null;
+  if(!lc) return 'Sin línea del cargo asignada.';
+  if(lc.fundida)
+    return `El cargo trae DOS renglones de este artículo, lo facturado y lo que `+
+           `debió facturarse, y la diferencia es la resta de los dos: ${lc.fundida}. `+
+           `Por eso no hay que teclear ningún precio.`;
+  switch(fila.modo){
+    case 'importe':   return 'Importe de la diferencia que da el propio cargo para esta línea.';
+    case 'precio_ud':
+    case 'precio_cj': return 'Precio correcto que anuncia el cargo. Se resta del precio neto '+
+                             'de SAP que teclees en la columna «Precio SAP».';
+    case 'dif_ud':
+    case 'dif_cj':    return 'Diferencia por unidad que da el cargo. Se multiplica por la cantidad.';
+  }
+  return '';
+}
 
 function diferenciaDe(fila){
   const d = datoCargo(fila);
@@ -1322,7 +1355,9 @@ function pintarLineas(){
       .concat((E.cargo?.lineas||[]).map((lc,j)=>{
         const ref = lc.importe != null ? eur(lc.importe)
                   : (lc.precioCorrecto != null ? 'es a '+nf3.format(lc.precioCorrecto) : '');
-        return `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${esc(lc.desc.slice(0,34))} · ${ref}</option>`;
+        // si esa línea del cargo sale de fundir dos renglones, se ve la resta
+        const de = lc.fundida ? ` (${lc.fundida})` : '';
+        return `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${esc(lc.desc.slice(0,34))} · ${ref}${esc(de)}</option>`;
       }));
     tr.innerHTML = `
       <td><input type="checkbox" data-i="${i}" class="chkAf" ${fila.afectada?'checked':''}></td>
@@ -1340,6 +1375,7 @@ function pintarLineas(){
       <td><select data-i="${i}" class="selModo">${Object.entries(MODOS).map(([k,v])=>
             `<option value="${k}" ${fila.modo===k?'selected':''}>${v}</option>`).join('')}</select></td>
       <td class="n"><input class="num datoMan" data-i="${i}" style="width:92px"
+            title="${esc(origenDelDato(fila))}"
             value="${isFinite(dato)?nf3.format(dato):''}" placeholder="—"></td>
       <td class="n"><b>${isFinite(dif)?eur(dif):'—'}</b></td>`;
     tb.appendChild(tr);
