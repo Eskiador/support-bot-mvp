@@ -776,3 +776,27 @@ por una función de escape antes de pintarse.
 - **La lectura de las facturas**: las tres reales (dos PDF y un XPS) dan número,
   fecha y líneas correctos.
 - El libro generado se abre sin errores y con sus cuatro hojas.
+
+### La asignación de la cola se borraba al leer el PDF
+
+Cargo de PENINSULACO abierto desde la cola: en la ficha se ve
+`CP-0008336`, pero al pasar a la calculadora el campo «Nº de cargo» aparecía
+vacío.
+
+Lo causó una corrección anterior. `procesarArchivo` limpia el importe, el número
+y la fecha antes de leer un cargo nuevo, para que no se queden pegados los del
+anterior. Pero al abrir desde la cola el orden es: escribir la asignación en la
+cabecera → leer el PDF, así que esa limpieza **borraba lo que acababa de poner
+el listado**. Después, la cabecera se rellenaba con lo que hubiera leído del
+PDF; como PENINSULACO numera con guion (`CP-0008336`) y ningún patrón lo
+reconocía, se quedaba en blanco.
+
+Ahora lo que viene del listado de SAP se guarda en `E.fijado` y se repone tras
+la limpieza: **la asignación del listado manda sobre el PDF**, que es lo
+correcto porque es la que identifica el cargo en SAP y con la que se cruza al
+registrar el abono. Vale igual si se abre desde la ficha y se arrastra el PDF
+después.
+
+De paso, el lector reconoce ya la numeración con guion. Se exigen seis cifras
+para no confundirla con cosas como «IVA-2024», que también aparecen en estos
+documentos.

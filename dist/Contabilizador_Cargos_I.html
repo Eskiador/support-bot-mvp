@@ -89477,6 +89477,9 @@ const E = {
   filas:   [],     // filas de trabajo (una por línea de factura)
   memoria: {version:2, clientes:{}, cargos:{}, comerciales:{}, log:[]},
   cargoAbierto: null,
+  // datos que vienen del listado de SAP al abrir un cargo desde la cola. Son
+  // los buenos: el PDF del cliente se lee después y no puede pisarlos.
+  fijado:  null,   // {cliente, asignacion}
   handle:  null
 };
 
@@ -89696,8 +89699,11 @@ function parseCargo(filas){
   // El último patrón es un cajón de sastre y hay que protegerlo: sin el filtro
   // del NIF, "NIF: ESA00000000" se colaba como número de cargo.
   const esNif = s => /^(ES|[A-Z]{2})?[A-Z]\d{7,8}[A-Z]?$/i.test(s);
-  const sueltoNum = (/\b([A-Z]{2,3}\d{6,})\b/.exec(texto)||[])[1];
-  const numero = (/(?:Número de documento|N[ºo°]\s*documento|Nota\s*contab\.?\s*n[ºo°]?)\s*:?\s*\n?\s*([A-Z]{0,3}\d{4,}(?:-\d{4,})?)/i.exec(texto)||[])[1]
+  // Hay clientes que separan las letras del número con un guion (PENINSULACO
+  // numera «CP-0008336»). Se exigen 6 cifras para no confundirlo con cosas como
+  // «IVA-2024», que sí aparecen en estos documentos.
+  const sueltoNum = (/\b([A-Z]{2,3}-?\d{6,})\b/.exec(texto)||[])[1];
+  const numero = (/(?:Número de documento|N[ºo°]\s*documento|Nota\s*contab\.?\s*n[ºo°]?)\s*:?\s*\n?\s*([A-Z]{0,3}-?\d{4,}(?:-\d{4,})?)/i.exec(texto)||[])[1]
               || (/\b(\d{4}-\d{10})\b/.exec(texto)||[])[1]
               || (/REF\.?\s*\/?\s*PROV\.?\D{0,90}?(\d{5,})/i.exec(texto)||[])[1]
               || (sueltoNum && !esNif(sueltoNum) ? sueltoNum : '') || '';
@@ -90479,6 +90485,7 @@ function refrescar(){ pintarCabecera(); pintarLineas(); calcular(); }
 function limpiarCalculadora(){
   E.cargo = null; E.factura = null; E.filas = [];
   E.ultimaSalida = null; E.docCargo = null; E.ajuste = null; E.cargoAbierto = null;
+  E.fijado = null;
 
   ['fCliente','fNumCargo','fNumFactura','fFecha','fTotal'].forEach(id => $('#'+id).value = '');
 
@@ -90713,6 +90720,16 @@ async function procesarArchivo(file, tipo){
       // queda pegado (solo se rellenaban cuando estaban vacíos) y se cuadraría
       // contra el total equivocado.
       ['fTotal','fNumCargo','fFecha'].forEach(id => $('#'+id).value = '');
+      // ...pero eso borraba también lo que ya sabíamos por el listado de SAP.
+      // Al abrir un cargo desde la cola, el nº de cargo se rellenaba con su
+      // asignación y esta limpieza lo dejaba en blanco: si el PDF del cliente no
+      // trae el número en un formato reconocible (PENINSULACO lo escribe
+      // «CP-0008336»), el campo se quedaba vacío. La asignación del listado es
+      // la que identifica el cargo en SAP, así que manda sobre el PDF.
+      if(E.fijado){
+        $('#fNumCargo').value = E.fijado.asignacion || '';
+        if(E.fijado.cliente) $('#fCliente').value = E.fijado.cliente;
+      }
       E.ajuste = null;
       E.cargo = parseCargo(filas);
       // Muchos cargos no nombran al cliente: lo llevan solo en el nombre del
@@ -91506,6 +91523,7 @@ async function calcularCon(c){
   limpiarCalculadora();                 // cada cargo empieza de cero
   E.cargoAbierto = c.id;
   E.docCargo = f;                       // para poder reabrirlo desde la calculadora
+  E.fijado = {cliente:c.cliente, asignacion:c.asignacion};
   cambiarVista('calc');
   $('#fCliente').value = c.cliente;
   $('#fNumCargo').value = c.asignacion;
@@ -91779,6 +91797,7 @@ function abrirFicha(id){
   }
   $('#xIrCalc').onclick = ()=>{
     E.cargoAbierto = id;
+    E.fijado = {cliente:c.cliente, asignacion:c.asignacion};
     cambiarVista('calc');
     $('#fCliente').value = c.cliente;
     $('#fNumCargo').value = c.asignacion;

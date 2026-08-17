@@ -229,6 +229,41 @@ const dice = (bien, etiqueta, detalle='') => {
        muda.aviso.slice(0,90));
 
   // ------------------------------------------------------------------
+  // Al abrir un cargo desde la cola, su asignación se escribe en la cabecera y
+  // después se lee el PDF. La lectura limpiaba los campos para que no se
+  // quedara pegado el cargo anterior, y de paso borraba la asignación: si el
+  // PDF del cliente no trae el número en un formato reconocible, el campo se
+  // quedaba vacío aunque en la ficha se viera bien.
+  console.log('\n=== 5b · La asignación de la cola sobrevive a leer el PDF ===');
+  const cargoPdf = path.join(base, 'ALIPENSA_NC2417589.pdf');
+  if(fs.existsSync(cargoPdf)){
+    const hoja = await navegador.newPage();
+    hoja.on('pageerror', e => console.log('  !! error JS:', e.message));
+    await hoja.goto('file://' + path.join(raiz, 'dist', 'Contabilizador_Cargos_I.html'));
+    await hoja.evaluate(() => {
+      window.E.fijado = {cliente:'PENINSULACO, S.L.', asignacion:'CP-0008336'};
+      document.querySelector('#fCliente').value = 'PENINSULACO, S.L.';
+      document.querySelector('#fNumCargo').value = 'CP-0008336';
+      window.__elegirZona('cargo');
+    });
+    await hoja.setInputFiles('#selArchivo', cargoPdf);
+    await hoja.waitForFunction(() => window.E.cargo, {timeout:40000});
+    const quedo = await hoja.evaluate(() => ({
+      numCargo: document.querySelector('#fNumCargo').value,
+      cliente: document.querySelector('#fCliente').value,
+      leidoDelPdf: window.E.cargo.numero
+    }));
+    await hoja.close();
+    dice(quedo.numCargo === 'CP-0008336',
+         'el nº de cargo sigue siendo el de la cola después de leer el PDF',
+         `quedó «${quedo.numCargo}» (el PDF decía «${quedo.leidoDelPdf}»)`);
+    dice(quedo.cliente === 'PENINSULACO, S.L.',
+         'el cliente del listado tampoco lo pisa el PDF', quedo.cliente);
+  } else {
+    console.log('  OMITIDO (no encuentro el PDF del cargo en '+base+')');
+  }
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {
