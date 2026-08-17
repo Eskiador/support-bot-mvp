@@ -679,3 +679,100 @@ página 2. Queda como caso de prueba permanente
 (`pruebas/casos/hiperusera-factura-CJ.json`), y para eso la batería admite ahora
 casos de **solo factura**, sin cargo: hay formatos que conviene tener cubiertos
 aunque no haya todavía un abono con el que compararlos.
+
+## Auditoría del programa entero
+
+Repaso completo del código buscando fallos, no solo del cuadre. Lo que aparece
+aquí está comprobado ejecutándolo, y cada hallazgo ha quedado como comprobación
+permanente en `pruebas/auditoria.js`, que se ejecuta aparte de las de cuadre:
+
+```bash
+CASOS=/ruta/a/mis/casos node pruebas/auditoria.js
+```
+
+### Los botones del Excel no funcionaban
+
+Dentro de un `.xlsx` las fórmulas se guardan **siempre con el nombre inglés y
+con coma** entre argumentos; Excel las enseña luego traducidas según el idioma
+de quien abre el libro. La herramienta escribía `HIPERVINCULO("…";"…")`, que es
+lo que se teclea en Excel en español pero no lo que va dentro del archivo, así
+que cada botón «Abrir PDF» y «Escribir» salía como `#¿NOMBRE?`.
+
+Ahora se escribe `HYPERLINK("…","…")`. El CSV que exporta el botón «Exportar»
+es el caso contrario —lo interpreta el Excel del usuario, no el formato— y ahí
+sigue en español, a propósito.
+
+### El listado reimportado podía duplicar los cargos
+
+La clave con la que se cruzan las reimportaciones se construía con cliente,
+asignación, **nº de documento, fecha e importe**. Con eso, un cargo entraba como
+nuevo —dejando huérfano el abono, la conformidad y las notas— en dos situaciones
+nada raras: exportar el listado de SAP con otras columnas, y registrar un cargo
+desde la calculadora antes de importarlo.
+
+Ahora, antes de dar un cargo por nuevo, se busca uno anterior con **el mismo
+cliente y la misma asignación** y se le trasladan los datos frescos del listado.
+El aviso del final dice cuántos se han reconocido así.
+
+Reconocer la asignación tiene su miga, y aquí hubo que rectificar sobre la
+marcha. La primera regla —quedarse con el número más largo que lleva dentro—
+parecía razonable hasta que se probó contra el listado real de 1.273 cargos:
+Carrefour numera `20241051S3836`, `20241051S44696`… y todas comparten el tramo
+de delante, así que **19 grupos de cargos distintos se habrían dado por el
+mismo** y el trabajo de uno habría acabado en otro. Lo único que cambia de
+verdad entre SAP y el documento es el tipo de documento con barra, así que se
+quita solo eso. Con esa regla, los 1.273 cargos reales no producen ni una sola
+colisión.
+
+### El veredicto del cuadre mentía en las líneas medidas
+
+«SOLO FALTA EL ZAJU» se decide comparando el descuadre con el salto más fino que
+puede dar una línea, y ese salto se calculaba siempre como `cantidad / base`.
+Pero en las líneas **medidas contra SAP** el salto lo marca la medición, y puede
+ser cientos de veces más fino: en una línea de 10.080 unidades el cálculo daba
+1,008 € cuando el salto real era de 0,002 €. Resultado: un descuadre de 0,50 €
+se declaraba inevitable y **se escondía el botón de cuadrar las líneas**, que sí
+podía resolverlo. Ahora el salto sale del factor real de cada línea.
+
+### Líneas que desaparecían del cuadre sin decir nada
+
+Si una línea viene en cajas y la factura no dice cuántas unidades lleva cada
+una, la cantidad no se puede pasar a la unidad del ZNET. Esa línea se quedaba
+sin ZNET y **fuera de la suma**, en silencio: el usuario veía «NO CUADRA» sin
+ninguna pista. Ahora se dice cuáles son, cuánto suman y qué falta para
+arreglarlo.
+
+### Nombres de cliente que rompían la pantalla
+
+Las razones sociales salen de SAP y se metían tal cual en el HTML. Un `<`, un
+`&` o unas comillas dentro del nombre partían la fila: `GARC<IA & "HIJOS", S.L.`
+se quedaba en `GARC`. Todo lo que viene de un documento o del teclado pasa ahora
+por una función de escape antes de pintarse.
+
+### Lo demás
+
+- **El nº de factura se quedaba pegado.** Al cargar otra factura sin vaciar, en
+  la cabecera seguía el número anterior, y ese era el que se registraba en la
+  ficha del cargo. Ahora la factura cargada manda.
+- **Solo se leía la primera hoja del Excel.** Si la exportación de SAP trae
+  delante una hoja de portada o de parámetros, el listado entero parecía
+  ilegible. Ahora se recorren todas y se coge la que lleva la cabecera.
+- **`num` tapada por una variable.** En dos funciones había una variable local
+  llamada `num`, el mismo nombre que la función que convierte los importes.
+  No llegaba a fallar por dónde estaban las líneas, pero cualquier retoque en
+  medio la habría dejado inservible sin avisar. Renombradas.
+- **«Vaciar y empezar otro cargo»** dejaba el nº de factura del panel manual.
+- La versión que se escribía en el archivo de datos (1) no coincidía con la del
+  estado inicial (2); una fecha de abono vacía se escribía en el Excel como una
+  raya; y el aviso azul de «todo medido» dejaba pegado su color al siguiente.
+
+### Lo que se miró y estaba bien
+
+- **Rendimiento.** Con 25.000 archivos indexados, 400 cargos y 3.000 líneas de
+  registro: pintar la cola 272 ms, serializar el archivo de datos 22 ms (1,14 MB),
+  generar el libro entero 26 ms. No hay nada que optimizar.
+- **El listado real de SAP** (1.273 cargos) se importa entero, sin fechas ni
+  importes perdidos, y reimportarlo no duplica ni un cargo.
+- **La lectura de las facturas**: las tres reales (dos PDF y un XPS) dan número,
+  fecha y líneas correctos.
+- El libro generado se abre sin errores y con sus cuatro hojas.

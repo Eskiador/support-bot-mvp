@@ -123,6 +123,7 @@ vendor/                   pdf.js (biblioteca y worker) que se incrusta al constr
 build/construir.js        genera el HTML autocontenido
 dist/                     el archivo que se usa: HTML único de ~3 MB
 pruebas/probar.js         batería de pruebas: cuadre y emparejado de archivos
+pruebas/auditoria.js      el resto: libro de Excel, reimportación, veredicto
 pruebas/casos/*.json      qué se espera de cada cargo real (sin los PDF)
 pruebas/casos_emparejado.js  nombres de archivo y a qué cargo deben enlazar
 docs/                     decisiones tomadas y cómo se cerraron
@@ -147,6 +148,13 @@ Cada caso comprueba que la herramienta reproduce, al céntimo, el abono que ya s
 dio por bueno en SAP. Las pruebas de **emparejado** (a qué archivo llega cada
 cargo) no necesitan ningún PDF: van con nombres inventados y se ejecutan
 siempre, en la misma orden.
+
+La segunda batería cubre lo que no es el cuadre —el libro de Excel que se
+genera, la reimportación del listado, el veredicto, la limpieza entre cargos—:
+
+```bash
+CASOS=/ruta/a/mis/casos node pruebas/auditoria.js
+```
 
 ## Lo que la herramienta no puede hacer
 

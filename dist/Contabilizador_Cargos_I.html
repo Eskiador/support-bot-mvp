@@ -89455,6 +89455,12 @@ function num(txt){
   return isNaN(v) ? NaN : (neg ? -v : v);
 }
 const r2 = v => Math.round((v+Number.EPSILON)*100)/100;
+/* Los nombres de cliente vienen de SAP y hay razones sociales con «&», comillas
+   o «<» dentro. Metidos tal cual en innerHTML, el navegador se los come o parte
+   la fila: «GARC<IA & "HIJOS", S.L.» se quedaba en «GARC». Todo lo que venga de
+   un documento o del teclado pasa por aquí antes de pintarse. */
+const esc = t => String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                                .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const norm = t => (t||'').toUpperCase()
   .normalize('NFD').replace(/[̀-ͯ]/g,'')
   .replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
@@ -90020,7 +90026,7 @@ function calcular(){
   const tol = Math.abs(num($('#fTolerancia').value)) || 0.01;
   const total = num($('#fTotal').value);
   const salida = [];
-  let suma = 0, avisos = [];
+  let suma = 0, avisos = [], sinCantidad = [];
 
   for(const fila of E.filas){
     if(!fila.afectada) continue;
@@ -90040,6 +90046,11 @@ function calcular(){
       importe = r2(znet * factor);
       suma = r2(suma + importe);
     }
+    // Hay un caso mudo: la línea tiene diferencia, pero la cantidad no se puede
+    // pasar a la unidad de la base (cajas sin saber cuántas unidades lleva cada
+    // una). Sin decirlo, la línea desaparecía del cuadre sin explicación.
+    if(isFinite(objetivo) && !(isFinite(factor) && factor > 0))
+      sinCantidad.push({fila, objetivo, um});
     // el desvío se mide siempre contra el cargo, esté ajustada la línea o no
     const desvio = (isFinite(importe)&&isFinite(objetivoCargo)) ? r2(importe - objetivoCargo) : NaN;
     const ajustada = fila.objetivoForzado != null;
@@ -90051,7 +90062,7 @@ function calcular(){
   }
 
   const zaju = isFinite(total) ? r2(total - suma) : NaN;
-  pintarResultado({salida, suma, total, zaju, tol, avisos});
+  pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad});
 }
 
 /* Reparte el descuadre entre las líneas afectadas, en proporción a lo que pesa
@@ -90244,18 +90255,18 @@ function pintarLineas(){
       .concat((E.cargo?.lineas||[]).map((lc,j)=>{
         const ref = lc.importe != null ? eur(lc.importe)
                   : (lc.precioCorrecto != null ? 'es a '+nf3.format(lc.precioCorrecto) : '');
-        return `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${lc.desc.slice(0,34)} · ${ref}</option>`;
+        return `<option value="${j}" ${j===fila.cargoIdx?'selected':''}>${j+1}. ${esc(lc.desc.slice(0,34))} · ${ref}</option>`;
       }));
     tr.innerHTML = `
       <td><input type="checkbox" data-i="${i}" class="chkAf" ${fila.afectada?'checked':''}></td>
       <td>${lf.pos}</td>
-      <td>${lf.material}</td>
-      <td><span class="desc" title="${lf.desc.replace(/"/g,'')}">${lf.desc}</span></td>
+      <td>${esc(lf.material)}</td>
+      <td><span class="desc" title="${esc(lf.desc)}">${esc(lf.desc)}</span></td>
       <td class="n">${cant(lf.cantidad)} ${lf.um}</td>
       <td class="n">${lf.udsCaja ?? '—'}</td>
       <td class="n" style="color:var(--muted)">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
       <td class="n"><input class="num precioSap" data-i="${i}" style="width:86px"
-            value="${fila.precioSap != null ? fila.precioSap : ''}"
+            value="${esc(fila.precioSap != null ? fila.precioSap : '')}"
             placeholder="${necesitaPrecioSap(fila.modo) ? 'teclea' : '—'}"
             ${necesitaPrecioSap(fila.modo) ? '' : 'disabled'}></td>
       <td><select data-i="${i}" class="selCargo">${opciones.join('')}</select></td>
@@ -90284,7 +90295,7 @@ function pintarLineas(){
     limpiarAjuste(); refrescar(); });
 }
 
-function pintarResultado({salida, suma, total, zaju, tol, avisos}){
+function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = []}){
   $('#secResultado').classList.remove('oculto');
   const hayTotal = isFinite(total);
   const desc = hayTotal ? r2(total - suma) : NaN;
@@ -90293,7 +90304,12 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
   // El ZNET solo tiene 2 decimales, así que cada línea se mueve a saltos. Por
   // debajo del salto más pequeño no hay reparto que valga: ese resto es
   // inevitable y se cierra con el ZAJU. Un descuadre mayor ya es otra cosa.
-  const pasoMin = salida.length ? Math.min(...salida.map(s => s.q/s.por*0.01)) : 0;
+  // El salto sale del FACTOR de cada línea, que no siempre es cantidad/base: en
+  // las líneas medidas contra SAP lo marca la medición, y puede ser cientos de
+  // veces más fino. Calculándolo con la cantidad se declaraba «inevitable» un
+  // descuadre que la línea sí podía absorber, y se escondía el botón de cuadrar.
+  const pasos = salida.map(s => Math.abs(s.factor) * 0.01).filter(v => isFinite(v) && v > 0);
+  const pasoMin = pasos.length ? Math.min(...pasos) : 0;
   const inevitable = hayTotal && !cuadra && Math.abs(desc) <= pasoMin + tol + 1e-9;
   const estado = !hayTotal ? 'espera' : (cuadra ? 'cuadra' : (inevitable ? 'parcial' : 'nocuadra'));
   const rotulo = {espera:'Falta el total', cuadra:'CUADRA',
@@ -90382,7 +90398,7 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
   const cajaMed = $('#avisoMedicion');
   if(cajaMed){
     if(salida.length && medidas < salida.length){
-      cajaMed.classList.remove('oculto');
+      cajaMed.className = 'aviso-caja';
       cajaMed.innerHTML = `<b>¿SAP no te da estos importes?</b> Teclea `+
         `<b>ZNET ${$('#fZnetPrueba').value}</b> en la línea, mira el valor neto que devuelve `+
         `y escríbelo en la columna «Neto de la prueba». El ZNET se recalcula exacto `+
@@ -90398,6 +90414,17 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
 
   const cajaAv = $('#avisosZnet');
   cajaAv.innerHTML = '';
+  if(sinCantidad.length){
+    const d = document.createElement('div');
+    d.className = 'aviso-caja rojo';
+    d.innerHTML = `<b>${sinCantidad.length} línea(s) con diferencia pero sin ZNET.</b> `+
+      `No puedo pasar su cantidad a la unidad de la base: `+
+      sinCantidad.map(s=>`pos. ${s.fila.fac.pos} (${cant(s.fila.fac.cantidad)} ${s.fila.fac.um}`+
+        `${s.fila.fac.udsCaja ? '' : ', sin unidades por caja'} → ${s.um})`).join(', ')+`.<br>`+
+      `Su diferencia (${eur(sinCantidad.reduce((a,s)=>a+s.objetivo,0))}) <b>no está contada en la suma</b>. `+
+      `Escribe las unidades por caja en la factura, o cambia la base de esa línea.`;
+    cajaAv.appendChild(d);
+  }
   if(avisos.length){
     const d = document.createElement('div');
     d.className = 'aviso-caja';
@@ -90413,11 +90440,11 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos}){
     if(s.alerta) tr.className = 'aviso';
     else if(s.ajustada && Math.abs(s.desvio) > 0.0001) tr.className = 'ajustada';
     tr.innerHTML = `
-      <td>${s.fila.fac.pos}</td><td>${s.fila.fac.material}</td>
-      <td><span class="desc">${s.fila.fac.desc}</span></td>
+      <td>${s.fila.fac.pos}</td><td>${esc(s.fila.fac.material)}</td>
+      <td><span class="desc">${esc(s.fila.fac.desc)}</span></td>
       <td class="n">${cant(s.q)}</td>
       <td class="n"><input class="num netoPrueba" data-pos="${s.fila.fac.pos}" style="width:86px"
-            value="${s.fila.netoPrueba != null ? s.fila.netoPrueba : ''}" placeholder="—"></td>
+            value="${esc(s.fila.netoPrueba != null ? s.fila.netoPrueba : '')}" placeholder="—"></td>
       <td class="n"><b>${isFinite(s.znet)?nf.format(s.znet):'—'}</b></td>
       <td><select class="baseLinea" data-pos="${s.fila.fac.pos}">${
         Object.entries(BASES).map(([k,v])=>
@@ -90470,7 +90497,7 @@ function limpiarCalculadora(){
   $('#estadoLectura').classList.add('oculto');
   $('#tablaLineas tbody').innerHTML = '';
   $('#tablaSalida tbody').innerHTML = '';
-  ['mTexto','mTotal','mCliente','mNumCargo'].forEach(id => { const e = $('#'+id); if(e) e.value = ''; });
+  ['mTexto','mTotal','mCliente','mNumCargo','mNumFactura'].forEach(id => { const e = $('#'+id); if(e) e.value = ''; });
   const prev = $('#mPrevio'); if(prev) prev.innerHTML = '';
   pintarCola();
 }
@@ -90589,7 +90616,7 @@ async function cargarDesdeHandle(silencioso){
 }
 
 async function guardarDatos(){
-  E.memoria.version = 1;
+  E.memoria.version = 2;
   if(E.handle){
     try{
       if(E.handle.queryPermission){
@@ -90697,7 +90724,7 @@ async function procesarArchivo(file, tipo){
       // que ofrecerle escribirlas a mano ahí mismo.
       const vacio = !E.cargo.lineas.length;
       z.className = vacio ? 'zona' : 'zona lleno';
-      z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">${file.name}</p>
+      z.innerHTML = `<h3>Cargo del cliente</h3><p class="archivo">${esc(file.name)}</p>
         <p>${E.cargo.lineas.length} línea(s) · total sin IVA ${eur(E.cargo.totalSinIva)}`+
         `${E.cargo.sinImportes ? ' · sin importes por línea' : ''}</p>`+
         (vacio ? `<p style="font-size:12.5px">No he reconocido ninguna línea en este cargo.</p>
@@ -90705,10 +90732,14 @@ async function procesarArchivo(file, tipo){
             <button class="mini primario" onclick="abrirManual('cargo')">Escribirlas a mano</button></div>` : '');
     } else {
       E.factura = parseFactura(filas);
+      // La factura manda sobre lo que hubiera escrito antes: si se cambia de
+      // factura sin vaciar, el número viejo se quedaba en la cabecera y era el
+      // que acababa registrado en la ficha del cargo.
+      if(E.factura.numero) $('#fNumFactura').value = E.factura.numero;
       const z = $('#zonaFactura');
       const vacio = !E.factura.lineas.length;
       z.className = vacio ? 'zona' : 'zona lleno';
-      z.innerHTML = `<h3>Factura original</h3><p class="archivo">${file.name}</p>
+      z.innerHTML = `<h3>Factura original</h3><p class="archivo">${esc(file.name)}</p>
         <p>${E.factura.lineas.length} línea(s) · factura ${E.factura.numero||'—'}</p>`+
         (vacio ? `<p style="font-size:12.5px">He leído el archivo pero no reconozco sus
             líneas: será un formato distinto al habitual.</p>
@@ -90735,18 +90766,20 @@ async function procesarListado(file){
   const av = $('#avisoImport');
   av.innerHTML = '<div class="aviso-caja azul">Leyendo el listado…</div>';
   try{
+    const tieneCabecera = fs => fs.some(f => f.some(c => c && /asignaci[oó]n/i.test(String(c))));
     const filas = /\.(csv|txt)$/i.test(file.name)
       ? leerCSV(await file.text())
-      : await leerXlsx(file);
+      : await leerXlsx(file, tieneCabecera);
     const r = importarListado(filas);
     await guardarDatos();
     $('#chipListado').className = 'chip ok';
     $('#chipListado').textContent = `${file.name} · ${r.leidos} cargos`;
     const z = $('#zonaListado'); z.className = 'zona lleno';
-    z.innerHTML = `<h3>Listado importado</h3><p class="archivo">${file.name}</p>
+    z.innerHTML = `<h3>Listado importado</h3><p class="archivo">${esc(file.name)}</p>
       <p>${r.leidos} cargos leídos</p>`;
     av.innerHTML = `<div class="aviso-caja verde-caja azul" style="margin-top:12px">
       <b>Listado importado.</b> ${r.nuevos} nuevo(s), ${r.actualizados} ya conocido(s)`+
+      (r.recuperados ? `, ${r.recuperados} reconocido(s) por cliente y asignación (el listado venía con otros datos)` : '')+
       (r.desaparecidos ? `, ${r.desaparecidos} que ya no vienen en el listado (se conservan marcados).` : '.')+
       ` El trabajo hecho no se ha tocado.</div>`;
     pintarCola();
@@ -90954,7 +90987,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
         const z = $('#zonaCarpeta');
         z.className = 'zona';
         z.innerHTML = `<h3>Carpeta de PDF</h3>
-          <p>Guardada de la última vez: <b>${dir.name}</b>.<br>
+          <p>Guardada de la última vez: <b>${esc(dir.name)}</b>.<br>
              ${hayIndice ? `Índice de ${E.indice.length.toLocaleString('es-ES')} archivos ya cargado.
              Edge solo necesita que le des permiso otra vez.`
                          : 'Edge pide permiso otra vez al abrir el archivo.'}</p>
@@ -90977,11 +91010,15 @@ window.addEventListener('pdfjs-listo', async ()=>{
    ================================================================== */
 
 // .xlsx es un ZIP con XML dentro: se lee sin librerías externas.
-async function leerXlsx(file){
+// Se miran TODAS las hojas, no solo la primera: hay exportaciones de SAP que
+// dejan delante una hoja de portada o de parámetros, y leyendo solo «sheet1»
+// el listado parecía ilegible. «sirve» decide cuál es la buena.
+async function leerXlsx(file, sirve){
   const partes = await leerZip(new Uint8Array(await file.arrayBuffer()),
-                              /^xl\/(worksheets\/sheet1\.xml|sharedStrings\.xml)$/i);
-  const hoja = [...partes.entries()].find(([n])=>/sheet1\.xml$/i.test(n));
-  if(!hoja) throw new Error('No encuentro la primera hoja del Excel.');
+                              /^xl\/(worksheets\/[^\/]+\.xml|sharedStrings\.xml)$/i);
+  const hojas = [...partes.entries()].filter(([n])=>/worksheets\//i.test(n))
+    .sort((a,b)=>a[0].localeCompare(b[0], 'en', {numeric:true}));
+  if(!hojas.length) throw new Error('No encuentro ninguna hoja dentro del Excel.');
   const dec = new TextDecoder('utf-8');
   const dom = new DOMParser();
 
@@ -90993,7 +91030,18 @@ async function leerXlsx(file){
       [...si.getElementsByTagName('t')].map(t=>t.textContent).join(''));
   }
 
-  const d = dom.parseFromString(dec.decode(hoja[1]), 'application/xml');
+  let primera = null;
+  for(const [, datos] of hojas){
+    const filas = filasDeHoja(dom.parseFromString(dec.decode(datos), 'application/xml'), compartidas);
+    if(!filas.some(f => f.some(c => c != null && String(c).trim() !== ''))) continue;  // hoja vacía
+    if(!primera) primera = filas;
+    if(!sirve || sirve(filas)) return filas;
+  }
+  if(!primera) throw new Error('Todas las hojas del Excel están vacías.');
+  return primera;
+}
+
+function filasDeHoja(d, compartidas){
   const filas = [];
   for(const fila of d.getElementsByTagName('row')){
     const celdas = [];
@@ -91114,13 +91162,40 @@ function importarListado(filas){
 
   // fusión: los datos del listado se refrescan, el trabajo hecho se respeta
   const previos = E.memoria.cargos || (E.memoria.cargos = {});
-  let nuevos = 0, actualizados = 0;
+  let nuevos = 0, actualizados = 0, recuperados = 0;
   const idsLeidos = new Set();
+
+  /* La clave lleva dentro la fecha, el importe y el nº de documento. Si SAP
+     exporta el listado con otras columnas —o el cargo se registró desde la
+     calculadora antes de importarlo— la clave cambia y el mismo cargo entraba
+     como nuevo, dejando huérfano todo el trabajo hecho (abono, conformidad,
+     notas). Antes de darlo por nuevo se busca por cliente + asignación, que es
+     lo que de verdad identifica un cargo. */
+  const porCargo = new Map();
+  const clave2 = (cliente, asignacion) => norm(cliente) + '|' + claveAsignacion(asignacion);
+  for(const id in previos){
+    const k = clave2(previos[id].cliente, previos[id].asignacion);
+    if(!porCargo.has(k)) porCargo.set(k, []);
+    porCargo.get(k).push(id);
+  }
+  const adoptados = new Set();
+  const previoDe = c => {
+    if(previos[c.id] && !adoptados.has(c.id)) return c.id;
+    const lista = porCargo.get(clave2(c.cliente, c.asignacion)) || [];
+    return lista.find(id => !adoptados.has(id) && previos[id]) || null;
+  };
+
   for(const c of leidos){
     idsLeidos.add(c.id);
-    if(previos[c.id]){
-      Object.assign(previos[c.id], c);                  // solo los campos del listado
-      actualizados++;
+    const idPrevio = previoDe(c);
+    if(idPrevio){
+      adoptados.add(idPrevio); adoptados.add(c.id);
+      const estado = previos[idPrevio];
+      delete previos[idPrevio];
+      Object.assign(estado, c);                         // solo los campos del listado
+      previos[c.id] = estado;                           // bajo la clave nueva
+      if(E.cargoAbierto === idPrevio) E.cargoAbierto = c.id;
+      if(idPrevio === c.id) actualizados++; else recuperados++;
     } else {
       previos[c.id] = Object.assign(estadoInicial(), c);
       nuevos++;
@@ -91133,8 +91208,8 @@ function importarListado(filas){
     previos[id].enListado = idsLeidos.has(id);
     if(!previos[id].enListado && antes) desaparecidos++;
   }
-  registrar('importar_listado', {leidos:leidos.length, nuevos, actualizados, desaparecidos});
-  return {leidos:leidos.length, nuevos, actualizados, desaparecidos};
+  registrar('importar_listado', {leidos:leidos.length, nuevos, actualizados, recuperados, desaparecidos});
+  return {leidos:leidos.length, nuevos, actualizados, recuperados, desaparecidos};
 }
 
 function estadoInicial(){
@@ -91248,6 +91323,23 @@ function clavesDeAsignacion(asig){
   return claves;
 }
 
+/* ¿Son el mismo cargo dos asignaciones escritas distinto? En SAP muchas llevan
+   delante el tipo de documento ("C/5300011522") y el documento trae solo el
+   número. Se comparan sin puntuación, y quitando ese prefijo.
+
+   Quitar en su lugar «todo menos el número más largo» sería demasiado suelto:
+   las asignaciones de Carrefour son 20241051S3836, 20241051S44696… y todas
+   comparten el 20241051, así que 19 grupos de cargos distintos del listado real
+   se habrían dado por el mismo. Se quita solo lo que va antes de la barra, y
+   solo cuando hay barra: con «DOI25028401» y «ADI25028401», dos cargos
+   distintos de CSF, no se toca nada. */
+const claveAsignacion = a => clavePdf(String(a || '').replace(/^\s*[A-Z]{1,3}\s*\//i, ''));
+function mismaAsignacion(a, b){
+  const A = clavePdf(a), B = clavePdf(b);
+  if(!A || !B) return false;
+  return A === B || claveAsignacion(a) === claveAsignacion(b);
+}
+
 // ¿El archivo lleva el nombre del cliente, en el nombre o en la carpeta?
 const PALABRAS_VACIAS = /^(SOCIEDAD|LIMITADA|ANONIMA|GRUPO|CENTRO|COMERCIAL|SUPERMERCADOS|DISTRIBUCION)$/;
 function clienteCoincide(f, cliente){
@@ -91355,7 +91447,7 @@ function pintarCarpeta(){
   if(!E.carpeta){
     z.className = 'zona';
     z.innerHTML = `<h3>Índice cargado, pero falta conectar la carpeta</h3>
-      <p class="archivo">${g ? g.carpeta : ''}</p>
+      <p class="archivo">${esc(g ? g.carpeta : '')}</p>
       ${detalle}
       <p style="font-size:12.5px">Para <b>abrir</b> los PDF, Edge necesita permiso sobre la
          carpeta y no lo guarda de una sesión a otra. Es un clic y no vuelve a leerla.</p>
@@ -91367,7 +91459,7 @@ function pintarCarpeta(){
 
   z.className = 'zona lleno';
   z.innerHTML = `<h3>Carpeta conectada</h3>
-    <p class="archivo">${E.carpeta.name}</p>
+    <p class="archivo">${esc(E.carpeta.name)}</p>
     ${detalle}
     <div class="barra" style="justify-content:center">
       <button id="btnRecargarCarpeta" class="mini">Volver a leer la carpeta</button>
@@ -91421,13 +91513,15 @@ async function calcularCon(c){
   if(!$('#fTotal').value) $('#fTotal').value = nf.format(Math.abs(c.importe));
 
   // el cargo suele decir de qué factura viene: si está en la carpeta, se carga sola
-  const num = (E.cargo && E.cargo.refFactura) || $('#fNumFactura').value.trim();
-  const fac = buscarFactura(num, f.ruta);
+  // (ojo: la variable NO puede llamarse «num», que es la función que convierte
+  // los importes; dentro de esta función la dejaría inservible)
+  const numFac = (E.cargo && E.cargo.refFactura) || $('#fNumFactura').value.trim();
+  const fac = buscarFactura(numFac, f.ruta);
   if(fac){
     await procesarArchivo(await archivoDe(fac), 'factura');
-    avisar(`Cargo y factura ${num} cargados desde la carpeta.`);
+    avisar(`Cargo y factura ${numFac} cargados desde la carpeta.`);
   } else {
-    avisar(num ? `Cargo cargado. Falta la factura ${num}.` : 'Cargo cargado. Falta la factura.');
+    avisar(numFac ? `Cargo cargado. Falta la factura ${numFac}.` : 'Cargo cargado. Falta la factura.');
   }
   pintarCabecera();
   pintarEnlaceCargo();
@@ -91438,15 +91532,17 @@ async function calcularCon(c){
 function pintarEnlaceCargo(){
   const caja = $('#enlaceCargo');
   if(!caja) return;
-  const num = $('#fNumFactura').value.trim() || (E.cargo && E.cargo.refFactura) || '';
+  // «num» a secas taparía la función que convierte importes dentro de esta
+  // función entera: no se puede usar ese nombre para una variable.
+  const numFac = $('#fNumFactura').value.trim() || (E.cargo && E.cargo.refFactura) || '';
   const hayCarpeta = E.indice && E.indice.length;
   if(!E.docCargo && !hayCarpeta){ caja.classList.add('oculto'); return; }
   caja.classList.remove('oculto');
   caja.innerHTML = `<div class="aviso-caja azul" style="margin:0 0 12px">
-    ${E.docCargo ? `<b>Cargo abierto:</b> ${E.docCargo.nombre}` : '<b>Carpeta conectada.</b>'}
+    ${E.docCargo ? `<b>Cargo abierto:</b> ${esc(E.docCargo.nombre)}` : '<b>Carpeta conectada.</b>'}
     <div class="barra">
       ${E.docCargo ? '<button id="btnVerCargoCalc">Ver el PDF del cargo</button>' : ''}
-      ${num && !E.factura ? `<button class="primario" id="btnBuscarFac">Buscar la factura ${num} en la carpeta</button>` : ''}
+      ${numFac && !E.factura ? `<button class="primario" id="btnBuscarFac">Buscar la factura ${numFac} en la carpeta</button>` : ''}
       ${E.factura ? `<span style="font-size:13px">Factura ${E.factura.numero||''} cargada.</span>` : ''}
     </div></div>`;
   if($('#btnVerCargoCalc')) $('#btnVerCargoCalc').onclick = async ()=>{
@@ -91454,8 +91550,8 @@ function pintarEnlaceCargo(){
     window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 60000);
   };
   if($('#btnBuscarFac')) $('#btnBuscarFac').onclick = async ()=>{
-    const fac = buscarFactura(num, E.docCargo ? E.docCargo.ruta : '');
-    if(!fac){ avisar(`No encuentro ningún archivo con el número ${num} en la carpeta.`); return; }
+    const fac = buscarFactura(numFac, E.docCargo ? E.docCargo.ruta : '');
+    if(!fac){ avisar(`No encuentro ningún archivo con el número ${numFac} en la carpeta.`); return; }
     await procesarArchivo(await archivoDe(fac), 'factura');
     pintarEnlaceCargo();
   };
@@ -91554,8 +91650,8 @@ function pintarCola(){
   const sel = $('#fCliente2'), valor = sel.value;
   const clientes = [...new Set(todos.map(c=>c.cliente))].sort((a,b)=>a.localeCompare(b,'es'));
   sel.innerHTML = '<option value="">Todos los clientes</option>' +
-    clientes.map(c=>`<option${c===valor?' selected':''}>${c}</option>`).join('');
-  $('#listaClientes').innerHTML = clientes.map(c=>`<option value="${c}">`).join('');
+    clientes.map(c=>`<option value="${esc(c)}"${c===valor?' selected':''}>${esc(c)}</option>`).join('');
+  $('#listaClientes').innerHTML = clientes.map(c=>`<option value="${esc(c)}">`).join('');
 
   const lista = cargosFiltrados();
   $('#chipFiltro').textContent = `${lista.length} de ${total}`;
@@ -91570,11 +91666,11 @@ function pintarCola(){
     tr.innerHTML = `
       <td>${fechaCorta(c.fecha)}</td>
       <td>${semaforo(dias)}${dias ?? '—'}</td>
-      <td title="${c.cliente}">${c.cliente.slice(0,28)}</td>
-      <td>${c.asignacion}</td>
+      <td title="${esc(c.cliente)}">${esc(c.cliente.slice(0,28))}</td>
+      <td>${esc(c.asignacion)}</td>
       <td class="n">${eur(c.importe)}</td>
       <td><span class="pill ${est.pill}">${est.et}</span></td>
-      <td>${c.abono ? c.abono : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${c.abono ? esc(c.abono) : '<span style="color:var(--muted)">—</span>'}</td>
       <td>${c.conforme === null ? '<span class="pill gris">sin decidir</span>'
             : (c.conforme ? '<span class="pill verde">conforme</span>'
                           : '<span class="pill rojo">no conforme</span>')}</td>
@@ -91623,7 +91719,7 @@ function abrirFicha(id){
   $('#cuerpoFicha').innerHTML = `
     <div class="fichaCaja">
       <div class="campo"><label>Nº de abono en SAP</label>
-        <input id="xAbono" value="${c.abono||''}" placeholder="1519001122"></div>
+        <input id="xAbono" value="${esc(c.abono)}" placeholder="1519001122"></div>
       <div class="campo"><label>Clasificación</label>
         <select id="xClasif">
           <option value="">— sin clasificar —</option>
@@ -91637,7 +91733,7 @@ function abrirFicha(id){
           <option value="no"${c.conforme===false?' selected':''}>No conforme</option>
         </select></div>
       <div class="campo"><label>Nombre para el PDF</label>
-        <div style="display:flex;gap:6px"><input value="${nombrePdf(c)}" readonly style="flex:1">
+        <div style="display:flex;gap:6px"><input value="${esc(nombrePdf(c))}" readonly style="flex:1">
         <button class="mini" id="xCopiarNombre">Copiar</button></div></div>
     </div>
     <div class="filtros" style="margin-bottom:14px">
@@ -91647,16 +91743,16 @@ function abrirFicha(id){
       <label class="check"><input type="checkbox" id="xRec" ${c.reclamado?'checked':''}> Reclamado al comercial</label>
     </div>
     <div class="campo" style="margin-bottom:14px"><label>Nota</label>
-      <input id="xNota" value="${(c.nota||'').replace(/"/g,'&quot;')}" placeholder="lo que quieras recordar de este cargo"></div>
+      <input id="xNota" value="${esc(c.nota)}" placeholder="lo que quieras recordar de este cargo"></div>
 
     <ul class="pasos">${pasos.map(p=>`<li>
       <span class="${p.hecho?'hecho':''}">${p.hecho?'✔':'○'}</span>
       <span class="txt">${p.txt}</span>
-      <small>${p.extra||''}</small></li>`).join('')}</ul>
+      <small>${esc(p.extra||'')}</small></li>`).join('')}</ul>
 
     <div class="aviso-caja ${c.conforme===false?'rojo':'azul'}" style="margin-top:14px">
-      <b>Comercial de ${c.cliente}:</b>
-      ${com ? `${com.nombre||'(sin nombre)'} · ${com.correo||'sin correo'}`
+      <b>Comercial de ${esc(c.cliente)}:</b>
+      ${com ? `${esc(com.nombre||'(sin nombre)')} · ${esc(com.correo||'sin correo')}`
             : 'no lo tengo apuntado. Añádelo en la pestaña «Comerciales».'}
       ${c.conforme===false ? `<div class="barra">
           <button class="primario" id="xCorreo">Generar el correo de reclamación</button>
@@ -91671,7 +91767,7 @@ function abrirFicha(id){
                <button id="xCalcPdf">Calcular con este PDF</button>` : ''}
       <button id="xIrCalc">Abrir en la calculadora</button>
       <span class="chip">${hechos} de ${pasos.length} pasos</span>
-      ${doc ? `<span class="chip ok" title="${doc.ruta}">${doc.nombre}</span>`
+      ${doc ? `<span class="chip ok" title="${esc(doc.ruta)}">${esc(doc.nombre)}</span>`
             : (E.indice && E.indice.length ? '<span class="chip no">sin PDF localizado</span>' : '')}
     </div>`;
 
@@ -91769,11 +91865,11 @@ function pintarComerciales(){
   for(const [clave, v] of filas){
     const n = cargos.filter(c=>norm(c.cliente)===clave).length;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${v.cliente||clave}</td><td>${v.nombre||'—'}</td>
-      <td>${v.correo||'<span style="color:var(--rojo)">falta</span>'}</td>
-      <td>${v.notas||''}</td><td class="n">${n}</td>
-      <td class="acc"><button class="mini" data-edit="${clave}">Editar</button>
-      <button class="mini" data-borra="${clave}">Borrar</button></td>`;
+    tr.innerHTML = `<td>${esc(v.cliente||clave)}</td><td>${esc(v.nombre||'—')}</td>
+      <td>${v.correo?esc(v.correo):'<span style="color:var(--rojo)">falta</span>'}</td>
+      <td>${esc(v.notas||'')}</td><td class="n">${n}</td>
+      <td class="acc"><button class="mini" data-edit="${esc(clave)}">Editar</button>
+      <button class="mini" data-borra="${esc(clave)}">Borrar</button></td>`;
     tb.appendChild(tr);
   }
   $$('#tablaCom [data-edit]').forEach(b=>b.onclick=()=>{
@@ -91936,7 +92032,11 @@ ${hojas.map((h,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlfor
 
 /* ------------------------------------------------ el libro de cargos */
 const CAB = t => ({v:t, s:1});
-const ENL = (destino, texto) => ({f:`HIPERVINCULO("${destino.replace(/"/g,'')}";"${texto}")`, s:3});
+/* Dentro de un .xlsx las fórmulas se guardan SIEMPRE con el nombre inglés y con
+   coma entre argumentos; Excel las enseña luego traducidas. Escribiendo
+   «HIPERVINCULO(…;…)» el libro se abría con #¿NOMBRE? en cada botón. (En el CSV
+   es al revés: lo interpreta el Excel del usuario, y ahí sí va en español.) */
+const ENL = (destino, texto) => ({f:`HYPERLINK("${destino.replace(/"/g,'')}","${texto}")`, s:3});
 
 function rutaHtml(){
   const r = ($('#fRutaHtml').value || '').trim();
@@ -91961,7 +92061,7 @@ function hojasDelLibro(){
     cargos.push([
       fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
       {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.clasificado||'',
-      c.abono||'', fechaCorta(c.fechaAbono),
+      c.abono||'', c.fechaAbono ? fechaCorta(c.fechaAbono) : '',
       c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'NO conforme'),
       c.marcadoEnSap?'Sí':'No', c.compensado?'Sí':'No',
       c.conforme === false ? (c.reclamado?'Sí':'PENDIENTE') : '',
@@ -92153,12 +92253,15 @@ function registrarCalculo(){
   if(abono === null) return;                       // ha cancelado
 
   // busca el cargo en la cola; si no está, lo crea
+  // La asignación del listado y la que se lee del PDF no siempre se escriben
+  // igual: en SAP muchos cargos llevan "C/" delante y el documento solo trae el
+  // número. Comparando en crudo se daba de alta un duplicado.
   let id = E.cargoAbierto;
   if(!id || !E.memoria.cargos?.[id] ||
-     norm(E.memoria.cargos[id].asignacion) !== norm(asignacion)){
+     !mismaAsignacion(E.memoria.cargos[id].asignacion, asignacion)){
     id = Object.keys(E.memoria.cargos || {}).find(k => {
       const c = E.memoria.cargos[k];
-      return norm(c.asignacion) === norm(asignacion) && norm(c.cliente) === norm(cliente);
+      return mismaAsignacion(c.asignacion, asignacion) && norm(c.cliente) === norm(cliente);
     });
   }
   E.memoria.cargos = E.memoria.cargos || {};
@@ -92219,6 +92322,16 @@ window.__descargarExcel = descargarExcel;
 window.__archivoTieneContenido = archivoTieneContenido;
 window.__conectarExcel = conectarExcel;
 window.__cambiarVista = cambiarVista;
+window.__importarListado = importarListado;
+window.__emparejar = emparejar;
+window.__calcular = calcular;
+window.__pintarCabecera = pintarCabecera;
+window.__hojasDelLibro = hojasDelLibro;
+window.__leerXlsx = leerXlsx;
+window.__norm = norm;
+window.__claveAsignacion = claveAsignacion;
+window.__mismaAsignacion = mismaAsignacion;
+window.__limpiarCalculadora = limpiarCalculadora;
 
 /* ---------------------------------------------- cargo escrito a mano */
 // De cada renglón se toma el ÚLTIMO número como valor y el resto como
