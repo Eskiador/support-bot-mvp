@@ -858,3 +858,26 @@ falte esa marca.
 
 Lo que no cambia: compensar un cargo no conforme **no lo cierra** mientras no
 esté reclamado. La regla de cierre es la misma que antes.
+
+### Las cinco casillas, y que quepan todas
+
+Faltaba una: **PDF guardado** solo existía dentro de la ficha, así que era la
+única de las cinco que obligaba a abrir el cargo. Ya está en la tabla, y las
+acciones en lote también la cubren.
+
+Añadir una columna a una tabla que ya iba justa habría empeorado lo de siempre:
+deslizar de lado para llegar a las casillas de la derecha. Así que se ha
+ajustado entera, con anchos fijos por columna (`table-layout:fixed`), algo menos
+de aire y el nombre del cliente cortado con puntos suspensivos —entero en el
+título—. Suma **1.028 px**, que es el mínimo por debajo del cual vuelve a
+aparecer la barra: comprobado a 1.920, 1.440, 1.366 y 1.280 px, sin barra
+lateral y sin texto recortado en ninguna celda salvo la del cliente, que se
+corta a propósito.
+
+Dos recortes para que cupiera:
+
+- **La columna «Abrir» se ha quitado.** Su botón hacía lo mismo que pulsar en
+  cualquier parte libre de la fila, que es lo que dice la pista de arriba.
+- Los rótulos se han acortado (`SAP`, `Comp.`, `Recl.`, `PDF`, «no conf.»,
+  «falta» en vez de «pendiente»), con el texto completo en el título de cada
+  cabecera. «Pendiente» no cabía en su columna sin ensancharla de más.

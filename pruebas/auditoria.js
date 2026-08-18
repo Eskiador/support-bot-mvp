@@ -321,6 +321,8 @@ const dice = (bien, etiqueta, detalle='') => {
     const trasUno = window.E.memoria.cargos.p0.compensado;
     celdas('reclamado').click();
     const trasDos = window.E.memoria.cargos.p0.reclamado;
+    celdas('pdfGuardado').click();
+    const trasTres = window.E.memoria.cargos.p0.pdfGuardado;
     const fecha = window.E.memoria.cargos.p0.fechaReclamacion;
     const abrioFicha = !document.querySelector('#secFicha').classList.contains('oculto');
 
@@ -331,11 +333,12 @@ const dice = (bien, etiqueta, detalle='') => {
     window.confirm = original;
     const compensados = Object.values(window.E.memoria.cargos).filter(c => c.compensado).length;
     const cerrados = Object.values(window.E.memoria.cargos).filter(c => c.estado === 'cerrado').length;
-    return {antes, trasUno, trasDos, fecha, abrioFicha, botones, compensados, cerrados};
+    return {antes, trasUno, trasDos, trasTres, fecha, abrioFicha, botones, compensados, cerrados};
   });
   dice(casillas.antes === false && casillas.trasUno === true,
        'un clic en la casilla marca el cargo como compensado');
   dice(casillas.trasDos === true, 'y otro lo marca como reclamado');
+  dice(casillas.trasTres === true, 'y la casilla del PDF guardado también está en la tabla');
   dice(!!casillas.fecha, 'apunta la fecha de reclamación sola', casillas.fecha);
   dice(!casillas.abrioFicha, 'no abre la ficha ni salta la página al hacerlo');
   dice(casillas.botones.some(t => /Marcar 11 como compensados/.test(t)),
@@ -346,6 +349,48 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(casillas.cerrados === 1,
        'compensar no cierra los no conformes que siguen sin reclamar',
        `${casillas.cerrados} cerrado(s) de 12, y es el único reclamado`);
+
+  // ------------------------------------------------------------------
+  // La cola tiene trece columnas y hay que verlas todas de una vez: si no cabe,
+  // se acaba deslizando la tabla de lado para marcar cada casilla.
+  console.log('\n=== 5e · La cola entera cabe sin deslizar de lado ===');
+  for(const ancho of [1920, 1440, 1366, 1280]){
+    const hoja = await navegador.newPage({viewport:{width:ancho, height:900}});
+    await hoja.goto('file://' + path.join(raiz, 'dist', 'Contabilizador_Cargos_I.html'));
+    const r = await hoja.evaluate(() => {
+      window.E.memoria.cargos = {};
+      const clientes = ['PENINSULACO, S.L.', 'CENTROS COMERCIALES CARREFOUR SOCIEDAD ANONIMA',
+                        'COVIRAN S.COOP.ANDALUZA'];
+      for(let i = 0; i < 15; i++) window.E.memoria.cargos['k'+i] = {
+        cliente:clientes[i%3], asignacion:'CP-000833'+i, importe:-1234.56,
+        fecha:'2024-08-05', ndoc:'', moneda:'EUR', clave:'I', abono:'1519001241',
+        fechaAbono:'2026-08-01', conforme:i%3===0?false:(i%3===1?true:null),
+        marcadoEnSap:false, compensado:false, reclamado:false, fechaReclamacion:'',
+        nota:'', clasificado:'precio', calculo:null, enListado:true,
+        pdfGuardado:false, estado:'abonado'};
+      window.__pintarCola();
+      const env = document.querySelector('#tablaCola').closest('.tablaenv');
+      // la columna del cliente se corta a propósito, con el nombre entero en el título
+      const cortadas = [...document.querySelectorAll('#tablaCola tbody td')]
+        .filter(td => td.scrollWidth > td.clientWidth + 1 && td.cellIndex !== 2)
+        .map(td => `col ${td.cellIndex}: ${td.textContent.trim()}`);
+      return {
+        desliza: env.scrollWidth > env.clientWidth + 1,
+        pagina: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        columnas: document.querySelectorAll('#tablaCola thead th').length,
+        casillas: document.querySelectorAll('#tablaCola tbody tr:first-child td[data-campo]').length,
+        cortadas: [...new Set(cortadas)]
+      };
+    });
+    await hoja.close();
+    dice(!r.desliza && !r.pagina, `a ${ancho} px se ve la tabla entera sin barra lateral`);
+    dice(r.cortadas.length === 0, `a ${ancho} px no hay texto recortado`,
+         r.cortadas.slice(0,4).join(' | '));
+    if(ancho === 1366){
+      dice(r.columnas === 13, 'la cola tiene las trece columnas', String(r.columnas));
+      dice(r.casillas === 5, 'las cinco casillas se pueden marcar desde la tabla', String(r.casillas));
+    }
+  }
 
   // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');

@@ -126,6 +126,14 @@ td.togc{cursor:pointer}
 .sem{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .sem.v{background:#2aa36a}.sem.a{background:#e0a92b}.sem.r{background:#d64b3c}
 tr.sel td{background:var(--azul-claro)}
+/* La cola tiene trece columnas y hay que verlas TODAS sin deslizar de lado:
+   anchos fijos, algo menos de aire y el nombre del cliente cortado con puntos
+   suspensivos (entero en el título). Por debajo de su ancho mínimo ya no hay
+   nada que hacer y vuelve a aparecer la barra de desplazamiento. */
+#tablaCola{table-layout:fixed;min-width:1028px}
+#tablaCola th,#tablaCola td{padding:6px 7px;font-size:13px;overflow:hidden;text-overflow:ellipsis}
+#tablaCola .pill{padding:2px 7px;font-size:11.5px}
+#tablaCola .mini{font-size:11.5px;padding:3px 6px}
 #tablaCola tbody tr{cursor:pointer}
 #tablaCola tbody tr:hover td{background:var(--azul-claro)}
 tbody tr:hover td{background:#f7f9fc}
@@ -228,13 +236,21 @@ td.acc{text-align:right}
           <div class="crece"></div>
           <span class="chip" id="chipFiltro"></span>
         </div>
-        <p class="pista" style="margin:8px 0 0">Las casillas de <b>conforme</b>, <b>en SAP</b>,
-          <b>compensado</b> y <b>reclamado</b> se cambian con un clic encima, sin abrir nada.
-          Para lo demás, haz clic en cualquier otra parte de la fila y se abre su ficha.</p>
+        <p class="pista" style="margin:8px 0 0">Las cinco casillas de la derecha —<b>conforme</b>,
+          <b>SAP</b>, <b>comp.</b>, <b>recl.</b> y <b>PDF</b>— se cambian con un clic encima, sin abrir
+          nada. Para el resto (nº de abono, clasificación, nota) haz clic en cualquier otra parte de
+          la fila y se abre su ficha.</p>
         <div class="filtros" id="barraLote" style="margin-top:10px"></div>
       </div>
       <div class="tablaenv">
         <table id="tablaCola">
+          <colgroup>
+            <col style="width:76px"><col style="width:52px"><col style="width:150px">
+            <col style="width:98px"><col style="width:80px"><col style="width:80px">
+            <col style="width:86px"><col style="width:92px"><col style="width:46px">
+            <col style="width:52px"><col style="width:62px"><col style="width:46px">
+            <col style="width:108px">
+          </colgroup>
           <thead><tr>
             <th data-orden="fecha">Fecha</th>
             <th data-orden="dias">Días</th>
@@ -243,11 +259,11 @@ td.acc{text-align:right}
             <th class="n" data-orden="importe">Importe</th>
             <th data-orden="estado">Estado</th>
             <th>Nº abono</th>
-            <th>Conforme</th>
-            <th>En SAP</th>
-            <th>Compensado</th>
-            <th>Reclamado</th>
-            <th>PDF</th>
+            <th title="Conforme o no conforme. Clic en la casilla para cambiarlo">Conforme</th>
+            <th title="Conformidad marcada en SAP. Clic en la casilla para cambiarlo">SAP</th>
+            <th title="Contabilizado / compensado. Clic en la casilla para cambiarlo">Comp.</th>
+            <th title="Reclamado al comercial. Clic en la casilla para cambiarlo">Recl.</th>
+            <th title="PDF del cargo guardado. Clic en la casilla para cambiarlo">PDF</th>
             <th></th>
           </tr></thead>
           <tbody></tbody>
@@ -91732,14 +91748,14 @@ function pintarCola(){
     tr.innerHTML = `
       <td>${fechaCorta(c.fecha)}</td>
       <td>${semaforo(dias)}${dias ?? '—'}</td>
-      <td title="${esc(c.cliente)}">${esc(c.cliente.slice(0,28))}</td>
+      <td title="${esc(c.cliente)}">${esc(c.cliente)}</td>
       <td>${esc(c.asignacion)}</td>
       <td class="n">${eur(c.importe)}</td>
       <td><span class="pill ${est.pill}">${est.et}</span></td>
       <td>${c.abono ? esc(c.abono) : '<span style="color:var(--muted)">—</span>'}</td>
       <td class="togc" data-campo="conforme">${c.conforme === null ? '<span class="pill gris tog" title="Clic: pasa a conforme">sin decidir</span>'
             : (c.conforme ? '<span class="pill verde tog" title="Clic: pasa a NO conforme">conforme</span>'
-                          : '<span class="pill rojo tog" title="Clic: vuelve a sin decidir">no conforme</span>')}</td>
+                          : '<span class="pill rojo tog" title="NO conforme · clic: vuelve a sin decidir">no conf.</span>')}</td>
       <td class="togc" data-campo="marcadoEnSap">${c.conforme === null ? '—' : (c.marcadoEnSap
             ? '<span class="pill verde tog" title="Clic: quitar la marca">sí</span>'
             : '<span class="pill ambar tog" title="Clic: marcar la conformidad en SAP">no</span>')}</td>
@@ -91748,12 +91764,14 @@ function pintarCola(){
             : '<span class="pill gris tog" title="Clic: marcar como compensado">no</span>'}</td>
       <td class="togc" data-campo="reclamado">${c.conforme === false ? (c.reclamado
             ? '<span class="pill verde tog" title="Clic: deshacer la reclamación">sí</span>'
-            : '<span class="pill rojo tog" title="Clic: marcar como reclamado al comercial">pendiente</span>') : '—'}</td>
+            : '<span class="pill rojo tog" title="Sin reclamar · clic: marcar como reclamado al comercial">falta</span>') : '—'}</td>
+      <td class="togc" data-campo="pdfGuardado">${c.pdfGuardado
+            ? '<span class="pill verde tog" title="PDF guardado · clic: desmarcar">sí</span>'
+            : '<span class="pill gris tog" title="Clic: marcar el PDF del cargo como guardado">no</span>'}</td>
       <td>${buscarDoc(c)
-            ? `<button class="mini" data-pdf="${c.id}" title="Abrir el PDF del cargo">Ver PDF</button>`+
+            ? `<button class="mini" data-pdf="${c.id}" title="Abrir el PDF del cargo">Ver</button>`+
               `<button class="mini" data-calc="${c.id}" title="Abrirlo en la calculadora, sin buscar el archivo" style="margin-left:4px">Calcular</button>`
-            : '<span style="color:var(--muted)">—</span>'}</td>
-      <td class="acc"><button class="mini" data-abrir="${c.id}">Abrir</button></td>`;
+            : '<span style="color:var(--muted)">—</span>'}</td>`;
     tb.appendChild(tr);
   }
   // los clics se atienden en el cuerpo de la tabla, no botón a botón: así no
@@ -91944,7 +91962,8 @@ window.addEventListener('beforeunload', e => {
 const ETIQUETA_LOTE = {
   compensado:   'compensados',
   marcadoEnSap: 'con la conformidad marcada en SAP',
-  reclamado:    'reclamados al comercial'
+  reclamado:    'reclamados al comercial',
+  pdfGuardado:  'con el PDF guardado'
 };
 
 // Y para una tanda entera, lo mismo de una vez sobre lo que hay filtrado.
