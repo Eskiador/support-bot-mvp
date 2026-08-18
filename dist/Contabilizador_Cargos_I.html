@@ -91294,7 +91294,7 @@ function importarListado(filas){
 
 function estadoInicial(){
   return {
-    estado:'pendiente', abono:'', fechaAbono:'',
+    estado:'pendiente', abono:'', fechaAbono:'', cerrado:false,
     conforme:null, marcadoEnSap:false, compensado:false,
     reclamado:false, fechaReclamacion:'', pdfGuardado:false,
     clasificado:'', nota:'', calculo:null, enListado:true
@@ -91646,8 +91646,12 @@ const ESTADOS = {
   'cerrado'  :{et:'Cerrado',   pill:'verde'}
 };
 
+/* Cerrar es una decisión, no una consecuencia. Antes el estado pasaba solo a
+   «cerrado» en cuanto un cargo estaba abonado, compensado y conforme, y eso
+   sacaba de la vista cargos que todavía se estaban trabajando. Ahora el resto
+   del estado se sigue deduciendo, pero el cierre lo marca quien lo cierra. */
 function recalcularEstado(c){
-  if(c.compensado && c.abono && (c.conforme !== false || c.reclamado)) c.estado = 'cerrado';
+  if(c.cerrado) c.estado = 'cerrado';
   else if(c.abono) c.estado = 'abonado';
   else if(c.calculo || c.clasificado) c.estado = 'en curso';
   else c.estado = 'pendiente';
@@ -91709,6 +91713,17 @@ function cargosFiltrados(){
   return lista;
 }
 
+/* La casilla de estado también se pulsa, pero solo para lo que es una decisión:
+   dar por cerrado lo que ya está abonado, y reabrir lo cerrado. Un pendiente no
+   se cierra de un clic sin querer: ahí el clic abre la ficha, como siempre. */
+function celdaEstado(c, est){
+  const sePuede = c.cerrado || c.estado === 'abonado';
+  if(!sePuede) return `<td><span class="pill ${est.pill}">${est.et}</span></td>`;
+  const pista = c.cerrado ? 'Clic: reabrirlo y dejarlo en abonado' : 'Clic: darlo por cerrado';
+  return `<td class="togc" data-campo="cerrado">`+
+         `<span class="pill ${est.pill} tog" title="${pista}">${est.et}</span></td>`;
+}
+
 function pintarCola(){
   const cargos = E.memoria.cargos || {};
   const total = Object.keys(cargos).length;
@@ -91719,11 +91734,12 @@ function pintarCola(){
   const todos = Object.values(cargos).map(c=>{ recalcularEstado(c); return c; });
   const cuenta = e => todos.filter(c=>c.estado===e).length;
   const noConformes = todos.filter(c=>c.conforme===false && !c.reclamado).length;
+  const sinCompensar = todos.filter(c=>c.estado==='abonado' && !c.compensado).length;
   $('#cnPend').textContent = cuenta('pendiente');
   $('#contadores').innerHTML = `
     <div class="dato"><div class="et">Pendientes</div><div class="vl">${cuenta('pendiente')}</div></div>
     <div class="dato"><div class="et">En curso</div><div class="vl">${cuenta('en curso')}</div></div>
-    <div class="dato"><div class="et">Abonados sin compensar</div><div class="vl">${cuenta('abonado')}</div></div>
+    <div class="dato"><div class="et">Abonados sin compensar</div><div class="vl">${sinCompensar}</div></div>
     <div class="dato"><div class="et">No conformes sin reclamar</div>
       <div class="vl" style="color:${noConformes?'var(--rojo)':'inherit'}">${noConformes}</div></div>`;
 
@@ -91751,7 +91767,7 @@ function pintarCola(){
       <td title="${esc(c.cliente)}">${esc(c.cliente)}</td>
       <td>${esc(c.asignacion)}</td>
       <td class="n">${eur(c.importe)}</td>
-      <td><span class="pill ${est.pill}">${est.et}</span></td>
+      ${celdaEstado(c, est)}
       <td>${c.abono ? esc(c.abono) : '<span style="color:var(--muted)">—</span>'}</td>
       <td class="togc" data-campo="conforme">${c.conforme === null ? '<span class="pill gris tog" title="Clic: pasa a conforme">sin decidir</span>'
             : (c.conforme ? '<span class="pill verde tog" title="Clic: pasa a NO conforme">conforme</span>'
@@ -91831,6 +91847,7 @@ function abrirFicha(id, sinSaltar){
       <label class="check"><input type="checkbox" id="xSap" ${c.marcadoEnSap?'checked':''}> Conformidad marcada en SAP</label>
       <label class="check"><input type="checkbox" id="xComp" ${c.compensado?'checked':''}> Contabilizado / compensado</label>
       <label class="check"><input type="checkbox" id="xRec" ${c.reclamado?'checked':''}> Reclamado al comercial</label>
+      <label class="check" title="El cargo no se cierra solo: se cierra cuando tú lo das por cerrado"><input type="checkbox" id="xCerrado" ${c.cerrado?'checked':''}> <b>Cargo cerrado</b></label>
     </div>
     <div class="campo" style="margin-bottom:14px"><label>Nota</label>
       <input id="xNota" value="${esc(c.nota)}" placeholder="lo que quieras recordar de este cargo"></div>
@@ -91900,6 +91917,10 @@ function guardarFicha(id){
   const recAntes = c.reclamado;
   c.reclamado = $('#xRec').checked;
   if(c.reclamado && !recAntes) c.fechaReclamacion = HOY();
+  const cerrAntes = c.cerrado;
+  c.cerrado = $('#xCerrado').checked;
+  if(c.cerrado && !cerrAntes) c.fechaCierre = HOY();
+  if(!c.cerrado) c.fechaCierre = '';
   c.nota = $('#xNota').value.trim();
   recalcularEstado(c);
   registrar('ficha_guardada', {id, cliente:c.cliente, asignacion:c.asignacion,
@@ -91919,11 +91940,13 @@ function guardarFicha(id){
 function puedeMarcar(c, campo){
   if(campo === 'marcadoEnSap') return c.conforme !== null;
   if(campo === 'reclamado')    return c.conforme === false;
+  if(campo === 'cerrado')      return !!c.abono;   // sin abono no hay nada que cerrar
   return true;
 }
 const PORQUE_NO = {
   marcadoEnSap: 'Primero decide si el cargo es conforme: la casilla de al lado lo cambia.',
-  reclamado:    'Solo se reclaman al comercial los cargos NO conformes.'
+  reclamado:    'Solo se reclaman al comercial los cargos NO conformes.',
+  cerrado:      'Un cargo sin nº de abono todavía no se puede dar por cerrado.'
 };
 
 function alternarCasilla(id, campo){
@@ -91932,6 +91955,14 @@ function alternarCasilla(id, campo){
   if(campo === 'conforme'){
     // tres estados: sin decidir → conforme → no conforme → sin decidir
     c.conforme = c.conforme === null ? true : (c.conforme === true ? false : null);
+  } else if(campo === 'cerrado'){
+    // Cerrar un no conforme sin haberlo reclamado deja al comercial sin enterarse:
+    // no se impide, pero se pregunta.
+    if(!c.cerrado && c.conforme === false && !c.reclamado &&
+       !confirm(`El cargo ${c.asignacion} es NO conforme y todavía no está reclamado `+
+                `al comercial.\n\n¿Lo cierras igualmente?`)) return;
+    c.cerrado = !c.cerrado;
+    c.fechaCierre = c.cerrado ? HOY() : '';
   } else {
     if(!puedeMarcar(c, campo)){ avisar(PORQUE_NO[campo]); return; }
     c[campo] = !c[campo];
@@ -91963,7 +91994,8 @@ const ETIQUETA_LOTE = {
   compensado:   'compensados',
   marcadoEnSap: 'con la conformidad marcada en SAP',
   reclamado:    'reclamados al comercial',
-  pdfGuardado:  'con el PDF guardado'
+  pdfGuardado:  'con el PDF guardado',
+  cerrado:      'cerrados'
 };
 
 // Y para una tanda entera, lo mismo de una vez sobre lo que hay filtrado.
@@ -91992,6 +92024,7 @@ function marcarLote(campo){
     const real = E.memoria.cargos[c.id];
     real[campo] = true;
     if(campo === 'reclamado' && !real.fechaReclamacion) real.fechaReclamacion = HOY();
+    if(campo === 'cerrado' && !real.fechaCierre) real.fechaCierre = HOY();
     recalcularEstado(real);
   }
   registrar('marcado_en_lote', {campo, cuantos:lista.length});

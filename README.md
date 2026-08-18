@@ -39,8 +39,8 @@ libro abierto en Excel, Windows lo bloquea y la cabecera te avisa.
 
 **Cola de cargos** — el listado de SAP con el estado de cada uno: semáforo de
 antigüedad, nº de abono, conforme / no conforme, si la conformidad está marcada
-en SAP, compensado, reclamado y PDF guardado. Esas cinco casillas **se cambian
-con un clic encima, en la propia tabla**, sin abrir nada; y hay botones para
+en SAP, compensado, reclamado y PDF guardado. Esas casillas —y la de estado, para
+cerrar o reabrir— **se cambian con un clic encima, en la propia tabla**, sin abrir nada; y hay botones para
 marcar de golpe todo lo que haya filtrado. Las trece columnas caben en pantalla
 sin deslizar de lado. Filtros por cliente, estado, conformidad y texto
 libre; contadores arriba; exportación a Excel. Al reimportar un listado nuevo se
@@ -49,8 +49,12 @@ marcan en lugar de borrarse.
 
 Cada cargo tiene su **ficha** con la checklist de los ocho pasos del proceso, el
 nombre `CLIENTE_ASIGNACIÓN` listo para copiar y el botón para generar el correo
-de reclamación. Un cargo no pasa a cerrado con pasos abiertos: si es no conforme,
-no se cierra hasta que está reclamado.
+de reclamación.
+
+**Ningún cargo se cierra solo.** El estado (pendiente → en curso → abonado) se
+deduce del trabajo hecho, pero pasar a **cerrado** lo decides tú: se pulsa la
+casilla de estado de un cargo abonado, o la casilla «Cargo cerrado» de su ficha.
+Se reabre igual. Si es no conforme y no está reclamado, pregunta antes.
 
 **Calculadora** — la pieza del cuadre (ver más abajo). Cuando termina, el botón
 **Registrar en el archivo de cargos** pide el nº de abono y guarda el cálculo

@@ -881,3 +881,34 @@ Dos recortes para que cupiera:
 - Los rótulos se han acortado (`SAP`, `Comp.`, `Recl.`, `PDF`, «no conf.»,
   «falta» en vez de «pendiente»), con el texto completo en el título de cada
   cabecera. «Pendiente» no cabía en su columna sin ensancharla de más.
+
+### Cerrar es una decisión, no una consecuencia
+
+El estado pasaba solo a **cerrado** en cuanto un cargo estaba abonado,
+compensado y conforme. Sobre el papel es correcto —no queda nada por hacer—
+pero en la práctica sacaba de la vista cargos que todavía se estaban trabajando:
+marcas una tanda como compensada y media lista se te va a «Cerrado», con el
+filtro «Ocultar los cerrados» puesto desaparecen, y ya no sabes por dónde ibas.
+
+Ahora **el resto del estado se sigue deduciendo** (pendiente → en curso →
+abonado, según haya cálculo, clasificación o nº de abono) pero el cierre es un
+campo propio que se marca a mano:
+
+- pulsando la **casilla de estado** de un cargo abonado, en la propia tabla; con
+  otro clic se reabre y vuelve a «Abonado»;
+- o con la casilla **«Cargo cerrado»** de su ficha;
+- o en lote, con «Marcar N como cerrados» sobre lo que haya filtrado.
+
+Solo se ofrece cerrar lo que tiene **nº de abono** —sin abono no hay nada que
+cerrar— y si el cargo es **no conforme y no está reclamado**, se pregunta antes
+en lugar de impedirlo: cerrarlo sin avisar al comercial es una decisión legítima,
+pero conviene tomarla a sabiendas.
+
+Efecto sobre lo ya guardado: los cargos que la versión anterior había cerrado
+sola no traen el campo, así que **vuelven a aparecer como «Abonado»**. Es lo
+buscado —quedan a la vista para cerrarlos cuando toque— y el trabajo hecho
+(abono, conformidad, compensado, reclamado) no se toca.
+
+De paso, el contador «Abonados sin compensar» contaba en realidad todos los
+abonados. Ahora que compensar ya no los saca del estado, cuenta los que de
+verdad están sin compensar.

@@ -344,11 +344,51 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(casillas.botones.some(t => /Marcar 11 como compensados/.test(t)),
        'ofrece marcar de golpe los que quedan del filtro', casillas.botones.join(' | '));
   dice(casillas.compensados === 12, 'la acción en lote los marca todos', casillas.compensados+' de 12');
-  // De los doce, solo el primero se reclamó. Compensar los doce no puede cerrar
-  // a los otros once: un no conforme sin reclamar sigue abierto.
-  dice(casillas.cerrados === 1,
-       'compensar no cierra los no conformes que siguen sin reclamar',
-       `${casillas.cerrados} cerrado(s) de 12, y es el único reclamado`);
+  // Compensar no cierra nada: el cierre lo decide quien cierra (ver 5f).
+  dice(casillas.cerrados === 0,
+       'compensar en lote no cierra ningún cargo por su cuenta',
+       `${casillas.cerrados} cerrado(s) de 12`);
+
+  // ------------------------------------------------------------------
+  // Cerrar es una decisión. Antes el estado saltaba solo a «cerrado» en cuanto
+  // un cargo estaba abonado, compensado y conforme, y desaparecía de la vista
+  // mientras todavía se estaba trabajando.
+  console.log('\n=== 5f · Un cargo no se cierra solo ===');
+  const cierre = await pagina.evaluate(() => {
+    window.E.memoria.cargos = {
+      c1: {cliente:'X, S.L.', asignacion:'CP-1', importe:-10, fecha:'2026-08-01', ndoc:'',
+           moneda:'EUR', clave:'I', abono:'1519001111', fechaAbono:'2026-08-01',
+           conforme:true, marcadoEnSap:true, compensado:true, reclamado:false,
+           fechaReclamacion:'', nota:'', clasificado:'precio', calculo:null,
+           enListado:true, pdfGuardado:true, cerrado:false, estado:'abonado'},
+      // un cargo guardado con la versión anterior: no trae el campo «cerrado»
+      c2: {cliente:'Y, S.L.', asignacion:'CP-2', importe:-20, fecha:'2026-08-01', ndoc:'',
+           moneda:'EUR', clave:'I', abono:'1519002222', fechaAbono:'2026-08-01',
+           conforme:true, marcadoEnSap:true, compensado:true, reclamado:false,
+           fechaReclamacion:'', nota:'', clasificado:'precio', calculo:null,
+           enListado:true, pdfGuardado:true, estado:'cerrado'}
+    };
+    window.__pintarCola();
+    const traeTodo = window.E.memoria.cargos.c1.estado;
+    const antiguo  = window.E.memoria.cargos.c2.estado;
+    // la casilla de estado cierra y reabre
+    const casilla = () => document.querySelector('#tablaCola tbody tr:first-child td[data-campo="cerrado"]');
+    const hayCasilla = !!casilla();
+    casilla().click();
+    const trasCerrar = window.E.memoria.cargos.c1.estado;
+    const fecha = window.E.memoria.cargos.c1.fechaCierre;
+    casilla().click();
+    const trasReabrir = window.E.memoria.cargos.c1.estado;
+    return {traeTodo, antiguo, hayCasilla, trasCerrar, fecha, trasReabrir};
+  });
+  dice(cierre.traeTodo === 'abonado',
+       'abonado + conforme + compensado se queda en abonado', cierre.traeTodo);
+  dice(cierre.antiguo === 'abonado',
+       'y los que la versión anterior había cerrado sola vuelven a abonado', cierre.antiguo);
+  dice(cierre.hayCasilla && cierre.trasCerrar === 'cerrado',
+       'se cierra con un clic en la casilla de estado', cierre.trasCerrar);
+  dice(!!cierre.fecha, 'apunta la fecha de cierre', cierre.fecha);
+  dice(cierre.trasReabrir === 'abonado', 'y se reabre con otro clic', cierre.trasReabrir);
 
   // ------------------------------------------------------------------
   // La cola tiene trece columnas y hay que verlas todas de una vez: si no cabe,
@@ -379,6 +419,7 @@ const dice = (bien, etiqueta, detalle='') => {
         pagina: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         columnas: document.querySelectorAll('#tablaCola thead th').length,
         casillas: document.querySelectorAll('#tablaCola tbody tr:first-child td[data-campo]').length,
+        // conforme · SAP · comp. · recl. · PDF · estado (cerrar/reabrir)
         cortadas: [...new Set(cortadas)]
       };
     });
@@ -388,7 +429,7 @@ const dice = (bien, etiqueta, detalle='') => {
          r.cortadas.slice(0,4).join(' | '));
     if(ancho === 1366){
       dice(r.columnas === 13, 'la cola tiene las trece columnas', String(r.columnas));
-      dice(r.casillas === 5, 'las cinco casillas se pueden marcar desde la tabla', String(r.casillas));
+      dice(r.casillas === 6, 'las seis casillas se marcan desde la tabla', String(r.casillas));
     }
   }
 
