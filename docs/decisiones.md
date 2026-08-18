@@ -825,3 +825,36 @@ parecía salir de la nada. Ahora se dice en tres sitios: un aviso sobre la tabla
 de líneas, la resta concreta dentro del desplegable «Línea del cargo»
 (`213,92 € (403,44 − 189,52)`) y, al pasar el ratón por «Dato del cargo», de
 dónde sale ese número exacto en cualquiera de los modos.
+
+## Marcar el estado sin abrir la ficha
+
+Compensar y reclamar una tanda de cargos es, por cargo, decir sí o no cuatro
+veces. Hacerlo por la ficha eran cuatro acciones —abrir, bajar hasta el final de
+la página, marcar, guardar— para una información que cabe en un clic. Con veinte
+o treinta cargos de una tanda, eso es la diferencia entre un minuto y media hora.
+
+Las casillas de **conforme**, **en SAP**, **compensado** y **reclamado** se
+cambian ahora pulsando encima en la propia tabla. La de conformidad va en ciclo
+(sin decidir → conforme → no conforme → sin decidir); las otras tres son un
+interruptor. Toda la celda es zona de clic, no solo la etiqueta.
+
+Tres decisiones que no son evidentes:
+
+- **Las casillas que no aplican siguen sin aplicar.** No se marca en SAP la
+  conformidad de un cargo sin decidir, ni se reclama uno que va como conforme.
+  Al pulsarlas se explica por qué en vez de no hacer nada.
+- **Se guarda con un respiro de 0,9 s.** Cada cambio reescribe el archivo de
+  datos y regenera el libro entero; marcando veinte cargos seguidos serían veinte
+  escrituras. Si se cierra la pestaña con algo sin guardar, el navegador avisa.
+- **Si la ficha de ese cargo está abierta, se refresca** —sin saltar la página—
+  porque si no sus casillas se quedarían con el valor viejo y «Guardar cambios»
+  desharía lo que se acababa de marcar.
+
+Y para la tanda entera, encima de la tabla aparecen botones que marcan **de una
+vez todo lo que haya filtrado** («Marcar 11 como compensados»), con una
+confirmación que enumera los primeros para poder ver qué se va a tocar. Solo
+alcanzan a los cargos del filtro puesto en ese momento, y solo a los que les
+falte esa marca.
+
+Lo que no cambia: compensar un cargo no conforme **no lo cierra** mientras no
+esté reclamado. La regla de cierre es la misma que antes.

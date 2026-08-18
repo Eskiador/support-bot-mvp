@@ -119,6 +119,10 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
 .pill.verde{background:var(--verde-claro);color:var(--verde)}
 .pill.ambar{background:var(--ambar-claro);color:var(--ambar)}
 .pill.rojo{background:var(--rojo-claro);color:var(--rojo)}
+/* casillas que se cambian con un clic en la propia tabla */
+.pill.tog{cursor:pointer;border:1px solid transparent}
+.pill.tog:hover{filter:brightness(0.94);border-color:currentColor}
+td.togc{cursor:pointer}
 .sem{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .sem.v{background:#2aa36a}.sem.a{background:#e0a92b}.sem.r{background:#d64b3c}
 tr.sel td{background:var(--azul-claro)}
@@ -224,7 +228,10 @@ td.acc{text-align:right}
           <div class="crece"></div>
           <span class="chip" id="chipFiltro"></span>
         </div>
-        <p class="pista" style="margin:8px 0 0">Haz clic en cualquier parte de una fila para abrir su ficha y editarla.</p>
+        <p class="pista" style="margin:8px 0 0">Las casillas de <b>conforme</b>, <b>en SAP</b>,
+          <b>compensado</b> y <b>reclamado</b> se cambian con un clic encima, sin abrir nada.
+          Para lo demás, haz clic en cualquier otra parte de la fila y se abre su ficha.</p>
+        <div class="filtros" id="barraLote" style="margin-top:10px"></div>
       </div>
       <div class="tablaenv">
         <table id="tablaCola">
@@ -90900,7 +90907,11 @@ window.addEventListener('pdfjs-listo', async ()=>{
       else if(b.dataset.abrir) abrirFicha(b.dataset.abrir);
       return;
     }
+    // Marcar compensado o reclamado abriendo la ficha de cada cargo es mucho
+    // clic para algo que es un sí o un no: se cambia en la propia casilla.
     const fila = e.target.closest('tr[data-id]');
+    const celda = e.target.closest('td[data-campo]');
+    if(celda && fila){ alternarCasilla(fila.dataset.id, celda.dataset.campo); return; }
     if(fila) abrirFicha(fila.dataset.id);
   });
 
@@ -91709,6 +91720,7 @@ function pintarCola(){
 
   const lista = cargosFiltrados();
   $('#chipFiltro').textContent = `${lista.length} de ${total}`;
+  pintarBarraLote(lista);
 
   const tb = $('#tablaCola tbody'); tb.innerHTML = '';
   for(const c of lista.slice(0, 400)){
@@ -91725,12 +91737,18 @@ function pintarCola(){
       <td class="n">${eur(c.importe)}</td>
       <td><span class="pill ${est.pill}">${est.et}</span></td>
       <td>${c.abono ? esc(c.abono) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td>${c.conforme === null ? '<span class="pill gris">sin decidir</span>'
-            : (c.conforme ? '<span class="pill verde">conforme</span>'
-                          : '<span class="pill rojo">no conforme</span>')}</td>
-      <td>${c.conforme === null ? '—' : (c.marcadoEnSap ? '<span class="pill verde">sí</span>' : '<span class="pill ambar">no</span>')}</td>
-      <td>${c.compensado ? '<span class="pill verde">sí</span>' : '<span class="pill gris">no</span>'}</td>
-      <td>${c.conforme === false ? (c.reclamado ? '<span class="pill verde">sí</span>' : '<span class="pill rojo">pendiente</span>') : '—'}</td>
+      <td class="togc" data-campo="conforme">${c.conforme === null ? '<span class="pill gris tog" title="Clic: pasa a conforme">sin decidir</span>'
+            : (c.conforme ? '<span class="pill verde tog" title="Clic: pasa a NO conforme">conforme</span>'
+                          : '<span class="pill rojo tog" title="Clic: vuelve a sin decidir">no conforme</span>')}</td>
+      <td class="togc" data-campo="marcadoEnSap">${c.conforme === null ? '—' : (c.marcadoEnSap
+            ? '<span class="pill verde tog" title="Clic: quitar la marca">sí</span>'
+            : '<span class="pill ambar tog" title="Clic: marcar la conformidad en SAP">no</span>')}</td>
+      <td class="togc" data-campo="compensado">${c.compensado
+            ? '<span class="pill verde tog" title="Clic: dejarlo sin compensar">sí</span>'
+            : '<span class="pill gris tog" title="Clic: marcar como compensado">no</span>'}</td>
+      <td class="togc" data-campo="reclamado">${c.conforme === false ? (c.reclamado
+            ? '<span class="pill verde tog" title="Clic: deshacer la reclamación">sí</span>'
+            : '<span class="pill rojo tog" title="Clic: marcar como reclamado al comercial">pendiente</span>') : '—'}</td>
       <td>${buscarDoc(c)
             ? `<button class="mini" data-pdf="${c.id}" title="Abrir el PDF del cargo">Ver PDF</button>`+
               `<button class="mini" data-calc="${c.id}" title="Abrirlo en la calculadora, sin buscar el archivo" style="margin-left:4px">Calcular</button>`
@@ -91746,7 +91764,7 @@ function pintarCola(){
 }
 
 /* ------------------------------------------------ ficha del cargo */
-function abrirFicha(id){
+function abrirFicha(id, sinSaltar){
   const c = E.memoria.cargos[id];
   if(!c) return;
   E.cargoAbierto = id;
@@ -91845,7 +91863,8 @@ function abrirFicha(id){
     $('#xCorreo').onclick = ()=>abrirCorreo(c);
     $('#xCopiarCorreo').onclick = ()=>copiar(textoCorreo(c).cuerpo, 'Texto del correo copiado');
   }
-  $('#secFicha').scrollIntoView({behavior:'smooth', block:'start'});
+  // al refrescarla desde la tabla no se salta: el usuario está mirando la fila
+  if(!sinSaltar) $('#secFicha').scrollIntoView({behavior:'smooth', block:'start'});
   pintarCola();
 }
 
@@ -91870,6 +91889,96 @@ function guardarFicha(id){
   guardarDatos();
   abrirFicha(id);
   avisar('Cargo actualizado.');
+}
+
+/* ---------------------------------------- marcar sin abrir la ficha */
+/* Compensar y reclamar es un sí o un no por cargo, y hacerlo abriendo la ficha
+   de cada uno —que además baja la página hasta el final— son cuatro acciones
+   para un clic de información. Las casillas se cambian en la propia tabla. */
+
+// No todas las casillas tienen sentido siempre: la conformidad no se marca en
+// SAP si todavía no se ha decidido, y solo se reclama lo que va como no conforme.
+function puedeMarcar(c, campo){
+  if(campo === 'marcadoEnSap') return c.conforme !== null;
+  if(campo === 'reclamado')    return c.conforme === false;
+  return true;
+}
+const PORQUE_NO = {
+  marcadoEnSap: 'Primero decide si el cargo es conforme: la casilla de al lado lo cambia.',
+  reclamado:    'Solo se reclaman al comercial los cargos NO conformes.'
+};
+
+function alternarCasilla(id, campo){
+  const c = E.memoria.cargos[id];
+  if(!c) return;
+  if(campo === 'conforme'){
+    // tres estados: sin decidir → conforme → no conforme → sin decidir
+    c.conforme = c.conforme === null ? true : (c.conforme === true ? false : null);
+  } else {
+    if(!puedeMarcar(c, campo)){ avisar(PORQUE_NO[campo]); return; }
+    c[campo] = !c[campo];
+    if(campo === 'reclamado' && c.reclamado && !c.fechaReclamacion) c.fechaReclamacion = HOY();
+  }
+  recalcularEstado(c);
+  registrar('casilla_cambiada', {id, cliente:c.cliente, asignacion:c.asignacion,
+                                 campo, valor:c[campo]});
+  guardarPronto();
+  // Si la ficha de ese mismo cargo está abierta, hay que refrescarla o sus
+  // casillas quedarían con el valor viejo y «Guardar cambios» desharía esto.
+  if(E.cargoAbierto === id && !$('#secFicha').classList.contains('oculto')) abrirFicha(id, true);
+  else pintarCola();
+}
+
+/* Guardado con un respiro: marcando cargos seguidos se escribiría el archivo de
+   datos y se regeneraría el Excel entero en cada clic. */
+let tempoGuardar = null;
+function guardarPronto(){
+  clearTimeout(tempoGuardar);
+  $('#pieEstado').textContent = 'Cambios sin guardar…';
+  tempoGuardar = setTimeout(()=>{ tempoGuardar = null; guardarDatos(); }, 900);
+}
+window.addEventListener('beforeunload', e => {
+  if(tempoGuardar){ e.preventDefault(); e.returnValue = ''; }
+});
+
+const ETIQUETA_LOTE = {
+  compensado:   'compensados',
+  marcadoEnSap: 'con la conformidad marcada en SAP',
+  reclamado:    'reclamados al comercial'
+};
+
+// Y para una tanda entera, lo mismo de una vez sobre lo que hay filtrado.
+function pintarBarraLote(lista){
+  const barra = $('#barraLote');
+  if(!barra) return;
+  const acciones = Object.keys(ETIQUETA_LOTE)
+    .map(k => ({k, n: lista.filter(c => puedeMarcar(c, k) && !c[k]).length}))
+    .filter(a => a.n > 0);
+  if(!acciones.length){ barra.innerHTML = ''; return; }
+  barra.innerHTML = `<span style="font-size:13px"><b>De golpe, sobre lo filtrado:</b></span>`+
+    acciones.map(a => `<button class="mini" data-lote="${a.k}">`+
+      `Marcar ${a.n} como ${ETIQUETA_LOTE[a.k]}</button>`).join('');
+  $$('#barraLote [data-lote]').forEach(b => b.onclick = ()=>marcarLote(b.dataset.lote));
+}
+
+function marcarLote(campo){
+  const lista = cargosFiltrados().filter(c => puedeMarcar(c, campo) && !c[campo]);
+  if(!lista.length){ avisar('No hay ninguno que cambiar.'); return; }
+  const et = ETIQUETA_LOTE[campo];
+  const muestra = lista.slice(0, 6).map(c => `  · ${c.cliente} · ${c.asignacion}`).join('\n');
+  if(!confirm(`Vas a marcar ${lista.length} cargo(s) como ${et}:\n\n${muestra}`+
+      (lista.length > 6 ? `\n  · …y ${lista.length - 6} más` : '')+
+      `\n\nSon los que tienes filtrados ahora mismo. ¿Seguimos?`)) return;
+  for(const c of lista){
+    const real = E.memoria.cargos[c.id];
+    real[campo] = true;
+    if(campo === 'reclamado' && !real.fechaReclamacion) real.fechaReclamacion = HOY();
+    recalcularEstado(real);
+  }
+  registrar('marcado_en_lote', {campo, cuantos:lista.length});
+  guardarDatos();
+  pintarCola();
+  avisar(`${lista.length} cargo(s) marcados como ${et}.`);
 }
 
 /* ------------------------------------------------ comerciales y correo */
@@ -92377,6 +92486,8 @@ window.__descargarExcel = descargarExcel;
 window.__archivoTieneContenido = archivoTieneContenido;
 window.__conectarExcel = conectarExcel;
 window.__cambiarVista = cambiarVista;
+window.__marcarLote = marcarLote;
+window.__alternarCasilla = alternarCasilla;
 window.__importarListado = importarListado;
 window.__emparejar = emparejar;
 window.__calcular = calcular;

@@ -39,7 +39,9 @@ libro abierto en Excel, Windows lo bloquea y la cabecera te avisa.
 
 **Cola de cargos** — el listado de SAP con el estado de cada uno: semáforo de
 antigüedad, nº de abono, conforme / no conforme, si la conformidad está marcada
-en SAP, compensado y reclamado. Filtros por cliente, estado, conformidad y texto
+en SAP, compensado y reclamado. Esas cuatro casillas **se cambian con un clic
+encima, en la propia tabla**, sin abrir nada; y hay botones para marcar de golpe
+todo lo que haya filtrado. Filtros por cliente, estado, conformidad y texto
 libre; contadores arriba; exportación a Excel. Al reimportar un listado nuevo se
 cruza por cargo y **el trabajo hecho se conserva**; los que ya no aparecen se
 marcan en lugar de borrarse.

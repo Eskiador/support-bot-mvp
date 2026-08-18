@@ -302,6 +302,52 @@ const dice = (bien, etiqueta, detalle='') => {
   }
 
   // ------------------------------------------------------------------
+  // Compensar y reclamar una tanda abriendo la ficha de cada cargo son cuatro
+  // acciones por un sí o un no, y la ficha además baja la página hasta el final.
+  console.log('\n=== 5d · Marcar compensado y reclamado desde la propia tabla ===');
+  const casillas = await pagina.evaluate(async () => {
+    window.E.memoria.cargos = {};
+    for(let i = 0; i < 12; i++) window.E.memoria.cargos['p'+i] = {
+      cliente:'PENINSULACO, S.L.', asignacion:'CP-000833'+i, importe:-21.62,
+      fecha:'2024-08-05', ndoc:'', moneda:'EUR', clave:'I', abono:'151900124'+i,
+      fechaAbono:'2026-08-01', conforme:false, marcadoEnSap:false, compensado:false,
+      reclamado:false, fechaReclamacion:'', nota:'', clasificado:'precio',
+      calculo:null, enListado:true, pdfGuardado:false, estado:'abonado'};
+    window.__pintarCola();
+
+    const celdas = f => [...document.querySelectorAll(`#tablaCola tbody tr:first-child td[data-campo="${f}"]`)][0];
+    const antes = window.E.memoria.cargos.p0.compensado;
+    celdas('compensado').click();                       // un clic en la casilla
+    const trasUno = window.E.memoria.cargos.p0.compensado;
+    celdas('reclamado').click();
+    const trasDos = window.E.memoria.cargos.p0.reclamado;
+    const fecha = window.E.memoria.cargos.p0.fechaReclamacion;
+    const abrioFicha = !document.querySelector('#secFicha').classList.contains('oculto');
+
+    // y la tanda entera de una vez
+    const botones = [...document.querySelectorAll('#barraLote [data-lote]')].map(b => b.textContent.trim());
+    const original = window.confirm; window.confirm = () => true;
+    window.__marcarLote('compensado');
+    window.confirm = original;
+    const compensados = Object.values(window.E.memoria.cargos).filter(c => c.compensado).length;
+    const cerrados = Object.values(window.E.memoria.cargos).filter(c => c.estado === 'cerrado').length;
+    return {antes, trasUno, trasDos, fecha, abrioFicha, botones, compensados, cerrados};
+  });
+  dice(casillas.antes === false && casillas.trasUno === true,
+       'un clic en la casilla marca el cargo como compensado');
+  dice(casillas.trasDos === true, 'y otro lo marca como reclamado');
+  dice(!!casillas.fecha, 'apunta la fecha de reclamación sola', casillas.fecha);
+  dice(!casillas.abrioFicha, 'no abre la ficha ni salta la página al hacerlo');
+  dice(casillas.botones.some(t => /Marcar 11 como compensados/.test(t)),
+       'ofrece marcar de golpe los que quedan del filtro', casillas.botones.join(' | '));
+  dice(casillas.compensados === 12, 'la acción en lote los marca todos', casillas.compensados+' de 12');
+  // De los doce, solo el primero se reclamó. Compensar los doce no puede cerrar
+  // a los otros once: un no conforme sin reclamar sigue abierto.
+  dice(casillas.cerrados === 1,
+       'compensar no cierra los no conformes que siguen sin reclamar',
+       `${casillas.cerrados} cerrado(s) de 12, y es el único reclamado`);
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {
