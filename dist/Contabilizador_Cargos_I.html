@@ -91398,8 +91398,25 @@ function clavesDeAsignacion(asig){
   // nombre), así que en ese caso se exige que además case el cliente.
   const entera = clavePdf(asig);
   añadir(entera, entera.length < 5);
-  const numero = ((asig || '').match(/\d{4,}/g) || []).sort((a,b)=>b.length-a.length)[0];
-  añadir(numero, !numero || numero.length < 7);
+
+  /* Sin el tipo de documento de delante. Grupo Hermanos Martín numera en SAP
+     «C/ 0D/4102» y en la carpeta el archivo es «GRUPO HNOS MARTÍN 0D-4102.pdf»:
+     el código de verdad es 0D-4102, con su serie. Va ANTES que el número suelto
+     a propósito, porque «C/ 0D/9341» y «C/ 0A/9341» son cargos distintos y por
+     el número pelado se cogía el primero que apareciera. Y con tres cifras
+     («C/ 0D/237») el número suelto ni siquiera llega a ser clave. */
+  /* Y esa misma clave sin el tipo de documento. Cuando la asignación es solo un
+     número, esto ya sirve de «archivo nombrado con el número pelado».
+
+     Lo que NO se hace es sacar el número de dentro de una asignación que lleva
+     algo más: Carrefour numera 20241044S115781, 20241044S71824… y siete cargos
+     distintos comparten el 20241044; buscando por ahí se enlazaba el PDF de
+     otro cargo del mismo pedido, y como el cliente también casaba se daba por
+     bueno. Lo mismo con DOI25028401 y ADI25028401, o 90196075SCR y
+     90196075SCRSC. Enlazar el documento de otro cargo es peor que no enlazar. */
+  const sinTipo = claveAsignacion(asig);
+  const soloCifras = /^\d+$/.test(sinTipo);
+  añadir(sinTipo, sinTipo.length < 5 || (soloCifras && sinTipo.length < 7));
   return claves;
 }
 

@@ -113,6 +113,7 @@ cargo de Alimerka cuadra **exacto, sin ZAJU**: la línea 70 alcanza sus 17,67 �
 | Alcampo | Dos renglones por artículo (facturado + / correcto −) y el signo detrás del número | Importe de línea, fundiendo los pares |
 | Peninsulaco | Dos renglones por artículo, etiquetados `ART.FACTURADO` y `ART.ENTREGADO` | Importe de línea, fundiendo los pares |
 | Hiper Usera y otros | La asignación lleva "C/" delante; el archivo de la carpeta va sin ella | — (afecta al emparejado, no al cálculo) |
+| Grupo Hermanos Martín | En SAP `C/ 0D/4102`; en la carpeta `GRUPO HNOS MARTÍN 0D-4102.pdf` | — (afecta al emparejado) |
 
 En el perfil sin importes la diferencia solo se puede calcular con la factura
 delante, porque el precio facturado no está en el cargo. El cargo sí dice de qué
@@ -912,3 +913,48 @@ buscado —quedan a la vista para cerrarlos cuando toque— y el trabajo hecho
 De paso, el contador «Abonados sin compensar» contaba en realidad todos los
 abonados. Ahora que compensar ya no los saca del estado, cuenta los que de
 verdad están sin compensar.
+
+### Grupo Hermanos Martín: el código lleva serie
+
+Ningún cargo de este cliente encontraba su PDF. Comparando las dos listas:
+
+```
+en SAP            en la carpeta
+C/ 0D/4102        GRUPO HNOS MARTÍN 0D-4102.pdf
+C/0D/7635         GRUPO HNOS MARTÍN 0D-7635.pdf
+C/ 0D/237         GRUPO HNOS MARTIN 0D-237.pdf
+C/22088           GRUPO HNOS MARTÍN 0A-22088.pdf
+C/ 0A/5605        HNOS MARTIN 0A-5605.pdf
+```
+
+El código de verdad es `0D-4102`, con su **serie** delante. La herramienta
+buscaba con dos claves: la asignación entera (`C0D4102`, que no está en ningún
+nombre por culpa de la C) y el número suelto de cuatro cifras o más (`4102`).
+Con `C/ 0D/237` no había ni eso: tres cifras no llegaban a clave, y ese cargo no
+tenía por dónde buscarse.
+
+Ahora se busca también por la asignación **sin el tipo de documento**, que es
+exactamente `0D4102` y aparece en el nombre del archivo. De paso resuelve un
+caso que ya estaba mal: `C/ 0D/9341` y `C/ 0A/9341` son cargos distintos, y por
+el número pelado se cogía el primero que apareciera.
+
+### Buscar por el número suelto enlazaba el PDF de otro cargo
+
+Encontrado al medir lo anterior contra el listado real. La clave del «número más
+largo de dentro» la compartían cargos distintos: **19 grupos** en 1.273 cargos.
+Carrefour numera `20241044S115781`, `20241044S71824`… —el tramo de delante es el
+pedido— y también pasaba con `DOI25028401` / `ADI25028401` y con
+`90196075SCR` / `90196075SCRSC`. Como el cliente casaba en todos, la herramienta
+daba por bueno el PDF de **otro cargo del mismo pedido**.
+
+La regla ahora es más estrecha: el número solo vale como clave cuando la
+asignación **es** ese número (quitado el tipo de documento). Si lleva algo más,
+manda el código entero. Medido sobre los 1.273 cargos reales: de 19 grupos
+ambiguos a **cero**. Se pierde el enlace en algún caso en que el archivo esté
+nombrado solo con parte del código, y es lo correcto: enlazar el documento de
+otro cargo es peor que no enlazar ninguno.
+
+Sobre el nombre del cliente, no hizo falta tocar nada: SAP dice «GRUPO HERMANOS
+MARTIN» y la carpeta «GRUPO HNOS MARTÍN», pero basta con que case una palabra
+significativa —MARTIN, sin acento tras normalizar— y `GRUPO` ya estaba en la
+lista de palabras vacías.
