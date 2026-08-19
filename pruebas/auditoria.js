@@ -329,7 +329,8 @@ const dice = (bien, etiqueta, detalle='') => {
     // y la tanda entera de una vez
     const botones = [...document.querySelectorAll('#barraLote [data-lote]')].map(b => b.textContent.trim());
     const original = window.confirm; window.confirm = () => true;
-    window.__marcarLote('compensado');
+    [...document.querySelectorAll('#barraLote [data-lote]')]
+      .find(b => /compensados/.test(b.textContent)).click();
     window.confirm = original;
     const compensados = Object.values(window.E.memoria.cargos).filter(c => c.compensado).length;
     const cerrados = Object.values(window.E.memoria.cargos).filter(c => c.estado === 'cerrado').length;
@@ -348,6 +349,51 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(casillas.cerrados === 0,
        'compensar en lote no cierra ningún cargo por su cuenta',
        `${casillas.cerrados} cerrado(s) de 12`);
+
+  // ------------------------------------------------------------------
+  console.log('\n=== 5g · Marca del cargo: MDD o MDF ===');
+  const marca = await pagina.evaluate(() => {
+    window.E.memoria.cargos = {};
+    for(let i = 0; i < 4; i++) window.E.memoria.cargos['m'+i] = {
+      cliente:'PENINSULACO, S.L.', asignacion:'CP-00090'+i, importe:-10, fecha:'2026-08-01',
+      ndoc:'', moneda:'EUR', clave:'I', abono:'', fechaAbono:'', conforme:null,
+      marcadoEnSap:false, compensado:false, reclamado:false, fechaReclamacion:'',
+      nota:'', clasificado:'', calculo:null, enListado:true, pdfGuardado:false,
+      cerrado:false, marca:'', estado:'pendiente'};
+    window.__pintarCola();
+    const celda = () => document.querySelector('#tablaCola tbody tr:first-child td[data-campo="marca"]');
+    const hayColumna = !!celda();
+    celda().click(); const uno = window.E.memoria.cargos.m0.marca;
+    celda().click(); const dos = window.E.memoria.cargos.m0.marca;
+    celda().click(); const tres = window.E.memoria.cargos.m0.marca;
+    // en lote
+    const botones = [...document.querySelectorAll('#barraLote [data-lote]')].map(b => b.textContent.trim());
+    const iMDD = [...document.querySelectorAll('#barraLote [data-lote]')]
+      .find(b => /MDD/.test(b.textContent));
+    const original = window.confirm; window.confirm = () => true;
+    if(iMDD) iMDD.click();
+    window.confirm = original;
+    const cuantosMDD = Object.values(window.E.memoria.cargos).filter(c => c.marca === 'MDD').length;
+    // filtro
+    document.querySelector('#fMarca').value = 'MDF';
+    window.__pintarCola();
+    const filtradoMDF = document.querySelectorAll('#tablaCola tbody tr').length;
+    document.querySelector('#fMarca').value = '';
+    window.__pintarCola();
+    return {hayColumna, uno, dos, tres, botones, cuantosMDD, filtradoMDF};
+  });
+  dice(marca.hayColumna, 'la marca tiene su columna en la cola');
+  dice(marca.uno === 'MDD' && marca.dos === 'MDF' && marca.tres === '',
+       'un clic va pasando por MDD, MDF y sin decidir',
+       `${marca.uno} → ${marca.dos} → «${marca.tres}»`);
+  dice(marca.botones.some(t => /MDD/.test(t)) && marca.botones.some(t => /MDF/.test(t)),
+       'se puede poner la marca a toda una tanda de golpe');
+  dice(marca.cuantosMDD === 4, 'la acción en lote marca los cuatro', String(marca.cuantosMDD));
+  dice(marca.filtradoMDF === 0, 'el filtro por marca funciona', String(marca.filtradoMDF));
+
+  const enLibro = await pagina.evaluate(() =>
+    window.__hojasDelLibro()[0].filas[0].map(c => (c && c.v) || c));
+  dice(enLibro.includes('Marca'), 'la marca sale en el Excel', enLibro.join(' · ').slice(0,80));
 
   // ------------------------------------------------------------------
   // Cerrar es una decisión. Antes el estado saltaba solo a «cerrado» en cuanto
@@ -428,8 +474,8 @@ const dice = (bien, etiqueta, detalle='') => {
     dice(r.cortadas.length === 0, `a ${ancho} px no hay texto recortado`,
          r.cortadas.slice(0,4).join(' | '));
     if(ancho === 1366){
-      dice(r.columnas === 13, 'la cola tiene las trece columnas', String(r.columnas));
-      dice(r.casillas === 6, 'las seis casillas se marcan desde la tabla', String(r.casillas));
+      dice(r.columnas === 14, 'la cola tiene las catorce columnas', String(r.columnas));
+      dice(r.casillas === 7, 'las siete casillas se marcan desde la tabla', String(r.casillas));
     }
   }
 

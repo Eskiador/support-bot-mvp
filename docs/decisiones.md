@@ -958,3 +958,24 @@ Sobre el nombre del cliente, no hizo falta tocar nada: SAP dice «GRUPO HERMANOS
 MARTIN» y la carpeta «GRUPO HNOS MARTÍN», pero basta con que case una palabra
 significativa —MARTIN, sin acento tras normalizar— y `GRUPO` ya estaba en la
 lista de palabras vacías.
+
+### MDD o MDF
+
+Cada cargo lleva ahora si es de **marca de distribuidor** (la del propio cliente)
+o de **marca de fabricante** (la nuestra). No es lo mismo que la clasificación
+mercancía / precio —que dice de qué va el cargo— sino de qué producto habla, y
+cambia a quién se reclama y cómo se negocia, así que va en su propio campo.
+
+Está en los mismos sitios que el resto del estado, para que no haya que abrirlo
+todo: **columna propia en la cola**, que cicla con un clic (sin decidir → MDD →
+MDF → sin decidir), **casilla en la ficha** junto a la clasificación, **filtro**
+en la barra de arriba, un paso más en la checklist, y columna en el libro de
+Excel y en la exportación a CSV.
+
+También se puede poner **a toda una tanda de golpe**, que es lo normal cuando un
+cliente entero es de una u otra. Eso obligó a generalizar las acciones en lote:
+hasta ahora solo sabían poner casillas a «sí», y la marca lleva valor. Ahora cada
+acción es `{campo, valor}` y el mismo botón sirve para las dos cosas.
+
+La tabla pasa de trece a catorce columnas: de 1.028 a **1.086 px**, que sigue
+entrando sin barra lateral a 1.280 px y de ahí para arriba.

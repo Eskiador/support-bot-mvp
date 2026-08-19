@@ -130,7 +130,7 @@ tr.sel td{background:var(--azul-claro)}
    anchos fijos, algo menos de aire y el nombre del cliente cortado con puntos
    suspensivos (entero en el título). Por debajo de su ancho mínimo ya no hay
    nada que hacer y vuelve a aparecer la barra de desplazamiento. */
-#tablaCola{table-layout:fixed;min-width:1028px}
+#tablaCola{table-layout:fixed;min-width:1086px}
 #tablaCola th,#tablaCola td{padding:6px 7px;font-size:13px;overflow:hidden;text-overflow:ellipsis}
 #tablaCola .pill{padding:2px 7px;font-size:11.5px}
 #tablaCola .mini{font-size:11.5px;padding:3px 6px}
@@ -232,24 +232,31 @@ td.acc{text-align:right}
             <option value="no">No conformes</option>
             <option value="sin">Sin decidir</option>
           </select>
+          <select id="fMarca">
+            <option value="">Marca: todas</option>
+            <option value="MDD">Solo MDD</option>
+            <option value="MDF">Solo MDF</option>
+            <option value="sin">Sin decidir</option>
+          </select>
           <label class="check"><input type="checkbox" id="fPendientes"> Ocultar los cerrados</label>
           <div class="crece"></div>
           <span class="chip" id="chipFiltro"></span>
         </div>
-        <p class="pista" style="margin:8px 0 0">Las cinco casillas de la derecha —<b>conforme</b>,
-          <b>SAP</b>, <b>comp.</b>, <b>recl.</b> y <b>PDF</b>— se cambian con un clic encima, sin abrir
-          nada. Para el resto (nº de abono, clasificación, nota) haz clic en cualquier otra parte de
-          la fila y se abre su ficha.</p>
+        <p class="pista" style="margin:8px 0 0">Se cambian con un clic encima, sin abrir nada:
+          <b>marca</b> (MDD / MDF), <b>conforme</b>, <b>SAP</b>, <b>comp.</b>, <b>recl.</b> y
+          <b>PDF</b>; y el <b>estado</b>, para dar por cerrado lo que ya está abonado. Para el resto
+          (nº de abono, clasificación, nota) haz clic en cualquier otra parte de la fila y se abre
+          su ficha.</p>
         <div class="filtros" id="barraLote" style="margin-top:10px"></div>
       </div>
       <div class="tablaenv">
         <table id="tablaCola">
           <colgroup>
             <col style="width:76px"><col style="width:52px"><col style="width:150px">
-            <col style="width:98px"><col style="width:80px"><col style="width:80px">
-            <col style="width:86px"><col style="width:92px"><col style="width:46px">
-            <col style="width:52px"><col style="width:62px"><col style="width:46px">
-            <col style="width:108px">
+            <col style="width:98px"><col style="width:80px"><col style="width:58px">
+            <col style="width:80px"><col style="width:86px"><col style="width:92px">
+            <col style="width:46px"><col style="width:52px"><col style="width:62px">
+            <col style="width:46px"><col style="width:108px">
           </colgroup>
           <thead><tr>
             <th data-orden="fecha">Fecha</th>
@@ -257,6 +264,7 @@ td.acc{text-align:right}
             <th data-orden="cliente">Cliente</th>
             <th data-orden="asignacion">Asignación</th>
             <th class="n" data-orden="importe">Importe</th>
+            <th data-orden="marca" title="MDD: marca de distribuidor · MDF: marca de fabricante. Clic en la casilla para cambiarlo">Marca</th>
             <th data-orden="estado">Estado</th>
             <th>Nº abono</th>
             <th title="Conforme o no conforme. Clic en la casilla para cambiarlo">Conforme</th>
@@ -90905,7 +90913,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
   let tempo = null;
   $('#fBuscar').addEventListener('input', ()=>{
     clearTimeout(tempo); tempo = setTimeout(pintarCola, 180); });
-  ['fEstado','fCliente2','fConforme','fPendientes'].forEach(id=>
+  ['fEstado','fCliente2','fConforme','fMarca','fPendientes'].forEach(id=>
     $('#'+id).addEventListener('change', pintarCola));
   $$('#tablaCola th[data-orden]').forEach(th => th.onclick = ()=>{
     const campo = th.dataset.orden;
@@ -91294,7 +91302,7 @@ function importarListado(filas){
 
 function estadoInicial(){
   return {
-    estado:'pendiente', abono:'', fechaAbono:'', cerrado:false,
+    estado:'pendiente', abono:'', fechaAbono:'', cerrado:false, marca:'',
     conforme:null, marcadoEnSap:false, compensado:false,
     reclamado:false, fechaReclamacion:'', pdfGuardado:false,
     clasificado:'', nota:'', calculo:null, enListado:true
@@ -91656,6 +91664,11 @@ function pintarEnlaceCargo(){
 }
 
 /* ------------------------------------------------ estado y presentación */
+// Marca de distribuidor (la del propio cliente) o marca de fabricante (la
+// nuestra). Cambia a quién se le reclama y cómo se negocia, así que va aparte
+// de la clasificación mercancía/precio.
+const MARCAS = {MDD:'Marca de distribuidor', MDF:'Marca de fabricante'};
+
 const ESTADOS = {
   'pendiente':{et:'Pendiente', pill:'gris'},
   'en curso' :{et:'En curso',  pill:'azul'},
@@ -91707,6 +91720,7 @@ function cargosFiltrados(){
   const todos = Object.entries(E.memoria.cargos || {}).map(([id,c])=>Object.assign({id}, c));
   const q = norm($('#fBuscar').value);
   const est = $('#fEstado').value, cli = $('#fCliente2').value, conf = $('#fConforme').value;
+  const marca = $('#fMarca').value;
   const ocultar = $('#fPendientes').checked;
   const lista = todos.filter(c=>{
     recalcularEstado(c);
@@ -91716,6 +91730,7 @@ function cargosFiltrados(){
     if(conf === 'si' && c.conforme !== true) return false;
     if(conf === 'no' && c.conforme !== false) return false;
     if(conf === 'sin' && c.conforme !== null) return false;
+    if(marca === 'sin' ? !!c.marca : (marca && c.marca !== marca)) return false;
     if(ocultar && c.estado === 'cerrado') return false;
     return true;
   });
@@ -91784,6 +91799,9 @@ function pintarCola(){
       <td title="${esc(c.cliente)}">${esc(c.cliente)}</td>
       <td>${esc(c.asignacion)}</td>
       <td class="n">${eur(c.importe)}</td>
+      <td class="togc" data-campo="marca">${c.marca
+            ? `<span class="pill ${c.marca === 'MDD' ? 'azul' : 'ambar'} tog" title="${MARCAS[c.marca]} · clic para cambiarlo">${c.marca}</span>`
+            : '<span class="pill gris tog" title="Sin decidir · clic: pasa a MDD">—</span>'}</td>
       ${celdaEstado(c, est)}
       <td>${c.abono ? esc(c.abono) : '<span style="color:var(--muted)">—</span>'}</td>
       <td class="togc" data-campo="conforme">${c.conforme === null ? '<span class="pill gris tog" title="Clic: pasa a conforme">sin decidir</span>'
@@ -91825,6 +91843,8 @@ function abrirFicha(id, sinSaltar){
   const doc = buscarDoc(Object.assign({id}, c));
   const pasos = [
     {k:'clasificado', txt:'Clasificado (mercancía / precio)', hecho:!!c.clasificado, extra:c.clasificado},
+    {k:'marca', txt:'Marca (MDD / MDF)', hecho:!!c.marca,
+      extra:c.marca ? MARCAS[c.marca] : ''},
     {k:'calculo',     txt:'Diferencia calculada y cuadrada',  hecho:!!c.calculo,
       extra:c.calculo ? `${eur(c.calculo.suma)} en ${c.calculo.lineas} línea(s)`+
         (c.calculo.zaju ? ` · ZAJU ${nf.format(c.calculo.zaju)} €` : '') : ''},
@@ -91848,6 +91868,12 @@ function abrirFicha(id, sinSaltar){
           <option value="">— sin clasificar —</option>
           <option value="precio"${c.clasificado==='precio'?' selected':''}>Diferencia de precio</option>
           <option value="mercancia"${c.clasificado==='mercancia'?' selected':''}>Diferencia de mercancía</option>
+        </select></div>
+      <div class="campo"><label>Marca</label>
+        <select id="xMarca">
+          <option value="">— sin decidir —</option>
+          <option value="MDD"${c.marca==='MDD'?' selected':''}>MDD · marca de distribuidor</option>
+          <option value="MDF"${c.marca==='MDF'?' selected':''}>MDF · marca de fabricante</option>
         </select></div>
       <div class="campo"><label>Conformidad</label>
         <select id="xConforme">
@@ -91926,6 +91952,7 @@ function guardarFicha(id){
   c.abono = $('#xAbono').value.trim();
   if(c.abono && !abonoAntes) c.fechaAbono = HOY();
   c.clasificado = $('#xClasif').value;
+  c.marca = $('#xMarca').value;
   const cf = $('#xConforme').value;
   c.conforme = cf === '' ? null : (cf === 'si');
   c.pdfGuardado = $('#xPdf').checked;
@@ -91972,6 +91999,9 @@ function alternarCasilla(id, campo){
   if(campo === 'conforme'){
     // tres estados: sin decidir → conforme → no conforme → sin decidir
     c.conforme = c.conforme === null ? true : (c.conforme === true ? false : null);
+  } else if(campo === 'marca'){
+    // sin decidir → MDD → MDF → sin decidir
+    c.marca = c.marca === 'MDD' ? 'MDF' : (c.marca === 'MDF' ? '' : 'MDD');
   } else if(campo === 'cerrado'){
     // Cerrar un no conforme sin haberlo reclamado deja al comercial sin enterarse:
     // no se impide, pero se pregunta.
@@ -92007,47 +92037,55 @@ window.addEventListener('beforeunload', e => {
   if(tempoGuardar){ e.preventDefault(); e.returnValue = ''; }
 });
 
-const ETIQUETA_LOTE = {
-  compensado:   'compensados',
-  marcadoEnSap: 'con la conformidad marcada en SAP',
-  reclamado:    'reclamados al comercial',
-  pdfGuardado:  'con el PDF guardado',
-  cerrado:      'cerrados'
-};
+/* Lo que se puede poner de golpe a toda una tanda. La mayoría son casillas de
+   sí o no, pero la marca no lo es: lleva su valor. */
+const ACCIONES_LOTE = [
+  {campo:'compensado',   valor:true,  et:'compensados'},
+  {campo:'marcadoEnSap', valor:true,  et:'con la conformidad marcada en SAP'},
+  {campo:'reclamado',    valor:true,  et:'reclamados al comercial'},
+  {campo:'pdfGuardado',  valor:true,  et:'con el PDF guardado'},
+  {campo:'cerrado',      valor:true,  et:'cerrados'},
+  {campo:'marca',        valor:'MDD', et:'MDD (marca de distribuidor)'},
+  {campo:'marca',        valor:'MDF', et:'MDF (marca de fabricante)'}
+];
+
+const pendientesDe = (lista, a) =>
+  lista.filter(c => puedeMarcar(c, a.campo) && c[a.campo] !== a.valor);
 
 // Y para una tanda entera, lo mismo de una vez sobre lo que hay filtrado.
 function pintarBarraLote(lista){
   const barra = $('#barraLote');
   if(!barra) return;
-  const acciones = Object.keys(ETIQUETA_LOTE)
-    .map(k => ({k, n: lista.filter(c => puedeMarcar(c, k) && !c[k]).length}))
-    .filter(a => a.n > 0);
+  const acciones = ACCIONES_LOTE
+    .map((a, i) => ({i, a, n: pendientesDe(lista, a).length}))
+    .filter(x => x.n > 0);
   if(!acciones.length){ barra.innerHTML = ''; return; }
   barra.innerHTML = `<span style="font-size:13px"><b>De golpe, sobre lo filtrado:</b></span>`+
-    acciones.map(a => `<button class="mini" data-lote="${a.k}">`+
-      `Marcar ${a.n} como ${ETIQUETA_LOTE[a.k]}</button>`).join('');
-  $$('#barraLote [data-lote]').forEach(b => b.onclick = ()=>marcarLote(b.dataset.lote));
+    acciones.map(x => `<button class="mini" data-lote="${x.i}">`+
+      `Marcar ${x.n} como ${x.a.et}</button>`).join('');
+  $$('#barraLote [data-lote]').forEach(b => b.onclick = ()=>marcarLote(+b.dataset.lote));
 }
 
-function marcarLote(campo){
-  const lista = cargosFiltrados().filter(c => puedeMarcar(c, campo) && !c[campo]);
+function marcarLote(i){
+  const a = ACCIONES_LOTE[i];
+  if(!a) return;
+  const lista = pendientesDe(cargosFiltrados(), a);
   if(!lista.length){ avisar('No hay ninguno que cambiar.'); return; }
-  const et = ETIQUETA_LOTE[campo];
   const muestra = lista.slice(0, 6).map(c => `  · ${c.cliente} · ${c.asignacion}`).join('\n');
-  if(!confirm(`Vas a marcar ${lista.length} cargo(s) como ${et}:\n\n${muestra}`+
+  if(!confirm(`Vas a marcar ${lista.length} cargo(s) como ${a.et}:\n\n${muestra}`+
       (lista.length > 6 ? `\n  · …y ${lista.length - 6} más` : '')+
       `\n\nSon los que tienes filtrados ahora mismo. ¿Seguimos?`)) return;
   for(const c of lista){
     const real = E.memoria.cargos[c.id];
-    real[campo] = true;
-    if(campo === 'reclamado' && !real.fechaReclamacion) real.fechaReclamacion = HOY();
-    if(campo === 'cerrado' && !real.fechaCierre) real.fechaCierre = HOY();
+    real[a.campo] = a.valor;
+    if(a.campo === 'reclamado' && !real.fechaReclamacion) real.fechaReclamacion = HOY();
+    if(a.campo === 'cerrado' && !real.fechaCierre) real.fechaCierre = HOY();
     recalcularEstado(real);
   }
-  registrar('marcado_en_lote', {campo, cuantos:lista.length});
+  registrar('marcado_en_lote', {campo:a.campo, valor:a.valor, cuantos:lista.length});
   guardarDatos();
   pintarCola();
-  avisar(`${lista.length} cargo(s) marcados como ${et}.`);
+  avisar(`${lista.length} cargo(s) marcados como ${a.et}.`);
 }
 
 /* ------------------------------------------------ comerciales y correo */
@@ -92284,7 +92322,7 @@ function hojasDelLibro(){
 
   const cargos = [[
     CAB('Fecha'), CAB('Días'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
-    CAB('Nº documento'), CAB('Estado'), CAB('Clasificación'), CAB('Nº abono'),
+    CAB('Nº documento'), CAB('Estado'), CAB('Marca'), CAB('Clasificación'), CAB('Nº abono'),
     CAB('Fecha abono'), CAB('Conforme'), CAB('Marcado en SAP'), CAB('Compensado'),
     CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
   ]];
@@ -92293,7 +92331,7 @@ function hojasDelLibro(){
     const ruta = rutaCompleta(c);
     cargos.push([
       fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
-      {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.clasificado||'',
+      {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.marca||'', c.clasificado||'',
       c.abono||'', c.fechaAbono ? fechaCorta(c.fechaAbono) : '',
       c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'NO conforme'),
       c.marcadoEnSap?'Sí':'No', c.compensado?'Sí':'No',
@@ -92343,7 +92381,7 @@ function hojasDelLibro(){
   }
 
   return [
-    {nombre:'Cargos', filas:cargos, anchos:[11,7,30,18,13,13,12,13,13,12,13,15,13,12,20,34,13,30]},
+    {nombre:'Cargos', filas:cargos, anchos:[11,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,13,30]},
     {nombre:'Comerciales', filas:comerciales, anchos:[32,24,30,26,9,12]},
     {nombre:'Calculadora', filas:calc, anchos:[82]},
     {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
@@ -92455,13 +92493,13 @@ function exportarCargos(){
   const lista = cargosFiltrados();
   exportarCSV(`cargos_I_${HOY()}.csv`,
     ['Fecha','Días','Cliente','Asignación','Importe','Moneda','Nº documento','Estado',
-     'Clasificación','Nº abono','Fecha abono','Conforme','Marcado en SAP','Compensado',
+     'Marca','Clasificación','Nº abono','Fecha abono','Conforme','Marcado en SAP','Compensado',
      'Reclamado','Fecha reclamación','PDF guardado','Nombre del PDF','Nota','En el último listado',
      'Ruta del PDF','Abrir'],
     lista.map(c=>[
       fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
       nf.format(c.importe), c.moneda, c.ndoc, ESTADOS[c.estado].et,
-      c.clasificado || '', c.abono || '', fechaCorta(c.fechaAbono),
+      c.marca || '', c.clasificado || '', c.abono || '', fechaCorta(c.fechaAbono),
       c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'No conforme'),
       c.marcadoEnSap ? 'Sí':'No', c.compensado ? 'Sí':'No',
       c.reclamado ? 'Sí':'No', fechaCorta(c.fechaReclamacion),
