@@ -396,6 +396,65 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(enLibro.includes('Marca'), 'la marca sale en el Excel', enLibro.join(' · ').slice(0,80));
 
   // ------------------------------------------------------------------
+  // Un cliente puede llevar un comercial para MDD y otro para MDF.
+  console.log('\n=== 5h · Un comercial por cliente Y marca ===');
+  const coms = await pagina.evaluate(() => {
+    window.E.memoria.comerciales = {
+      // como lo guardaba la versión anterior: solo por cliente
+      'COVIRAN': {cliente:'COVIRAN', nombre:'Antiguo', correo:'antiguo@ejemplo.es', notas:''}
+    };
+    window.__aplicarDatos(null);              // migración al abrir el archivo
+    const migrado = window.__comercialDe('COVIRAN', 'MDD');
+
+    window.E.memoria.comerciales['ALDI|MDD'] =
+      {cliente:'ALDI', marca:'MDD', nombre:'Juan', correo:'juan@ejemplo.es', notas:''};
+    window.E.memoria.comerciales['ALDI|MDF'] =
+      {cliente:'ALDI', marca:'MDF', nombre:'Pablo', correo:'pablo@ejemplo.es', notas:''};
+
+    const cargo = m => ({cliente:'ALDI', asignacion:'C/1', importe:-10, marca:m, ndoc:'',
+                         fecha:'2026-08-01', nota:'', abono:''});
+    return {
+      migrado: migrado && migrado.nombre,
+      mdd: (window.__comercialDe('ALDI', 'MDD')||{}).nombre,
+      mdf: (window.__comercialDe('ALDI', 'MDF')||{}).nombre,
+      sinMarca: window.__comercialDe('ALDI', ''),
+      correoMdd: window.__textoCorreo(cargo('MDD')).para,
+      correoMdf: window.__textoCorreo(cargo('MDF')).para,
+      repartido: window.__repartidoPorMarca('ALDI'),
+      noRepartido: window.__repartidoPorMarca('COVIRAN')
+    };
+  });
+  dice(coms.mdd === 'Juan' && coms.mdf === 'Pablo',
+       'ALDI MDD es de Juan y ALDI MDF de Pablo', `${coms.mdd} / ${coms.mdf}`);
+  dice(coms.correoMdd === 'juan@ejemplo.es' && coms.correoMdf === 'pablo@ejemplo.es',
+       'el correo de reclamación va al que toca según la marca del cargo');
+  dice(coms.sinMarca === null,
+       'un cargo sin marca no se le asigna a ninguno de los dos por su cuenta');
+  dice(coms.migrado === 'Antiguo',
+       'los comerciales guardados antes valen para todo el cliente', String(coms.migrado));
+  dice(coms.repartido === true && coms.noRepartido === false,
+       'se sabe qué clientes tienen el reparto hecho');
+
+  const cuenta = await pagina.evaluate(() => {
+    window.E.memoria.comerciales = {
+      'ALDI|MDD': {cliente:'ALDI, S.L.', marca:'MDD', nombre:'Juan', correo:'j@e.es', notas:''},
+      'ALDI|MDF': {cliente:'ALDI, S.L.', marca:'MDF', nombre:'Pablo', correo:'p@e.es', notas:''}
+    };
+    window.E.memoria.cargos = {};
+    for(let i = 0; i < 6; i++) window.E.memoria.cargos['a'+i] = {
+      cliente:'ALDI, S.L.', asignacion:'C/'+i, importe:-10, fecha:'2026-08-01', ndoc:'',
+      moneda:'EUR', clave:'I', abono:'', fechaAbono:'', conforme:null, marcadoEnSap:false,
+      compensado:false, reclamado:false, fechaReclamacion:'', nota:'', clasificado:'',
+      calculo:null, enListado:true, pdfGuardado:false, cerrado:false,
+      marca: i < 4 ? 'MDD' : 'MDF', estado:'pendiente'};
+    window.__pintarComerciales();
+    return [...document.querySelectorAll('#tablaCom tbody tr')]
+      .map(tr => tr.children[2].textContent + ':' + tr.children[5].textContent);
+  });
+  dice(cuenta.join(' ') === 'Juan:4 Pablo:2',
+       'cada comercial ve los cargos de su marca', cuenta.join(' '));
+
+  // ------------------------------------------------------------------
   // Cerrar es una decisión. Antes el estado saltaba solo a «cerrado» en cuanto
   // un cargo estaba abonado, compensado y conforme, y desaparecía de la vista
   // mientras todavía se estaba trabajando.

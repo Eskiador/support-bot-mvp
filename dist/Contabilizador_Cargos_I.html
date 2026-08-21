@@ -296,9 +296,17 @@ td.acc{text-align:right}
       </div>
       <div class="cuerpo">
         <p class="pista">La relación no existe en ningún sitio, así que se construye sobre la marcha:
-          la primera vez que reclames un cargo de un cliente, lo apuntas aquí y ya se queda.</p>
+          la primera vez que reclames un cargo de un cliente, lo apuntas aquí y ya se queda.
+          Un mismo cliente puede llevar <b>un comercial para MDD y otro para MDF</b>; si solo hay
+          uno para todo, se deja la marca en «todo el cliente» y vale para los dos.</p>
         <div class="rejilla" style="margin-bottom:12px">
           <div class="campo"><label>Cliente</label><input id="cCliente" list="listaClientes"></div>
+          <div class="campo"><label>Marca</label>
+            <select id="cMarca">
+              <option value="">Todo el cliente (MDD y MDF)</option>
+              <option value="MDD">Solo MDD · marca de distribuidor</option>
+              <option value="MDF">Solo MDF · marca de fabricante</option>
+            </select></div>
           <div class="campo"><label>Comercial</label><input id="cNombre"></div>
           <div class="campo"><label>Correo</label><input id="cCorreo" type="email"></div>
           <div class="campo"><label>Teléfono / notas</label><input id="cNotas"></div>
@@ -307,7 +315,7 @@ td.acc{text-align:right}
         <button class="primario" id="btnGuardarCom">Guardar comercial</button>
         <div class="tablaenv" style="margin-top:14px">
           <table id="tablaCom">
-            <thead><tr><th>Cliente</th><th>Comercial</th><th>Correo</th><th>Notas</th><th class="n">Cargos</th><th></th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Marca</th><th>Comercial</th><th>Correo</th><th>Notas</th><th class="n">Cargos</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -90671,6 +90679,17 @@ function aplicarDatos(j){
   E.memoria.cargos      = E.memoria.cargos      || {};
   E.memoria.comerciales = E.memoria.comerciales || {};
   E.memoria.log         = E.memoria.log         || [];
+
+  /* Los comerciales se guardaban solo por cliente y ahora van por cliente Y
+     marca. Los de antes valen para todo el cliente, así que se les pone la
+     marca vacía. Sin esto, al abrir un archivo de datos anterior no se
+     encontraría ni un comercial. */
+  for(const k of Object.keys(E.memoria.comerciales)){
+    if(k.includes('|')) continue;
+    const v = E.memoria.comerciales[k];
+    delete E.memoria.comerciales[k];
+    E.memoria.comerciales[k + '|'] = Object.assign({marca:''}, v);
+  }
 }
 
 // Si el archivo tiene contenido y no se puede leer, hay que DESCONECTARLO: si
@@ -90969,19 +90988,22 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnGuardarCom').onclick = ()=>{
     const cliente = $('#cCliente').value.trim();
     if(!cliente){ avisar('Falta el cliente.'); return; }
+    const marca = $('#cMarca').value;
     E.memoria.comerciales = E.memoria.comerciales || {};
-    E.memoria.comerciales[norm(cliente)] = {
-      cliente, nombre:$('#cNombre').value.trim(),
+    E.memoria.comerciales[claveComercial(cliente, marca)] = {
+      cliente, marca, nombre:$('#cNombre').value.trim(),
       correo:$('#cCorreo').value.trim(), notas:$('#cNotas').value.trim()
     };
-    registrar('comercial_guardado', {cliente});
-    guardarDatos(); pintarComerciales();
+    registrar('comercial_guardado', {cliente, marca});
+    guardarDatos(); pintarComerciales(); pintarCola();
     ['cCliente','cNombre','cCorreo','cNotas'].forEach(i=>$('#'+i).value='');
+    $('#cMarca').value = '';
     avisar('Comercial guardado.');
   };
   $('#btnExportarCom').onclick = ()=>exportarCSV(`comerciales_${HOY()}.csv`,
-    ['Cliente','Comercial','Correo','Notas'],
-    Object.values(E.memoria.comerciales||{}).map(v=>[v.cliente,v.nombre,v.correo,v.notas]));
+    ['Cliente','Marca','Comercial','Correo','Notas'],
+    Object.values(E.memoria.comerciales||{})
+      .map(v=>[v.cliente, v.marca || 'todo el cliente', v.nombre, v.correo, v.notas]));
 
   $('#btnRegistrar').onclick = registrarCalculo;
   $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ if(f.cargoIdx>=0) f.afectada=true; });
@@ -91839,7 +91861,7 @@ function abrirFicha(id, sinSaltar){
   E.cargoAbierto = id;
   $('#secFicha').classList.remove('oculto');
   $('#tituloFicha').textContent = `${c.cliente} · ${c.asignacion} · ${eur(c.importe)}`;
-  const com = comercialDe(c.cliente);
+  const com = comercialDe(c.cliente, c.marca);
   const doc = buscarDoc(Object.assign({id}, c));
   const pasos = [
     {k:'clasificado', txt:'Clasificado (mercancía / precio)', hecho:!!c.clasificado, extra:c.clasificado},
@@ -91901,9 +91923,14 @@ function abrirFicha(id, sinSaltar){
       <small>${esc(p.extra||'')}</small></li>`).join('')}</ul>
 
     <div class="aviso-caja ${c.conforme===false?'rojo':'azul'}" style="margin-top:14px">
-      <b>Comercial de ${esc(c.cliente)}:</b>
-      ${com ? `${esc(com.nombre||'(sin nombre)')} · ${esc(com.correo||'sin correo')}`
-            : 'no lo tengo apuntado. Añádelo en la pestaña «Comerciales».'}
+      <b>Comercial de ${esc(c.cliente)}${c.marca ? ' · '+c.marca : ''}:</b>
+      ${com ? `${esc(com.nombre||'(sin nombre)')} · ${esc(com.correo||'sin correo')}`+
+              `${com.marca ? ` <span class="chip">solo ${com.marca}</span>`
+                           : ' <span class="chip">todo el cliente</span>'}`
+            : (!c.marca && repartidoPorMarca(c.cliente)
+                ? 'este cliente tiene un comercial para MDD y otro para MDF, y este cargo '+
+                  'todavía no tiene marca. <b>Ponle la marca arriba</b> y aparecerá el suyo.'
+                : 'no lo tengo apuntado. Añádelo en la pestaña «Comerciales».')}
       ${c.conforme===false ? `<div class="barra">
           <button class="primario" id="xCorreo">Generar el correo de reclamación</button>
           <button id="xCopiarCorreo">Copiar el texto</button>
@@ -92089,10 +92116,26 @@ function marcarLote(i){
 }
 
 /* ------------------------------------------------ comerciales y correo */
-const comercialDe = cliente => (E.memoria.comerciales || {})[norm(cliente)] || null;
+/* Un cliente puede llevar dos comerciales: uno para su marca (MDD) y otro para
+   la nuestra (MDF). ALDI MDD es de Juan y ALDI MDF de Pablo. Por eso la ficha
+   del comercial se guarda por cliente Y marca; con la marca vacía vale para
+   todo el cliente, que es lo normal cuando no hay reparto. */
+const claveComercial = (cliente, marca) => norm(cliente) + '|' + (marca || '');
+
+/* Del cargo se sabe su marca, así que se busca primero el comercial de esa
+   marca y, si no lo hay, el general del cliente. Al revés no: teniendo a Juan
+   apuntado solo para MDD, un cargo MDF no es suyo. */
+function comercialDe(cliente, marca){
+  const com = E.memoria.comerciales || {};
+  return com[claveComercial(cliente, marca)] || com[claveComercial(cliente, '')] || null;
+}
+
+// ¿Este cliente tiene el reparto hecho por marcas?
+const repartidoPorMarca = cliente => Object.keys(E.memoria.comerciales || {})
+  .some(k => k.startsWith(norm(cliente) + '|') && k.split('|')[1]);
 
 function textoCorreo(c){
-  const com = comercialDe(c.cliente);
+  const com = comercialDe(c.cliente, c.marca);
   const asunto = `Cargo no conforme ${c.asignacion} — ${c.cliente} — ${eur(Math.abs(c.importe))}`;
   const cuerpo =
 `Hola${com && com.nombre ? ' '+com.nombre.split(' ')[0] : ''}:
@@ -92120,7 +92163,9 @@ function abrirCorreo(c){
   if(!para){
     avisar('No tengo el correo del comercial: apúntalo en la pestaña «Comerciales».');
     cambiarVista('comerciales');
-    $('#cCliente').value = c.cliente; $('#cNombre').focus();
+    $('#cCliente').value = c.cliente;
+    $('#cMarca').value = c.marca || '';
+    $('#cNombre').focus();
     return;
   }
   location.href = `mailto:${encodeURIComponent(para)}?subject=${encodeURIComponent(asunto)}`+
@@ -92132,11 +92177,22 @@ function pintarComerciales(){
   const com = E.memoria.comerciales || (E.memoria.comerciales = {});
   const cargos = Object.values(E.memoria.cargos || {});
   const tb = $('#tablaCom tbody'); tb.innerHTML = '';
-  const filas = Object.entries(com).sort((a,b)=>(a[1].cliente||'').localeCompare(b[1].cliente||'','es'));
+  // por cliente, y dentro del cliente: primero el general y luego cada marca
+  const filas = Object.entries(com).sort((a,b)=>
+    (a[1].cliente||'').localeCompare(b[1].cliente||'','es') ||
+    (a[1].marca||'').localeCompare(b[1].marca||''));
   for(const [clave, v] of filas){
-    const n = cargos.filter(c=>norm(c.cliente)===clave).length;
+    // Los cargos que le tocan: los de su marca, o todos si lleva el cliente
+    // entero. Se cuenta por el nombre guardado, no por la clave: así sigue
+    // saliendo bien aunque la clave se haya escrito de otra forma.
+    const suyo = norm(v.cliente || clave.split('|')[0]);
+    const n = cargos.filter(c => norm(c.cliente) === suyo &&
+                                 (!v.marca || c.marca === v.marca)).length;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${esc(v.cliente||clave)}</td><td>${esc(v.nombre||'—')}</td>
+    tr.innerHTML = `<td>${esc(v.cliente||clave)}</td>
+      <td>${v.marca ? `<span class="pill ${v.marca==='MDD'?'azul':'ambar'}" title="${MARCAS[v.marca]}">${v.marca}</span>`
+                    : '<span class="pill gris" title="Vale para MDD y para MDF">todo</span>'}</td>
+      <td>${esc(v.nombre||'—')}</td>
       <td>${v.correo?esc(v.correo):'<span style="color:var(--rojo)">falta</span>'}</td>
       <td>${esc(v.notas||'')}</td><td class="n">${n}</td>
       <td class="acc"><button class="mini" data-edit="${esc(clave)}">Editar</button>
@@ -92145,14 +92201,18 @@ function pintarComerciales(){
   }
   $$('#tablaCom [data-edit]').forEach(b=>b.onclick=()=>{
     const v = com[b.dataset.edit];
-    $('#cCliente').value=v.cliente||b.dataset.edit; $('#cNombre').value=v.nombre||'';
+    $('#cCliente').value=v.cliente||b.dataset.edit.split('|')[0];
+    $('#cMarca').value=v.marca||''; $('#cNombre').value=v.nombre||'';
     $('#cCorreo').value=v.correo||''; $('#cNotas').value=v.notas||'';
     $('#cNombre').focus();
   });
   $$('#tablaCom [data-borra]').forEach(b=>b.onclick=()=>{
-    delete com[b.dataset.borra]; guardarDatos(); pintarComerciales();
+    const v = com[b.dataset.borra];
+    if(!confirm(`¿Borrar a ${v.nombre||'(sin nombre)'} de ${v.cliente}`+
+                `${v.marca ? ' · '+v.marca : ''}?`)) return;
+    delete com[b.dataset.borra]; guardarDatos(); pintarComerciales(); pintarCola();
   });
-  if(!filas.length) tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Todavía no hay ningún comercial apuntado.</td></tr>';
+  if(!filas.length) tb.innerHTML = '<tr><td colspan="7" style="color:var(--muted)">Todavía no hay ningún comercial apuntado.</td></tr>';
 }
 
 /* ==================================================================
@@ -92327,7 +92387,7 @@ function hojasDelLibro(){
     CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
   ]];
   for(const c of lista){
-    const com = comercialDe(c.cliente);
+    const com = comercialDe(c.cliente, c.marca);
     const ruta = rutaCompleta(c);
     cargos.push([
       fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
@@ -92343,12 +92403,13 @@ function hojasDelLibro(){
     ]);
   }
 
-  const comerciales = [[CAB('Cliente'), CAB('Comercial'), CAB('Correo'), CAB('Notas'),
-                        CAB('Cargos'), CAB('Escribirle')]];
+  const comerciales = [[CAB('Cliente'), CAB('Marca'), CAB('Comercial'), CAB('Correo'),
+                        CAB('Notas'), CAB('Cargos'), CAB('Escribirle')]];
   for(const v of Object.values(E.memoria.comerciales || {})){
-    const n = lista.filter(c=>norm(c.cliente) === norm(v.cliente)).length;
-    comerciales.push([v.cliente, v.nombre||'', v.correo||'', v.notas||'', n,
-      v.correo ? ENL('mailto:'+v.correo, 'Escribir') : '']);
+    const n = lista.filter(c => norm(c.cliente) === norm(v.cliente) &&
+                                (!v.marca || c.marca === v.marca)).length;
+    comerciales.push([v.cliente, v.marca || 'todo el cliente', v.nombre||'', v.correo||'',
+      v.notas||'', n, v.correo ? ENL('mailto:'+v.correo, 'Escribir') : '']);
   }
 
   const html = rutaHtml();
@@ -92382,7 +92443,7 @@ function hojasDelLibro(){
 
   return [
     {nombre:'Cargos', filas:cargos, anchos:[11,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,13,30]},
-    {nombre:'Comerciales', filas:comerciales, anchos:[32,24,30,26,9,12]},
+    {nombre:'Comerciales', filas:comerciales, anchos:[32,15,24,30,26,9,12]},
     {nombre:'Calculadora', filas:calc, anchos:[82]},
     {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
   ];
@@ -92594,6 +92655,10 @@ window.__archivoTieneContenido = archivoTieneContenido;
 window.__conectarExcel = conectarExcel;
 window.__cambiarVista = cambiarVista;
 window.__marcarLote = marcarLote;
+window.__comercialDe = comercialDe;
+window.__repartidoPorMarca = repartidoPorMarca;
+window.__aplicarDatos = aplicarDatos;
+window.__pintarComerciales = pintarComerciales;
 window.__alternarCasilla = alternarCasilla;
 window.__importarListado = importarListado;
 window.__emparejar = emparejar;

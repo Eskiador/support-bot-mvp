@@ -979,3 +979,25 @@ acción es `{campo, valor}` y el mismo botón sirve para las dos cosas.
 
 La tabla pasa de trece a catorce columnas: de 1.028 a **1.086 px**, que sigue
 entrando sin barra lateral a 1.280 px y de ahí para arriba.
+
+### Un comercial por cliente Y marca
+
+ALDI MDD es de Juan y ALDI MDF es de Pablo. La ficha del comercial se guardaba
+solo por cliente, así que no había forma de tener los dos.
+
+Ahora la clave es `cliente|marca`, y **la marca vacía significa «todo el
+cliente»**, que es lo normal cuando no hay reparto. Al buscar el comercial de un
+cargo se mira primero el de su marca y, si no hay, el general. **Al revés no**:
+teniendo a Juan apuntado solo para MDD, un cargo MDF no es suyo — antes que
+mandarle el correo equivocado, la ficha avisa de que falta apuntarlo.
+
+Y si el cargo **todavía no tiene marca** pero el cliente sí está repartido, la
+ficha lo dice con todas las letras («ponle la marca arriba y aparecerá el suyo»)
+en lugar del genérico «no lo tengo apuntado», que ahí despistaría.
+
+Lo guardado antes se migra al abrir el archivo de datos: los comerciales que solo
+tenían cliente pasan a ser los generales de ese cliente. Sin esa migración no se
+encontraría ni uno.
+
+La cuenta de cargos de cada fila mira el nombre de cliente guardado, no la clave:
+así sigue saliendo bien aunque la clave se haya escrito de otra forma.
