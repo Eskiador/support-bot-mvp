@@ -1001,3 +1001,25 @@ encontraría ni uno.
 
 La cuenta de cargos de cada fila mira el nombre de cliente guardado, no la clave:
 así sigue saliendo bien aunque la clave se haya escrito de otra forma.
+
+### Buscador de comerciales
+
+Con el reparto por marcas, la lista de comerciales pasa a tener hasta dos fichas
+por cliente, así que encontrar una a ojo deja de ser viable enseguida.
+
+Un solo cuadro de búsqueda que mira **todo lo de la ficha a la vez**: cliente,
+marca, nombre, correo y notas. No hace falta elegir por qué campo se busca, que
+es una decisión que el usuario no debería tener que tomar para encontrar algo.
+
+Detalles que hacen que responda a lo que uno teclea:
+
+- El texto pasa por `norm()`, así que **da igual la tilde y la puntuación**:
+  «coviran» encuentra a COVIRÁN, y «juan@ejemplo» encuentra a juan@ejemplo.es.
+- Las fichas generales responden a **«todo»**, que es justo lo que enseña su
+  etiqueta en la tabla.
+- El contador de la derecha dice «N de M», y cuando no casa ninguno lo explica
+  («ninguno de los 4 apuntados casa con esa búsqueda») en vez de dejar la tabla
+  vacía como si no hubiera nada guardado.
+
+La exportación a Excel sigue sacando **todos** los comerciales, no lo filtrado:
+es la lista maestra y un filtro puesto sin querer no debería recortarla.

@@ -454,6 +454,46 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(cuenta.join(' ') === 'Juan:4 Pablo:2',
        'cada comercial ve los cargos de su marca', cuenta.join(' '));
 
+  // Buscador de la pestaña de comerciales
+  const busca = await pagina.evaluate(() => {
+    window.E.memoria.comerciales = {
+      'ALDI|MDD':   {cliente:'ALDI, S.L.', marca:'MDD', nombre:'Juan Ruiz',
+                     correo:'juan.ruiz@ejemplo.es', notas:'620 11 22 33'},
+      'ALDI|MDF':   {cliente:'ALDI, S.L.', marca:'MDF', nombre:'Pablo Gil',
+                     correo:'pablo.gil@ejemplo.es', notas:''},
+      'COVIRAN|':   {cliente:'COVIRÁN S.COOP.', marca:'', nombre:'Ana Soto',
+                     correo:'ana@ejemplo.es', notas:'lleva todo'},
+      'MUSGRAVE|MDD': {cliente:'MUSGRAVE ESPAÑA', marca:'MDD', nombre:'Luis Paz',
+                     correo:'luis@ejemplo.es', notas:''}
+    };
+    const nombres = () => [...document.querySelectorAll('#tablaCom tbody tr')]
+      .map(tr => tr.children[2] ? tr.children[2].textContent : '(vacío)');
+    const buscar = t => { document.querySelector('#cBuscar').value = t;
+                          window.__pintarComerciales(); return nombres(); };
+    const r = {
+      todos:    buscar('').length,
+      porMarca: buscar('MDF'),
+      porNombre:buscar('pablo'),
+      porCliente:buscar('coviran'),          // sin tilde, y en el nombre va con ella
+      porCorreo:buscar('luis@ejemplo'),
+      generales:buscar('todo el cliente'),
+      sinNada:  buscar('zzz'),
+      chip:     document.querySelector('#chipCom').textContent,
+      aviso:    document.querySelector('#tablaCom tbody').textContent.trim()
+    };
+    document.querySelector('#cBuscar').value = ''; window.__pintarComerciales();
+    return r;
+  });
+  dice(busca.todos === 4, 'sin filtro salen todos', String(busca.todos));
+  dice(busca.porMarca.join() === 'Pablo Gil', 'busca por MDD / MDF', busca.porMarca.join(' '));
+  dice(busca.porNombre.join() === 'Pablo Gil', 'busca por el nombre del comercial');
+  dice(busca.porCliente.join() === 'Ana Soto', 'busca por cliente, sin importar la tilde');
+  dice(busca.porCorreo.join() === 'Luis Paz', 'busca por el correo, con arroba y punto');
+  dice(busca.generales.join() === 'Ana Soto', 'busca «todo el cliente» para los generales');
+  dice(busca.chip === '0 de 4', 'el contador dice cuántos casan', busca.chip);
+  dice(/Ninguno de los 4/.test(busca.aviso),
+       'sin resultados lo explica en vez de parecer que no hay nada', busca.aviso.slice(0,60));
+
   // ------------------------------------------------------------------
   // Cerrar es una decisión. Antes el estado saltaba solo a «cerrado» en cuanto
   // un cargo estaba abonado, compensado y conforme, y desaparecía de la vista

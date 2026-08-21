@@ -63,8 +63,9 @@ completo (los ZNET línea a línea) en la ficha del cargo.
 **Comerciales** — la relación cliente → comercial, que no existe en ningún sitio
 y se va construyendo sola. Se guarda **por cliente y marca**: ALDI MDD puede ser
 de Juan y ALDI MDF de Pablo. Si un cliente lo lleva una sola persona, se deja la
-marca en «todo el cliente» y vale para los dos. Con el correo apuntado, el botón
-de reclamación abre Outlook con el asunto y el cuerpo ya escritos, dirigido al
+marca en «todo el cliente» y vale para los dos. Hay un **buscador** que mira a la
+vez cliente, marca, nombre, correo y notas. Con el correo apuntado, el botón de
+reclamación abre Outlook con el asunto y el cuerpo ya escritos, dirigido al
 comercial que corresponda a la marca de ese cargo.
 
 ## Qué calcula, exactamente

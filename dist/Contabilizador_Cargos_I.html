@@ -313,7 +313,14 @@ td.acc{text-align:right}
         </div>
         <datalist id="listaClientes"></datalist>
         <button class="primario" id="btnGuardarCom">Guardar comercial</button>
-        <div class="tablaenv" style="margin-top:14px">
+        <div class="filtros" style="margin-top:16px">
+          <input id="cBuscar" placeholder="Buscar cliente, MDD / MDF, comercial, correo…"
+                 style="min-width:300px">
+          <button class="mini" id="btnLimpiarBuscarCom">Quitar el filtro</button>
+          <div class="crece"></div>
+          <span class="chip" id="chipCom"></span>
+        </div>
+        <div class="tablaenv" style="margin-top:10px">
           <table id="tablaCom">
             <thead><tr><th>Cliente</th><th>Marca</th><th>Comercial</th><th>Correo</th><th>Notas</th><th class="n">Cargos</th><th></th></tr></thead>
             <tbody></tbody>
@@ -91000,6 +91007,13 @@ window.addEventListener('pdfjs-listo', async ()=>{
     $('#cMarca').value = '';
     avisar('Comercial guardado.');
   };
+  // la búsqueda repinta con un respiro, como la de la cola
+  let tempoCom = null;
+  $('#cBuscar').addEventListener('input', ()=>{
+    clearTimeout(tempoCom); tempoCom = setTimeout(pintarComerciales, 160); });
+  $('#btnLimpiarBuscarCom').onclick = ()=>{
+    $('#cBuscar').value = ''; pintarComerciales(); $('#cBuscar').focus(); };
+
   $('#btnExportarCom').onclick = ()=>exportarCSV(`comerciales_${HOY()}.csv`,
     ['Cliente','Marca','Comercial','Correo','Notas'],
     Object.values(E.memoria.comerciales||{})
@@ -92178,9 +92192,23 @@ function pintarComerciales(){
   const cargos = Object.values(E.memoria.cargos || {});
   const tb = $('#tablaCom tbody'); tb.innerHTML = '';
   // por cliente, y dentro del cliente: primero el general y luego cada marca
-  const filas = Object.entries(com).sort((a,b)=>
+  const todas = Object.entries(com).sort((a,b)=>
     (a[1].cliente||'').localeCompare(b[1].cliente||'','es') ||
     (a[1].marca||'').localeCompare(b[1].marca||''));
+
+  /* Con muchos comerciales apuntados, encontrar uno a ojo es imposible. Se
+     busca en todo lo de la ficha a la vez: cliente, marca, nombre, correo y
+     notas. Las generales responden a «todo», que es lo que enseña su etiqueta.
+     El texto pasa por norm(), así que da igual acentos y puntuación: buscando
+     «juan@ejemplo» encuentra a juan@ejemplo.es. */
+  const q = norm($('#cBuscar') ? $('#cBuscar').value : '');
+  const filas = !q ? todas : todas.filter(([clave, v]) =>
+    norm([v.cliente || clave.split('|')[0], v.marca || 'todo el cliente',
+          v.nombre, v.correo, v.notas].join(' ')).includes(q));
+
+  const chip = $('#chipCom');
+  if(chip) chip.textContent = q ? `${filas.length} de ${todas.length}`
+                                : `${todas.length} comercial(es)`;
   for(const [clave, v] of filas){
     // Los cargos que le tocan: los de su marca, o todos si lleva el cliente
     // entero. Se cuenta por el nombre guardado, no por la clave: así sigue
@@ -92212,7 +92240,9 @@ function pintarComerciales(){
                 `${v.marca ? ' · '+v.marca : ''}?`)) return;
     delete com[b.dataset.borra]; guardarDatos(); pintarComerciales(); pintarCola();
   });
-  if(!filas.length) tb.innerHTML = '<tr><td colspan="7" style="color:var(--muted)">Todavía no hay ningún comercial apuntado.</td></tr>';
+  if(!filas.length) tb.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">${
+    todas.length ? 'Ninguno de los '+todas.length+' comerciales apuntados casa con esa búsqueda.'
+                 : 'Todavía no hay ningún comercial apuntado.'}</td></tr>`;
 }
 
 /* ==================================================================
