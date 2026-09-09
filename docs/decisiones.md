@@ -1023,3 +1023,45 @@ Detalles que hacen que responda a lo que uno teclea:
 
 La exportación a Excel sigue sacando **todos** los comerciales, no lo filtrado:
 es la lista maestra y un filtro puesto sin querer no debería recortarla.
+
+### El orden importaba: arrastrar el listado antes de conectar el archivo
+
+Reportado directamente por Pablo: "arrastro el nuevo listado de SAP, luego
+conecto el .json para que se guarde, y se pone el listado ANTERIOR, que es el
+que hay en el .json".
+
+La causa estaba en dos sitios que por separado son correctos y juntos son una
+trampa:
+
+1. `guardarDatos()` sin archivo de datos conectado (`E.handle` es `null`) no
+   tiene dónde escribir, así que **no hace nada — en silencio**. No hay error
+   que dar: es un estado normal antes de conectar nada. Pero eso significa que
+   arrastrar el listado sin tener el archivo conectado todavía se ve perfecto
+   en pantalla (chip verde, aviso de "listado importado") y **no se guarda en
+   ningún sitio**.
+2. `aplicarDatos()`, que se llama al conectar un archivo de datos, hace
+   `Object.assign(E.memoria, j)`: sustituye la memoria entera por lo que hay
+   guardado en el archivo. Es lo correcto cuando se conecta un archivo con
+   trabajo previo. Pero si el paso 1 acababa de dejar el listado nuevo solo en
+   memoria, este paso lo **tira sin avisar** y deja lo que había en el archivo,
+   que es el listado viejo.
+
+El orden correcto siempre fue "conectar primero, arrastrar el listado después"
+— así lo dice el README — pero nada en la herramienta impedía ni advertía del
+orden contrario, y es fácil caer en él la primera vez que se usa un archivo de
+datos nuevo.
+
+En vez de exigir el orden correcto, se ha hecho que **el orden no importe**. Si
+`guardarDatos()` no puede escribir, las filas del listado se guardan en
+`listadoPendiente` (variable de sesión, no se persiste). En cuanto se conecta un
+archivo de datos —tanto si es antes como si es después de arrastrar el
+listado— `reaplicarListadoPendiente()` vuelve a pasar esas filas por
+`importarListado()`, esta vez contra lo que acaba de traer el archivo, y avisa
+de que lo ha recuperado. El aviso verde también dice, si hace falta, que
+todavía no se ha guardado en ningún sitio.
+
+Probado exactamente en el orden descrito: listado nuevo con dos cargos
+(arrastrado sin archivo conectado) → conectar un archivo con un cargo antiguo ya
+trabajado (abono puesto, nota escrita) → los dos cargos del listado nuevo
+aparecen, y el trabajo del archivo (abono, nota) se conserva en el que coincide
+por cliente y asignación.

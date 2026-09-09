@@ -579,6 +579,80 @@ const dice = (bien, etiqueta, detalle='') => {
   }
 
   // ------------------------------------------------------------------
+  // El orden importa: si se arrastra el listado ANTES de conectar el archivo
+  // de datos, guardarDatos() no tiene dónde escribir y no hace nada, en
+  // silencio. Al conectar el archivo justo después, aplicarDatos() sustituye
+  // la memoria entera por lo que había en el archivo (el listado VIEJO) y el
+  // que se acababa de arrastrar desaparecía sin avisar.
+  console.log('\n=== 5i · Arrastrar el listado antes de conectar el archivo de datos ===');
+  const orden = await pagina.evaluate(() => {
+    // estado limpio, como una sesión que arranca sin archivo de datos conectado
+    window.E.handle = null;
+    window.E.memoria.cargos = {};
+    window.__setListadoPendiente(null);
+
+    // 1) se arrastra el listado nuevo de SAP, sin archivo de datos conectado todavía
+    const cabNuevo = ['Nombre 1','Asignación','Importe en moneda local','Moneda local',
+                      'Fecha contabilización','Clave de reclamación','Nº documento'];
+    const filasNuevo = [cabNuevo,
+      ['ALCAMPO, S.A.','098017625',-308.59,'EUR',46200,'I','1800000111'],
+      ['HIPER USERA, S.L.','C/5300099999',-12.34,'EUR',46200,'I','1800000222']];
+    window.__importarListado(filasNuevo);
+    // guardarDatos() sin handle no hace nada: así se marca a mano, como haría
+    // procesarListado() al ver que guardarDatos() devuelve false
+    window.__setListadoPendiente(filasNuevo);
+    const trasArrastrar = Object.keys(window.E.memoria.cargos).length;
+
+    // 2) se conecta un archivo de datos que ya tenía guardado el listado VIEJO,
+    // con un cargo ya trabajado (abono puesto)
+    window.E.memoria.cargos = {};       // aplicarDatos() reemplaza esto entero
+    const datosDelArchivo = {
+      clientes:{}, comerciales:{}, log:[],
+      cargos:{
+        'ALCAMPO SA|098017625|1800000100||': {
+          cliente:'ALCAMPO, S.A.', asignacion:'098017625', importe:-300, fecha:'2026-08-01',
+          ndoc:'1800000100', moneda:'EUR', clave:'I', abono:'1519005555', fechaAbono:'2026-08-02',
+          conforme:true, marcadoEnSap:true, compensado:false, reclamado:false,
+          fechaReclamacion:'', nota:'ya revisado la semana pasada', clasificado:'precio',
+          calculo:null, enListado:true, pdfGuardado:false, cerrado:false, marca:'',
+          estado:'abonado'
+        }
+      }
+    };
+    window.__aplicarDatos(datosDelArchivo);
+    const soloArchivo = Object.keys(window.E.memoria.cargos).length;
+
+    // 3) esto es lo que hace conectarDatos() justo después de aplicarDatos()
+    return window.__reaplicarListadoPendiente().then(() => {
+      const cargos = Object.values(window.E.memoria.cargos);
+      const alcampo = cargos.find(c => c.asignacion === '098017625');
+      return {
+        trasArrastrar, soloArchivo,
+        total: cargos.length,
+        hiperUsera: !!cargos.find(c => c.asignacion === 'C/5300099999'),
+        abonoConservado: alcampo && alcampo.abono,
+        importeActualizado: alcampo && alcampo.importe,
+        notaConservada: alcampo && alcampo.nota,
+        quedaPendiente: window.__getListadoPendiente()
+      };
+    });
+  });
+  dice(orden.trasArrastrar === 2, 'el listado arrastrado sin archivo conectado se ve en pantalla',
+       orden.trasArrastrar + ' cargo(s)');
+  dice(orden.soloArchivo === 1, 'conectar el archivo reemplaza la memoria (el paso que antes lo perdía todo)');
+  dice(orden.total === 2,
+       'tras reaplicar, están los del listado arrastrado, no solo los del archivo',
+       orden.total + ' cargo(s) en total');
+  dice(orden.hiperUsera, 'el segundo cargo del listado (que no estaba en el archivo) también aparece');
+  dice(orden.abonoConservado === '1519005555',
+       'el abono que ya tenía el archivo para ese cargo no se pierde', orden.abonoConservado);
+  dice(orden.notaConservada === 'ya revisado la semana pasada',
+       'la nota tampoco se pierde');
+  dice(orden.importeActualizado === -308.59,
+       'el importe se actualiza con el del listado nuevo', orden.importeActualizado);
+  dice(orden.quedaPendiente === null, 'el listado pendiente se limpia después de reaplicarlo');
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {

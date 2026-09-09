@@ -90656,6 +90656,7 @@ async function conectarDatos(){
       aplicarDatos(r.datos);
     }
     await idb.set('handle', E.handle);
+    await reaplicarListadoPendiente();
     await guardarDatos();
     marcarChipDatos(E.handle.name);
     if(E.memoria.rutaCarpeta) $('#fRutaCarpeta').value = E.memoria.rutaCarpeta;
@@ -90872,6 +90873,16 @@ function clienteDeArchivo(nombre){
   return /^[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}$/.test(primero) ? primero.toUpperCase() : '';
 }
 
+/* Si se arrastra el listado ANTES de conectar el archivo de datos, guardarDatos()
+   no tiene dónde escribir y no hace nada — en silencio, porque tampoco hay error
+   que dar. El listado se ve importado en pantalla, pero solo vive en memoria. Si
+   justo después se conecta un archivo de datos, aplicarDatos() sustituye esa
+   memoria entera por lo que había guardado en el archivo (que es el listado
+   VIEJO) y el que se acababa de arrastrar desaparece sin avisar.
+   Se guardan las filas aquí para poder reaplicar el listado en cuanto se conecte
+   un archivo de datos, sea cual sea el orden en que se hagan las dos cosas. */
+let listadoPendiente = null;
+
 async function procesarListado(file){
   const av = $('#avisoImport');
   av.innerHTML = '<div class="aviso-caja azul">Leyendo el listado…</div>';
@@ -90881,7 +90892,8 @@ async function procesarListado(file){
       ? leerCSV(await file.text())
       : await leerXlsx(file, tieneCabecera);
     const r = importarListado(filas);
-    await guardarDatos();
+    const guardado = await guardarDatos();
+    if(!guardado) listadoPendiente = filas;
     $('#chipListado').className = 'chip ok';
     $('#chipListado').textContent = `${file.name} · ${r.leidos} cargos`;
     const z = $('#zonaListado'); z.className = 'zona lleno';
@@ -90891,13 +90903,27 @@ async function procesarListado(file){
       <b>Listado importado.</b> ${r.nuevos} nuevo(s), ${r.actualizados} ya conocido(s)`+
       (r.recuperados ? `, ${r.recuperados} reconocido(s) por cliente y asignación (el listado venía con otros datos)` : '')+
       (r.desaparecidos ? `, ${r.desaparecidos} que ya no vienen en el listado (se conservan marcados).` : '.')+
-      ` El trabajo hecho no se ha tocado.</div>`;
+      ` El trabajo hecho no se ha tocado.`+
+      (!guardado ? ` <b>Ojo: todavía no hay archivo de datos conectado, así que esto no se ha `+
+        `guardado en ningún sitio.</b> En cuanto conectes uno se aplica solo, aunque lo conectes después.` : '')+
+      `</div>`;
     pintarCola();
   }catch(e){
     av.innerHTML = `<div class="aviso-caja rojo" style="margin-top:12px">
       No he podido leer el listado: ${e.message}</div>`;
     console.error(e);
   }
+}
+
+// Reaplica el listado que se hubiera arrastrado antes de tener archivo de datos.
+// Se llama justo después de aplicarDatos(), tanto al conectar como al reconectar.
+async function reaplicarListadoPendiente(){
+  if(!listadoPendiente) return;
+  const r = importarListado(listadoPendiente);
+  listadoPendiente = null;
+  await guardarDatos();
+  avisar(`Recuperado el listado que habías arrastrado antes de conectar: `+
+         `${r.nuevos} nuevo(s), ${r.actualizados + r.recuperados} ya conocido(s).`, 5000);
 }
 
 function montarZona(el){
@@ -92700,6 +92726,10 @@ window.__norm = norm;
 window.__claveAsignacion = claveAsignacion;
 window.__mismaAsignacion = mismaAsignacion;
 window.__limpiarCalculadora = limpiarCalculadora;
+window.__reaplicarListadoPendiente = reaplicarListadoPendiente;
+window.__getListadoPendiente = () => listadoPendiente;
+window.__setListadoPendiente = f => { listadoPendiente = f; };
+window.__conectarDatos = conectarDatos;
 
 /* ---------------------------------------------- cargo escrito a mano */
 // De cada renglón se toma el ÚLTIMO número como valor y el resto como
