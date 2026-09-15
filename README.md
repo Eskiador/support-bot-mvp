@@ -12,7 +12,8 @@ solo archivo con tres pestañas.
 ## Cómo se usa
 
 1. Descarga `dist/Contabilizador_Cargos_I.html` y guárdalo en tu unidad.
-2. Ábrelo con doble clic (se abre en Edge).
+2. Ábrelo con doble clic (se abre en Edge). El botón **Modo noche** de la
+   cabecera cambia a fondo oscuro y se acuerda solo para la próxima vez.
 3. Pulsa **Conectar archivo de datos** y elige un JSON en la unidad. Ahí se
    guarda todo: los cargos, su estado, los comerciales y el registro.
 4. Pulsa **Conectar Excel** y elige dónde quieres el libro `Cargos_I.xlsx`. A

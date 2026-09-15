@@ -1171,3 +1171,43 @@ siempre él: la fecha del cargo es siempre posterior a la del pedido, así que
 no hay una regla fiable para deducirla sola en todos los formatos. Campo
 manual en la ficha, junto a Marca; sale también en el Excel y en la
 exportación a CSV.
+
+## Modo noche
+
+Pablo pidió una «versión noche» del programa porque prefiere trabajar sobre
+fondo oscuro. Se ha hecho como un **botón en la cabecera** que cambia de tema
+al vuelo, no como un segundo archivo HTML: mantener dos copias del mismo
+programa las habría ido desincronizando en cada cambio futuro —cada arreglo
+habría que aplicarlo dos veces, y tarde o temprano se olvidaría uno—, y aquí
+todo el proyecto se apoya en que solo existe una fuente de verdad. Un
+`data-theme="dark"` en `<html>` que cambia unas variables CSS cuesta lo mismo
+de mantener que cualquier otro botón de la herramienta.
+
+**Cómo está hecho.** Todos los colores del `<style>` ya vivían en variables
+CSS (`--bg`, `--panel`, `--ink`, `--verde`, `--rojo`...), así que el trabajo
+ha sido sobre todo declarar una segunda tabla de esas mismas variables bajo
+`:root[data-theme="dark"]` y comprobar que ningún color se hubiera colado
+escrito a fuego en algún sitio. La única sorpresa fue que algunas variables
+se usan de dos maneras distintas: como **relleno sólido** con texto blanco
+encima (`.dato.cuadra{background:var(--verde)}`) y como **color de texto**
+sobre el fondo del panel (`.pasos .hecho{color:var(--verde)}`). El mismo verde
+que se ve bien como relleno en modo oscuro queda demasiado apagado como texto
+sobre un panel oscuro. Solución: variables `-txt` aparte (`--verde-txt`,
+`--rojo-txt`, `--ambar-txt`, `--azul-txt`) que en modo claro valen lo mismo
+que el color base y en modo oscuro son una versión más clara, solo para texto;
+los rellenos siguen usando la variable original sin tocar.
+
+**Sin parpadeo al abrir.** Si el tema se aplicara desde el script principal
+(que carga después de pdf.js), se vería medio segundo en modo claro antes de
+saltar a oscuro. Se evita con un script pequeño y síncrono, metido en el
+`<head>` justo después del `<style>`, que lee `localStorage` antes de que el
+`<body>` llegue a pintarse y pone el atributo `data-theme` de una vez. La
+primera vez que se abre (sin nada guardado todavía) se respeta lo que tenga
+Windows/Edge vía `prefers-color-scheme`, para no imponer un tema que nadie ha
+pedido.
+
+**Se recuerda solo.** El botón guarda la elección en `localStorage`
+(`cargosI.tema`), no en el archivo de datos: es una preferencia de este
+ordenador y este navegador, no un dato del trabajo, así que no tiene que
+viajar en el JSON ni en el Excel. Vuelve a arrancar en el mismo modo la
+próxima vez que se abra el HTML, sin volver a tocar el botón.
