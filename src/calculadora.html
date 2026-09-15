@@ -425,11 +425,19 @@ td.acc{text-align:right}
         </div>
         <div class="campo"><label>Modo de diferencia por defecto</label>
           <select id="fModo">
-            <option value="importe">Importe de la línea (ya calculado en el cargo)</option>
-            <option value="precio_ud">Precio correcto por unidad (restar)</option>
-            <option value="precio_cj">Precio correcto por caja (restar)</option>
-            <option value="dif_ud">Diferencia por unidad (multiplicar)</option>
-            <option value="dif_cj">Diferencia por caja (multiplicar)</option>
+            <option value="importe">Diferencia de línea (el cargo ya la da)</option>
+            <option value="total_linea">Totales de línea: SAP − cargo (restar)</option>
+            <option value="precio_ud">Precio SAP − cargo, por unidad (restar)</option>
+            <option value="precio_cj">Precio SAP − cargo, por caja (restar)</option>
+            <option value="dif_ud">Diferencia por unidad (el cargo ya la da)</option>
+            <option value="dif_cj">Diferencia por caja (el cargo ya la da)</option>
+          </select>
+        </div>
+        <div class="campo"><label>Marca</label>
+          <select id="fMarcaCalc" title="Solo en MDF se detecta la gama y el % de descuento no aplicado">
+            <option value="">— sin decidir —</option>
+            <option value="MDD">MDD · marca de distribuidor</option>
+            <option value="MDF">MDF · marca de fabricante</option>
           </select>
         </div>
       </div>
@@ -452,7 +460,7 @@ td.acc{text-align:right}
             <th style="width:34px">Sí</th><th>Pos.</th><th>Material</th><th>Descripción</th>
             <th class="n">Cantidad</th><th class="n">Ud/cj</th>
             <th class="n" title="Solo de referencia: lleva IVA e impuestos, no sirve para restar">P. factura</th>
-            <th class="n" title="El precio neto que ves en SAP. Se teclea a mano.">Precio SAP</th>
+            <th class="n" title="El precio neto por unidad que ves en SAP. En el modo de totales, el total de SAP para toda la línea. Se teclea a mano.">Precio / total SAP</th>
             <th>Línea del cargo</th><th>Modo</th>
             <th class="n" title="El precio o el importe que dice el cargo">Dato del cargo</th>
             <th class="n">Diferencia</th>
@@ -480,14 +488,18 @@ td.acc{text-align:right}
             <th class="n" title="Neto que devuelve SAP al meter el ZNET de prueba con esta misma base. Rellénalo y el ZNET sale exacto.">Neto de la prueba</th>
             <th class="n">ZNET</th><th>por</th><th class="n">Importe que dará SAP</th>
             <th class="n">Objetivo</th><th class="n">Desvío</th>
+            <th title="Solo en MDF: la gama detectada en la descripción de nuestra factura">Gama</th>
+            <th class="n" title="Diferencia de la línea entre el precio de SAP, respecto al precio correcto que dice el cargo">% no aplicado</th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
+      <div id="resumenGamas" class="aviso-caja azul oculto" style="margin-top:12px"></div>
       <div class="barra">
         <button id="btnBaseAuto">Ajustar la base para que el ZNET sea manejable</button>
         <button class="primario" id="btnCopiar">Copiar tabla para SAP</button>
         <button id="btnCopiarZnet">Copiar solo los ZNET</button>
+        <button id="btnCopiarGamas" class="oculto">Copiar resumen de gamas</button>
         <button class="primario" id="btnRegistrar">Registrar en el archivo de cargos</button>
         <button id="btnGuardar">Guardar en el archivo de datos</button>
         <span id="estadoCopia" class="chip oculto"></span>
@@ -1099,13 +1111,20 @@ function cantidadEnBase(fila){
   return lf.cantidad;
 }
 
+// unidades de consumo reales de la línea (convertidas desde cajas si hace falta).
+// Se usa tanto para el cuadre como para pasar un total de línea a precio por unidad.
+function unidadesReales(lf){
+  return enCajas(lf.um) && lf.udsCaja ? lf.cantidad * lf.udsCaja : lf.cantidad;
+}
+
 // dato que aporta el cargo para esa línea, según el modo
 function datoCargo(fila){
   if(fila.manual != null && fila.manual !== '') return num(fila.manual);
   const lc = fila.cargoIdx >= 0 ? E.cargo.lineas[fila.cargoIdx] : null;
   if(!lc) return NaN;
   switch(fila.modo){
-    case 'importe':               return lc.importe;
+    case 'importe':
+    case 'total_linea':           return lc.importe;
     case 'precio_ud':
     case 'precio_cj':             return lc.precioCorrecto != null ? lc.precioCorrecto : NaN;
     case 'dif_ud':
@@ -1114,8 +1133,10 @@ function datoCargo(fila){
   return NaN;
 }
 
-// ¿Este modo necesita el precio neto de SAP tecleado a mano?
-const necesitaPrecioSap = modo => modo === 'precio_ud' || modo === 'precio_cj';
+// ¿Este modo necesita un número de SAP tecleado a mano (precio por unidad, o
+// el total de la línea, según el modo)?
+const necesitaPrecioSap = modo =>
+  modo === 'precio_ud' || modo === 'precio_cj' || modo === 'total_linea';
 
 /* De dónde sale el número de la columna «Dato del cargo». Es la pregunta que
    uno se hace al ver una diferencia aparecer sola, sin haber tecleado precios,
@@ -1130,6 +1151,9 @@ function origenDelDato(fila){
            `Por eso no hay que teclear ningún precio.`;
   switch(fila.modo){
     case 'importe':   return 'Importe de la diferencia que da el propio cargo para esta línea.';
+    case 'total_linea': return 'Total que da el cargo para TODA la línea (no la diferencia: el '+
+                               'total). Se resta del total que ves en SAP para esa misma línea, '+
+                               'tecleado en la columna «Precio / total SAP».';
     case 'precio_ud':
     case 'precio_cj': return 'Precio correcto que anuncia el cargo. Se resta del precio neto '+
                              'de SAP que teclees en la columna «Precio SAP».';
@@ -1143,19 +1167,90 @@ function diferenciaDe(fila){
   const d = datoCargo(fila);
   if(!isFinite(d)) return NaN;
   const lf = fila.fac;
-  const uds = enCajas(lf.um) && lf.udsCaja ? lf.cantidad * lf.udsCaja : lf.cantidad;
+  const uds = unidadesReales(lf);
   const cjs = enCajas(lf.um) ? lf.cantidad : (lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN);
   // El precio de la factura NO sirve para restar: lleva IVA y otros impuestos.
   // El neto de verdad solo se ve en SAP, así que se teclea.
   const pSap = num(fila.precioSap);
   switch(fila.modo){
-    case 'importe':    return Math.abs(d);
-    case 'dif_ud':     return Math.abs(d) * uds;
-    case 'dif_cj':     return Math.abs(d) * cjs;
-    case 'precio_ud':  return isFinite(pSap) ? (pSap - d) * uds : NaN;
-    case 'precio_cj':  return isFinite(pSap) ? (pSap - d) * cjs : NaN;
+    case 'importe':      return Math.abs(d);
+    case 'dif_ud':        return Math.abs(d) * uds;
+    case 'dif_cj':        return Math.abs(d) * cjs;
+    case 'precio_ud':     return isFinite(pSap) ? (pSap - d) * uds : NaN;
+    case 'precio_cj':     return isFinite(pSap) ? (pSap - d) * cjs : NaN;
+    // Aquí «Precio SAP» no es un precio por unidad: es el TOTAL que se facturó
+    // en SAP para toda la línea. Se resta directamente contra el total que dice
+    // el cargo, sin multiplicar por nada: los dos números ya son totales.
+    case 'total_linea':  return isFinite(pSap) ? Math.abs(pSap - d) : NaN;
   }
   return NaN;
+}
+
+// El precio de SAP, expresado siempre por unidad de consumo. En «total_linea»
+// lo que se teclea es el total de la línea entera, así que hay que dividirlo
+// entre las unidades para poder compararlo con un precio unitario (p.ej. para
+// el % de gama, que siempre se mide por unidad).
+function precioSapPorUnidad(fila){
+  const pSap = num(fila.precioSap);
+  if(!isFinite(pSap)) return NaN;
+  if(fila.modo !== 'total_linea') return pSap;
+  const uds = unidadesReales(fila.fac);
+  return (isFinite(uds) && uds > 0) ? pSap / uds : NaN;
+}
+
+/* ==================================================================
+   5b · GAMA Y % DE DESCUENTO NO APLICADO (solo cargos MDF)
+   Cuando un cargo de precio es no conforme, a veces hay que detallarle al
+   comercial qué gama de producto lleva el descuento que no se aplicó, y en
+   qué % — la marca propia (MDF) tiene un catálogo de gamas con su propio
+   código dentro de la descripción; la marca del distribuidor (MDD) no, así
+   que esto no se calcula ahí.
+   ================================================================== */
+const GAMAS = {
+  // mermeladas
+  LVF: 'Tradicional', LVZ: 'Cero', LVN: 'Natural', LV0: '0% azúcares añadidos',
+  LFF: 'Fusión', LVD: 'Dietética', LVC: 'Cocina selecta',
+  // infusiones (tisanas no llevan gama: se quedan sin detectar, y no es un error)
+  INFU: 'Infusión', LAXANTES: 'Laxante',
+  // aceitunas
+  FRAGATA: 'Fragata'
+};
+const RE_GAMA = new RegExp('\\b(' + Object.keys(GAMAS).join('|') + ')\\b', 'i');
+
+// La gama se saca SIEMPRE de la descripción de nuestra factura: es el único
+// documento con el mismo formato para todos los clientes. La del cargo varía
+// demasiado según quién lo mande, y muchos ni traen descripción reconocible.
+function gamaDe(descFactura){
+  const m = RE_GAMA.exec(norm(descFactura || ''));
+  return m ? m[1].toUpperCase() : null;
+}
+
+// % de descuento no aplicado en esa línea: la diferencia por unidad de
+// consumo, sobre el precio de SAP (también por unidad). Siempre en positivo —
+// es el número que se le dice al comercial, no importa la dirección.
+function pctGamaDe(fila, objetivoLinea){
+  if($('#fMarcaCalc').value !== 'MDF') return NaN;
+  const pUnit = precioSapPorUnidad(fila);
+  const uds = unidadesReales(fila.fac);
+  if(!isFinite(pUnit) || pUnit <= 0 || !isFinite(uds) || uds <= 0 || !isFinite(objetivoLinea))
+    return NaN;
+  const difPorUnidad = Math.abs(objetivoLinea) / uds;
+  return r2(difPorUnidad / pUnit * 100);
+}
+
+// Agrupa las líneas ya calculadas por gama y saca la media del % de cada una.
+// Se usa tanto para pintarlo en pantalla como para guardarlo al registrar.
+function resumenGamas(salida, esMDF){
+  if(!esMDF) return {filas:[], sinGama:[]};
+  const conGama = salida.filter(s => s.gama && isFinite(s.pct));
+  const sinGama = salida.filter(s => !s.gama);
+  const porGama = {};
+  for(const s of conGama) (porGama[s.gama] = porGama[s.gama] || []).push(s.pct);
+  const filas = Object.entries(porGama).map(([g, pcts]) => ({
+    gama: g, nombre: GAMAS[g] || g,
+    media: r2(pcts.reduce((a,b)=>a+b,0) / pcts.length), n: pcts.length
+  })).sort((a,b) => b.media - a.media);
+  return {filas, sinGama};
 }
 
 // Euros de valor neto por cada unidad de ZNET.
@@ -1202,9 +1297,13 @@ function calcular(){
     const ajustada = fila.objetivoForzado != null;
     const fal = !ajustada && isFinite(desvio) && Math.abs(desvio) > 0.0001;
     if(fal) avisos.push({fila, objetivo:objetivoCargo, importe, desvio, paso: r2(factor*0.01)});
+    const gama = gamaDe(fila.fac.desc);
+    // El % solo tiene sentido si hay una gama detectada: en una tisana (que no
+    // lleva gama) no hay «% de descuento no aplicado a la gama» que enseñar.
+    const pct = gama ? pctGamaDe(fila, objetivoCargo) : NaN;
     salida.push({fila, objetivo:objetivoCargo, q, znet, importe, desvio, por, um, clave,
                  factor, medido: fila.netoPrueba != null && fila.netoPrueba !== '',
-                 alerta:fal, ajustada});
+                 alerta:fal, ajustada, gama, pct});
   }
 
   const zaju = isFinite(total) ? r2(total - suma) : NaN;
@@ -1379,12 +1478,15 @@ function pintarCabecera(){
   } else av.classList.add('oculto');
 }
 
+// Nombres pensados para verse de un vistazo qué se resta de qué: el sentido de
+// la resta es siempre «SAP − lo que dice el cargo».
 const MODOS = {
-  importe:  'Importe de línea',
-  precio_ud:'Precio correcto/ud',
-  precio_cj:'Precio correcto/caja',
-  dif_ud:   'Diferencia/ud',
-  dif_cj:   'Diferencia/caja'
+  importe:     'Diferencia de línea (el cargo ya la da)',
+  total_linea: 'Totales de línea: SAP − cargo (restar)',
+  precio_ud:   'Precio SAP − cargo, por unidad (restar)',
+  precio_cj:   'Precio SAP − cargo, por caja (restar)',
+  dif_ud:      'Diferencia por unidad (el cargo ya la da)',
+  dif_cj:      'Diferencia por caja (el cargo ya la da)'
 };
 const etiquetaModo = m => MODOS[m] || m || '—';
 
@@ -1415,7 +1517,8 @@ function pintarLineas(){
       <td class="n" style="color:var(--muted)">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
       <td class="n"><input class="num precioSap" data-i="${i}" style="width:86px"
             value="${esc(fila.precioSap != null ? fila.precioSap : '')}"
-            placeholder="${necesitaPrecioSap(fila.modo) ? 'teclea' : '—'}"
+            title="${fila.modo==='total_linea' ? 'Total facturado en SAP para TODA la línea, no por unidad.' : 'Precio neto por unidad.'}"
+            placeholder="${necesitaPrecioSap(fila.modo) ? (fila.modo==='total_linea' ? 'total línea' : 'teclea') : '—'}"
             ${necesitaPrecioSap(fila.modo) ? '' : 'disabled'}></td>
       <td><select data-i="${i}" class="selCargo">${opciones.join('')}</select></td>
       <td><select data-i="${i}" class="selModo">${Object.entries(MODOS).map(([k,v])=>
@@ -1535,10 +1638,10 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = 
   if(cajaPrecio){
     if(faltaPrecio.length){
       cajaPrecio.classList.remove('oculto');
-      cajaPrecio.innerHTML = `<b>Faltan ${faltaPrecio.length} precio(s) de SAP.</b> `+
-        `En el modo «precio correcto» la diferencia se calcula restando dos precios, y el `+
+      cajaPrecio.innerHTML = `<b>Faltan ${faltaPrecio.length} precio(s)/total(es) de SAP.</b> `+
+        `En los modos que restan, la diferencia se calcula restando dos números, y el `+
         `de la factura no vale porque lleva IVA e impuestos. Escribe en la columna `+
-        `<b>«Precio SAP»</b> el neto que ves en SAP: `+
+        `<b>«Precio / total SAP»</b> el neto que ves en SAP: `+
         faltaPrecio.map(f=>`pos. ${f.fac.pos}`).join(', ')+'.';
     } else cajaPrecio.classList.add('oculto');
   }
@@ -1601,7 +1704,9 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = 
       }</select></td>
       <td class="n">${eur(s.importe)}</td>
       <td class="n">${eur(s.objetivo)}</td>
-      <td class="n">${isFinite(s.desvio)&&s.desvio!==0?(s.desvio>0?'+':'')+nf.format(s.desvio):'—'}</td>`;
+      <td class="n">${isFinite(s.desvio)&&s.desvio!==0?(s.desvio>0?'+':'')+nf.format(s.desvio):'—'}</td>
+      <td>${s.gama ? `<span class="pill azul" title="${esc(GAMAS[s.gama]||'')}">${esc(s.gama)}</span>` : '—'}</td>
+      <td class="n">${isFinite(s.pct) ? nf.format(s.pct)+' %' : '—'}</td>`;
     tb.appendChild(tr);
   }
   // cambiar la base de una línea no altera el importe, solo el número que se
@@ -1617,6 +1722,32 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = 
     const fila = E.filas.find(f => f.fac.pos === pos);
     if(fila){ fila.netoPrueba = e.target.value.trim() || null; limpiarAjuste(); calcular(); }
   });
+
+  // --- resumen por gama, para pasárselo rápido al comercial ---
+  const cajaGamas = $('#resumenGamas'), btnCopiarGamas = $('#btnCopiarGamas');
+  const esMDF = $('#fMarcaCalc').value === 'MDF';
+  const {filas: filasGama, sinGama} = resumenGamas(salida, esMDF);
+  if(esMDF && (filasGama.length || sinGama.length)){
+    cajaGamas.classList.remove('oculto');
+    cajaGamas.innerHTML = `<b>Resumen por gama, para el comercial:</b><br>`+
+      (filasGama.length
+        ? filasGama.map(f=>`${esc(f.gama)} (${esc(f.nombre)}): <b>${nf.format(f.media)} %</b>`+
+            `${f.n>1?` · media de ${f.n} líneas`:''}`).join('<br>')
+        : 'Ninguna línea con gama y precio de SAP a la vez todavía.')+
+      (sinGama.length ? `<br><span style="color:var(--muted)">${sinGama.length} línea(s) sin `+
+        `gama reconocida en la descripción (normal si es tisana o algo fuera de catálogo): `+
+        sinGama.map(s=>`pos. ${s.fila.fac.pos}`).join(', ')+'.</span>' : '');
+    if(btnCopiarGamas){
+      btnCopiarGamas.classList.toggle('oculto', !filasGama.length);
+      btnCopiarGamas.onclick = () => copiar(
+        filasGama.map(f=>`${f.gama} (${f.nombre}): ${nf.format(f.media)} %`).join('\n'),
+        'Resumen de gamas copiado');
+    }
+  } else {
+    cajaGamas.classList.add('oculto');
+    if(btnCopiarGamas) btnCopiarGamas.classList.add('oculto');
+  }
+
   E.ultimaSalida = {salida, suma, total, zaju};
 }
 
@@ -1631,6 +1762,7 @@ function limpiarCalculadora(){
   E.fijado = null;
 
   ['fCliente','fNumCargo','fNumFactura','fFecha','fTotal'].forEach(id => $('#'+id).value = '');
+  $('#fMarcaCalc').value = '';
 
   const zc = $('#zonaCargo');
   zc.className = 'zona'; zc.dataset.tipo = 'cargo';
@@ -1884,6 +2016,7 @@ async function procesarArchivo(file, tipo){
       if(E.fijado){
         $('#fNumCargo').value = E.fijado.asignacion || '';
         if(E.fijado.cliente) $('#fCliente').value = E.fijado.cliente;
+        if(E.fijado.marca && !$('#fMarcaCalc').value) $('#fMarcaCalc').value = E.fijado.marca;
       }
       E.ajuste = null;
       E.cargo = parseCargo(filas);
@@ -2144,7 +2277,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#mTipo').addEventListener('change', refrescarPrevio);
   $('#mQue').addEventListener('change', pintarPanelManual);
 
-  ['fTotal','fTolerancia','fBase','fCliente','fModo','fZnetPrueba'].forEach(id=>{
+  ['fTotal','fTolerancia','fBase','fCliente','fModo','fMarcaCalc','fZnetPrueba'].forEach(id=>{
     $('#'+id).addEventListener('change', ()=>{
       limpiarAjuste();
       // la base general manda: al cambiarla se reponen las bases por línea
@@ -2425,7 +2558,7 @@ function importarListado(filas){
 
 function estadoInicial(){
   return {
-    estado:'pendiente', abono:'', fechaAbono:'', cerrado:false, marca:'',
+    estado:'pendiente', abono:'', fechaAbono:'', cerrado:false, marca:'', fechaPedido:'',
     conforme:null, marcadoEnSap:false, compensado:false,
     reclamado:false, fechaReclamacion:'', pdfGuardado:false,
     clasificado:'', nota:'', calculo:null, enListado:true
@@ -2734,10 +2867,11 @@ async function calcularCon(c){
   limpiarCalculadora();                 // cada cargo empieza de cero
   E.cargoAbierto = c.id;
   E.docCargo = f;                       // para poder reabrirlo desde la calculadora
-  E.fijado = {cliente:c.cliente, asignacion:c.asignacion};
+  E.fijado = {cliente:c.cliente, asignacion:c.asignacion, marca:c.marca};
   cambiarVista('calc');
   $('#fCliente').value = c.cliente;
   $('#fNumCargo').value = c.asignacion;
+  $('#fMarcaCalc').value = c.marca || '';
   await procesarArchivo(await archivoDe(f), 'cargo');
   if(!$('#fTotal').value) $('#fTotal').value = nf.format(Math.abs(c.importe));
 
@@ -2970,7 +3104,9 @@ function abrirFicha(id, sinSaltar){
       extra:c.marca ? MARCAS[c.marca] : ''},
     {k:'calculo',     txt:'Diferencia calculada y cuadrada',  hecho:!!c.calculo,
       extra:c.calculo ? `${eur(c.calculo.suma)} en ${c.calculo.lineas} línea(s)`+
-        (c.calculo.zaju ? ` · ZAJU ${nf.format(c.calculo.zaju)} €` : '') : ''},
+        (c.calculo.zaju ? ` · ZAJU ${nf.format(c.calculo.zaju)} €` : '')+
+        (c.calculo.gamas ? ' · ' + c.calculo.gamas.map(g=>`${g.gama} ${nf.format(g.media)}%`).join(', ') : '')
+        : ''},
     {k:'conforme',    txt:'Expediente revisado',              hecho:c.conforme!==null,
       extra:c.conforme===null?'':(c.conforme?'conforme':'NO conforme')},
     {k:'abono',       txt:'Abono creado en SAP',              hecho:!!c.abono, extra:c.abono},
@@ -2998,6 +3134,8 @@ function abrirFicha(id, sinSaltar){
           <option value="MDD"${c.marca==='MDD'?' selected':''}>MDD · marca de distribuidor</option>
           <option value="MDF"${c.marca==='MDF'?' selected':''}>MDF · marca de fabricante</option>
         </select></div>
+      <div class="campo"><label>Fecha del pedido</label>
+        <input id="xFechaPedido" value="${esc(c.fechaPedido)}" placeholder="dd/mm/aaaa"></div>
       <div class="campo"><label>Conformidad</label>
         <select id="xConforme">
           <option value=""${c.conforme===null?' selected':''}>— sin decidir —</option>
@@ -3057,10 +3195,11 @@ function abrirFicha(id, sinSaltar){
   }
   $('#xIrCalc').onclick = ()=>{
     E.cargoAbierto = id;
-    E.fijado = {cliente:c.cliente, asignacion:c.asignacion};
+    E.fijado = {cliente:c.cliente, asignacion:c.asignacion, marca:c.marca};
     cambiarVista('calc');
     $('#fCliente').value = c.cliente;
     $('#fNumCargo').value = c.asignacion;
+    $('#fMarcaCalc').value = c.marca || '';
     if(!$('#fTotal').value) $('#fTotal').value = nf.format(Math.abs(c.importe));
     pintarCabecera();
     avisar('Cargo '+c.asignacion+' abierto en la calculadora.');
@@ -3081,6 +3220,7 @@ function guardarFicha(id){
   if(c.abono && !abonoAntes) c.fechaAbono = HOY();
   c.clasificado = $('#xClasif').value;
   c.marca = $('#xMarca').value;
+  c.fechaPedido = $('#xFechaPedido').value.trim();
   const cf = $('#xConforme').value;
   c.conforme = cf === '' ? null : (cf === 'si');
   c.pdfGuardado = $('#xPdf').checked;
@@ -3498,7 +3638,7 @@ function hojasDelLibro(){
   lista.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
 
   const cargos = [[
-    CAB('Fecha'), CAB('Días'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
+    CAB('Fecha'), CAB('Fecha pedido'), CAB('Días'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
     CAB('Nº documento'), CAB('Estado'), CAB('Marca'), CAB('Clasificación'), CAB('Nº abono'),
     CAB('Fecha abono'), CAB('Conforme'), CAB('Marcado en SAP'), CAB('Compensado'),
     CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
@@ -3507,7 +3647,7 @@ function hojasDelLibro(){
     const com = comercialDe(c.cliente, c.marca);
     const ruta = rutaCompleta(c);
     cargos.push([
-      fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
+      fechaCorta(c.fecha), c.fechaPedido||'', diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
       {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.marca||'', c.clasificado||'',
       c.abono||'', c.fechaAbono ? fechaCorta(c.fechaAbono) : '',
       c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'NO conforme'),
@@ -3559,7 +3699,7 @@ function hojasDelLibro(){
   }
 
   return [
-    {nombre:'Cargos', filas:cargos, anchos:[11,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,13,30]},
+    {nombre:'Cargos', filas:cargos, anchos:[11,12,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,13,30]},
     {nombre:'Comerciales', filas:comerciales, anchos:[32,15,24,30,26,9,12]},
     {nombre:'Calculadora', filas:calc, anchos:[82]},
     {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
@@ -3670,12 +3810,12 @@ function enlaceExcel(c){
 function exportarCargos(){
   const lista = cargosFiltrados();
   exportarCSV(`cargos_I_${HOY()}.csv`,
-    ['Fecha','Días','Cliente','Asignación','Importe','Moneda','Nº documento','Estado',
+    ['Fecha','Fecha pedido','Días','Cliente','Asignación','Importe','Moneda','Nº documento','Estado',
      'Marca','Clasificación','Nº abono','Fecha abono','Conforme','Marcado en SAP','Compensado',
      'Reclamado','Fecha reclamación','PDF guardado','Nombre del PDF','Nota','En el último listado',
      'Ruta del PDF','Abrir'],
     lista.map(c=>[
-      fechaCorta(c.fecha), diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
+      fechaCorta(c.fecha), c.fechaPedido || '', diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
       nf.format(c.importe), c.moneda, c.ndoc, ESTADOS[c.estado].et,
       c.marca || '', c.clasificado || '', c.abono || '', fechaCorta(c.fechaAbono),
       c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'No conforme'),
@@ -3723,14 +3863,18 @@ function registrarCalculo(){
     avisar('Ese cargo no estaba en el listado: lo he dado de alta.');
   }
   const c = E.memoria.cargos[id];
+  const esMDF = $('#fMarcaCalc').value === 'MDF';
+  const {filas: filasGama} = resumenGamas(u.salida, esMDF);
   c.calculo = {
     fecha: new Date().toISOString(), suma: u.suma, total: u.total, zaju: u.zaju,
     lineas: u.salida.length, factura: $('#fNumFactura').value.trim(),
     znet: u.salida.map(s=>({pos:s.fila.fac.pos, material:s.fila.fac.material,
-                            cantidad:s.q, znet:s.znet, importe:s.importe}))
+                            cantidad:s.q, znet:s.znet, importe:s.importe})),
+    gamas: filasGama.length ? filasGama : null
   };
   if(abono.trim()){ c.abono = abono.trim(); c.fechaAbono = HOY(); }
   if(!c.clasificado) c.clasificado = 'precio';
+  if($('#fMarcaCalc').value) c.marca = $('#fMarcaCalc').value;
   recalcularEstado(c);
   recordarCliente();
   registrar('calculo_registrado', {id, cliente, asignacion, abono:c.abono,
@@ -3791,6 +3935,13 @@ window.__reaplicarListadoPendiente = reaplicarListadoPendiente;
 window.__getListadoPendiente = () => listadoPendiente;
 window.__setListadoPendiente = f => { listadoPendiente = f; };
 window.__conectarDatos = conectarDatos;
+window.__gamaDe = gamaDe;
+window.__pctGamaDe = pctGamaDe;
+window.__resumenGamas = resumenGamas;
+window.__unidadesReales = unidadesReales;
+window.__precioSapPorUnidad = precioSapPorUnidad;
+window.__diferenciaDe = diferenciaDe;
+window.__registrarCalculo = registrarCalculo;
 
 /* ---------------------------------------------- cargo escrito a mano */
 // De cada renglón se toma el ÚLTIMO número como valor y el resto como

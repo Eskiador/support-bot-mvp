@@ -100,16 +100,32 @@ vez, y el modo elegido **se recuerda por cliente** para la próxima vez.
 
 | Modo | Cuándo | Cálculo |
 |---|---|---|
-| Importe de línea | El cargo ya da el total de la diferencia | se usa tal cual |
-| Precio correcto por unidad | El cargo dice a qué precio debía ir | (precio SAP − precio cargo) × unidades |
-| Precio correcto por caja | Igual, pero en cajas | (precio SAP − precio cargo) × cajas |
+| Diferencia de línea | El cargo ya da el total de la diferencia | se usa tal cual |
+| Totales de línea: SAP − cargo | El cargo da un TOTAL de línea, no un precio | resta de los dos totales |
+| Precio SAP − cargo, por unidad | El cargo dice a qué precio debía ir | (precio SAP − precio cargo) × unidades |
+| Precio SAP − cargo, por caja | Igual, pero en cajas | (precio SAP − precio cargo) × cajas |
 | Diferencia por unidad | El cargo da la diferencia unitaria | diferencia × unidades |
 | Diferencia por caja | El cargo da la diferencia por caja | diferencia × cajas |
 
 **El precio de nuestra factura no sirve para restar**: lleva IVA y otros
 impuestos. El neto de verdad solo se ve en SAP, así que se teclea en la columna
-**«Precio SAP»**; el de la factura queda al lado en gris, como referencia. Si
-falta, esa línea no se calcula — antes que dar un número que parece bueno.
+**«Precio / total SAP»**; el de la factura queda al lado en gris, como
+referencia. Si falta, esa línea no se calcula — antes que dar un número que
+parece bueno.
+
+### Gama y % de descuento no aplicado (solo MDF)
+
+Cuando un cargo de precio es no conforme, a veces hay que detallarle al
+comercial qué gama de producto lleva el descuento que no se aplicó. La
+herramienta detecta la gama (LVF, LVZ, LVN, LV0, LFF, LVD, LVC en mermeladas;
+INFU y LAXANTES en infusiones; FRAGATA en aceitunas) dentro de la descripción
+de **nuestra factura** — el único documento con el mismo formato para todos
+los clientes — y calcula el % de descuento no aplicado de cada línea:
+`diferencia por unidad ÷ precio de SAP × 100`.
+
+Esto **solo se calcula en cargos de marca MDF** (marca de fabricante): la
+marca de distribuidor no tiene gamas. Se ve en dos sitios, columna por columna
+y agrupado por gama en un resumen listo para copiar y pasarle al comercial.
 
 Las **unidades por caja** salen de la columna `UC/US` de nuestra propia factura,
 así que la conversión cajas ↔ unidades no hay que teclearla.

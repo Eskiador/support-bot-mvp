@@ -653,6 +653,168 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(orden.quedaPendiente === null, 'el listado pendiente se limpia después de reaplicarlo');
 
   // ------------------------------------------------------------------
+  // Cuando un cargo de precio es no conforme, a veces hay que detallarle al
+  // comercial la gama de producto y el % de descuento que no se aplicó. Solo
+  // tiene sentido en MDF (marca propia): la del distribuidor no tiene gamas.
+  console.log('\n=== 5j · Gama y % de descuento no aplicado (solo MDF) ===');
+  const gamas = await pagina.evaluate(() => {
+    const casos = [
+      ['MERMELADA DE FRESAS LVF 800G', 'LVF'], ['MERMELADA DE NARANJA LVZ 800G', 'LVZ'],
+      ['MERMELADA NATURAL LVN 350G', 'LVN'], ['MERMELADA LV0 SIN AZUCAR 350G', 'LV0'],
+      ['FUSION FRESA-KIWI LFF 280G', 'LFF'], ['MERMELADA DIET LVD 280G', 'LVD'],
+      ['COCINA SELECTA LVC 280G', 'LVC'], ['INFUSION MANZANILLA INFU 20 BOLSAS', 'INFU'],
+      ['INFUSION LAXANTES 20 BOLSAS', 'LAXANTES'], ['ACEITUNA RELLENA ANCHOA FRAGATA 300G', 'FRAGATA'],
+      ['TISANA RELAX 20 BOLSAS', null], ['AGUA MINERAL 1,5L', null]
+    ];
+    const detectadas = casos.map(([d, esperado]) => [d, window.__gamaDe(d), esperado]);
+
+    window.E.factura = {numero:'1', fecha:'', texto:'', lineas:[
+      {pos:10, material:'1', udsCaja:null, desc:'MERMELADA DE FRESAS LVF 800G', cantidad:100, um:'UC', precio:2.2, importe:220},
+      {pos:20, material:'2', udsCaja:null, desc:'MERMELADA DE NARANJA LVZ 800G', cantidad:50, um:'UC', precio:2.2, importe:110},
+      {pos:30, material:'3', udsCaja:null, desc:'TISANA RELAX 20 BOLSAS', cantidad:20, um:'UC', precio:1.5, importe:30}
+    ]};
+    window.E.cargo = {numero:'X', cliente:'C', fecha:'', refFactura:'', totalSinIva:44, ivaPct:null,
+      sinImportes:false, texto:'', lineas:[
+      {n:1, desc:'MERMELADA DE FRESAS', importe:null, importeFirmado:null, precioCorrecto:1.80, difUnitaria:null, y:0, pag:1, texto:''},
+      {n:2, desc:'MERMELADA DE NARANJA', importe:null, importeFirmado:null, precioCorrecto:2.00, difUnitaria:null, y:0, pag:1, texto:''},
+      {n:3, desc:'TISANA', importe:null, importeFirmado:null, precioCorrecto:1.30, difUnitaria:null, y:0, pag:1, texto:''}
+    ]};
+    document.querySelector('#fTotal').value = '44,00';
+    document.querySelector('#fModo').value = 'precio_ud';
+    document.querySelector('#fMarcaCalc').value = '';           // primero, sin marca
+    window.__emparejar();
+    window.E.filas[0].precioSap = '2,00';
+    window.E.filas[1].precioSap = '2,20';
+    window.E.filas[2].precioSap = '1,50';
+    window.__calcular();
+    const sinMarca = document.querySelector('#resumenGamas').classList.contains('oculto');
+
+    document.querySelector('#fMarcaCalc').value = 'MDF';
+    window.__calcular();
+    const filas = window.E.ultimaSalida.salida.map(s => ({pos:s.fila.fac.pos, gama:s.gama, pct:s.pct}));
+    const resumenTexto = document.querySelector('#resumenGamas').textContent;
+    const botonVisible = !document.querySelector('#btnCopiarGamas').classList.contains('oculto');
+
+    document.querySelector('#fMarcaCalc').value = 'MDD';
+    window.__calcular();
+    const conMDD = document.querySelector('#resumenGamas').classList.contains('oculto');
+
+    return {detectadas, sinMarca, filas, resumenTexto, botonVisible, conMDD};
+  });
+  for(const [desc, real, esperado] of gamas.detectadas)
+    dice(real === esperado, `gama de «${desc}»`, `esperado ${esperado}, obtenido ${real}`);
+  dice(gamas.sinMarca, 'sin marca puesta no se muestra el resumen de gamas');
+  dice(gamas.conMDD, 'con marca MDD tampoco se muestra (las gamas son solo de MDF)');
+  const [l1, l2, l3] = gamas.filas;
+  dice(l1.gama === 'LVF' && Math.abs(l1.pct - 10) < 0.01, 'línea LVF: 10 % no aplicado', JSON.stringify(l1));
+  dice(l2.gama === 'LVZ' && Math.abs(l2.pct - 9.09) < 0.01, 'línea LVZ: 9,09 % no aplicado', JSON.stringify(l2));
+  dice(l3.gama === null && !isFinite(l3.pct), 'la tisana no tiene gama ni %, aunque sí tiene diferencia');
+  dice(/LVF \(Tradicional\): 10,00 %/.test(gamas.resumenTexto), 'el resumen agrupa por gama con su nombre');
+  dice(/1 línea\(s\) sin gama/.test(gamas.resumenTexto), 'el resumen avisa de las líneas sin gama, sin tratarlo como error');
+  dice(gamas.botonVisible, 'aparece el botón de copiar el resumen');
+
+  // ------------------------------------------------------------------
+  // Modo nuevo: cuando el cargo da el TOTAL de la línea (no un precio por
+  // unidad), se restan dos totales — el de SAP y el del cargo — en vez de
+  // multiplicar una diferencia unitaria por la cantidad.
+  console.log('\n=== 5k · Modo «Totales de línea» (restar dos totales) ===');
+  const totalLinea = await pagina.evaluate(() => {
+    window.E.factura = {numero:'1', fecha:'', texto:'', lineas:[
+      {pos:10, material:'1', udsCaja:null, desc:'MERMELADA DE NARANJA LVZ 800G', cantidad:10, um:'UC', precio:20, importe:200}
+    ]};
+    window.E.cargo = {numero:'X', cliente:'C', fecha:'', refFactura:'', totalSinIva:20, ivaPct:null,
+      sinImportes:false, texto:'', lineas:[
+      {n:1, desc:'MERMELADA DE NARANJA', importe:180, importeFirmado:180, precioCorrecto:null, difUnitaria:null, y:0, pag:1, texto:''}
+    ]};
+    document.querySelector('#fTotal').value = '20,00';
+    document.querySelector('#fModo').value = 'total_linea';
+    document.querySelector('#fMarcaCalc').value = 'MDF';
+    window.__emparejar();
+    window.E.filas[0].precioSap = '200';   // total facturado en SAP para la línea entera
+    window.__calcular();
+    const s = window.E.ultimaSalida.salida[0];
+    return {objetivo:s.objetivo, gama:s.gama, pct:s.pct};
+  });
+  dice(Math.abs(totalLinea.objetivo - 20) < 0.01,
+       'la diferencia sale de restar los dos totales (200 − 180)', JSON.stringify(totalLinea));
+  dice(totalLinea.gama === 'LVZ' && Math.abs(totalLinea.pct - 10) < 0.01,
+       'y el % de gama sale igual que en los demás modos (10 %)', JSON.stringify(totalLinea));
+
+  // ------------------------------------------------------------------
+  // La marca del cargo tiene que viajar con él: si se abre desde la cola, la
+  // calculadora debe saber ya si es MDD o MDF sin que haya que volver a
+  // decidirlo, y al registrar el cálculo, la marca elegida en la calculadora
+  // se guarda en la ficha del cargo.
+  console.log('\n=== 5l · La marca viaja entre la cola y la calculadora ===');
+  const marcaViaja = await pagina.evaluate(() => {
+    window.E.memoria.cargos = {mA: {
+      cliente:'ALDI, S.L.', asignacion:'C/9001', importe:-20, fecha:'2026-08-01', ndoc:'',
+      moneda:'EUR', clave:'I', abono:'', fechaAbono:'', conforme:null, marcadoEnSap:false,
+      compensado:false, reclamado:false, fechaReclamacion:'', nota:'', clasificado:'',
+      calculo:null, enListado:true, pdfGuardado:false, cerrado:false, marca:'MDF', fechaPedido:'',
+      estado:'pendiente'
+    }};
+    window.__pintarCola();
+    document.querySelector('tr[data-id="mA"] td').click();
+    document.querySelector('#xIrCalc').click();
+    const marcaEnCalculadora = document.querySelector('#fMarcaCalc').value;
+
+    // se registra un cálculo y debe conservar la marca (y guardar el resumen)
+    window.E.factura = {numero:'1', fecha:'', texto:'', lineas:[
+      {pos:10, material:'1', udsCaja:null, desc:'MERMELADA DE FRESAS LVF 800G', cantidad:100, um:'UC', precio:2.2, importe:220}
+    ]};
+    window.E.cargo = {numero:'X', cliente:'ALDI, S.L.', fecha:'', refFactura:'', totalSinIva:20,
+      ivaPct:null, sinImportes:false, texto:'', lineas:[
+      {n:1, desc:'MERMELADA DE FRESAS', importe:null, importeFirmado:null, precioCorrecto:1.80, difUnitaria:null, y:0, pag:1, texto:''}
+    ]};
+    document.querySelector('#fCliente').value = 'ALDI, S.L.';
+    document.querySelector('#fNumCargo').value = 'C/9001';
+    document.querySelector('#fTotal').value = '20,00';
+    document.querySelector('#fModo').value = 'precio_ud';
+    window.__emparejar();
+    window.E.filas[0].precioSap = '2,00';
+    window.__calcular();
+    const original = window.prompt; window.prompt = () => '';   // sin nº de abono
+    window.__registrarCalculo();
+    window.prompt = original;
+    const c = window.E.memoria.cargos.mA;
+    return {marcaEnCalculadora, marcaGuardada:c.marca, gamasGuardadas:c.calculo && c.calculo.gamas};
+  });
+  dice(marcaViaja.marcaEnCalculadora === 'MDF',
+       'al abrir un cargo MDF desde la cola, la calculadora ya lo sabe', marcaViaja.marcaEnCalculadora);
+  dice(marcaViaja.marcaGuardada === 'MDF', 'la marca se conserva al registrar el cálculo');
+  dice(!!marcaViaja.gamasGuardadas && marcaViaja.gamasGuardadas[0].gama === 'LVF',
+       'el resumen de gamas queda guardado en el cálculo, no solo en pantalla',
+       JSON.stringify(marcaViaja.gamasGuardadas));
+
+  // ------------------------------------------------------------------
+  // La fecha del pedido se escribe siempre a mano (la fecha del cargo es
+  // siempre posterior, así que no hay de dónde leerla sola con fiabilidad).
+  console.log('\n=== 5m · Fecha del pedido, campo manual en la ficha ===');
+  const fechaPedido = await pagina.evaluate(() => {
+    window.E.memoria.cargos = {fp: {
+      cliente:'COVIRAN, S.COOP.', asignacion:'C/8001', importe:-10, fecha:'2026-08-05', ndoc:'',
+      moneda:'EUR', clave:'I', abono:'', fechaAbono:'', conforme:null, marcadoEnSap:false,
+      compensado:false, reclamado:false, fechaReclamacion:'', nota:'', clasificado:'',
+      calculo:null, enListado:true, pdfGuardado:false, cerrado:false, marca:'', fechaPedido:'',
+      estado:'pendiente'
+    }};
+    window.__pintarCola();
+    document.querySelector('tr[data-id="fp"] td').click();
+    document.querySelector('#xFechaPedido').value = '29/05/2026';
+    document.querySelector('#xGuardarFicha').click();
+    return window.E.memoria.cargos.fp.fechaPedido;
+  });
+  dice(fechaPedido === '29/05/2026', 'la fecha del pedido se guarda desde la ficha', fechaPedido);
+
+  const enLibroConGama = await pagina.evaluate(() => {
+    const fila = window.__hojasDelLibro()[0].filas[0];
+    return fila.map(c => (c && c.v) || c);
+  });
+  dice(enLibroConGama.includes('Fecha pedido'), 'la fecha del pedido sale en el Excel',
+       enLibroConGama.join(' · ').slice(0,100));
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {
@@ -752,7 +914,7 @@ for n in z.namelist():
     if 'worksheets/' in n:
         formulas += re.findall(r'<f>(.*?)</f>', z.read(n).decode())
 print(json.dumps({'hojas': wb.sheetnames, 'formulas': formulas,
-                  'cliente': wb['Cargos'].cell(row=2, column=3).value}))
+                  'cliente': wb['Cargos'].cell(row=2, column=4).value}))
 `], {encoding:'utf8'}));
     dice(r.hojas.length === 4, 'el libro se abre y tiene las cuatro hojas', r.hojas.join(', '));
     dice(r.formulas.length > 0, 'lleva los botones de abrir el PDF y escribir al comercial');

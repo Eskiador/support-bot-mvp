@@ -1065,3 +1065,109 @@ Probado exactamente en el orden descrito: listado nuevo con dos cargos
 trabajado (abono puesto, nota escrita) → los dos cargos del listado nuevo
 aparecen, y el trabajo del archivo (abono, nota) se conserva en el que coincide
 por cliente y asignación.
+
+## Gama y % de descuento no aplicado (solo MDF)
+
+Pablo, cuando un cargo de precio es no conforme, a veces tiene que detallarle
+al comercial en qué gama de producto se dejó de aplicar un descuento y en qué
+porcentaje, para reclamarlo con conocimiento. Las gamas conocidas:
+
+| Categoría | Códigos |
+|---|---|
+| Mermeladas | LVF (tradicional), LVZ (cero), LVN (natural), LV0 (0% azúcares añadidos), LFF (fusión), LVD (dietética), LVC (cocina selecta) |
+| Infusiones | INFU, LAXANTES (tisanas no llevan gama: es normal, no un error) |
+| Aceitunas | FRAGATA |
+
+**De dónde se lee.** Siempre de la descripción de **nuestra factura**, nunca
+del cargo: es el único documento con el mismo formato para todos los clientes,
+y muchos cargos ni traen descripción reconocible. El código se busca como
+palabra completa (con límites de palabra), sin distinguir mayúsculas ni
+acentos, así que «MERMELADA DE FRESAS LVF 800G» encuentra LVF sin confundirlo
+con LVZ o LVD.
+
+**La fórmula.** `% = (diferencia de la línea ÷ unidades) ÷ precio de SAP × 100`,
+siempre en positivo — es el número que se le dice al comercial, no importa la
+dirección. Se calcula en **todos los modos**, no solo en los que restan dos
+precios: se reutiliza `diferenciaDe()` (que ya da el total de la línea en
+cualquier modo) y se divide por las unidades reales para tener un precio por
+unidad comparable con el de SAP.
+
+**Solo en MDF.** La marca de distribuidor no tiene gamas propias, así que si
+el cargo no está marcado como MDF no se calcula ni se enseña nada de esto —
+ni columnas, ni resumen. Por eso la calculadora necesita saber la marca: se ha
+añadido un desplegable «Marca» en el paso 2 (Datos del cargo), que se rellena
+solo cuando el cargo se abre desde la cola (si ya la tenías puesta ahí) y se
+guarda de vuelta en la ficha al registrar el cálculo.
+
+**Dónde se ve.** Dos columnas nuevas en la tabla de salida («Gama» y «% no
+aplicado»), y un resumen agrupado por gama debajo, con la media de cada una y
+un botón para copiarlo tal cual y pasárselo al comercial. Si una línea de MDF
+no tiene gama reconocible (tisanas, agua, lo que sea fuera de catálogo), se
+avisa de cuántas son sin tratarlo como un fallo — con tisanas es lo esperado.
+El resumen queda guardado también en `c.calculo.gamas` al registrar, para
+poder consultarlo después desde la ficha sin tener que volver a calcular.
+
+### Un bug real que casi pasa desapercibido: dos elementos con el mismo id
+
+Al construir esto apareció que la cola ya tenía un filtro por marca
+(`<select id="fMarca">`, de la mejora anterior) y el campo nuevo de la
+calculadora se llamó igual. `document.querySelector('#fMarca')` con un id
+duplicado en el documento **siempre devuelve el primero** — en este caso, el
+filtro de la cola — así que todo el código de la calculadora leía y escribía
+sin darse cuenta sobre el desplegable equivocado.
+
+Lo grave es que las primeras pruebas **pasaron igual**, porque tanto la
+lectura como la escritura del valor caían sobre el mismo elemento erróneo
+dentro de una prueba aislada: parecía funcionar porque el error era
+consistente consigo mismo. Se destapó al encadenar dos pruebas seguidas: la
+segunda arrancaba con el filtro de la cola todavía en «MDF» de la prueba
+anterior, eso ocultaba de la tabla un cargo que la siguiente prueba necesitaba,
+y la fila no llegaba a pintarse.
+
+Arreglado renombrando el campo de la calculadora a `fMarcaCalc`. Queda como
+aviso: un `id` duplicado no da ningún error en la consola, y unas pruebas que
+solo miran «¿el resultado es el esperado?» sin aislar el estado entre ellas
+pueden dar el visto bueno a un fallo real.
+
+## Modo nuevo: «Totales de línea» (restar dos totales)
+
+Hasta ahora, cuando el cargo daba el precio correcto (no la diferencia ya
+calculada), solo se podía restar un precio **por unidad**. Pero a veces el
+cargo da directamente el **total** que debía facturarse para toda la línea, y
+lo que hay que restar es ese total contra el total que de verdad se facturó en
+SAP para esa misma línea — sin multiplicar por nada, porque los dos números ya
+son totales.
+
+Se reutiliza el mismo campo «Precio / total SAP» (antes solo servía para un
+precio por unidad): en este modo pasa a representar el total de SAP para la
+línea entera. `precioSapPorUnidad()` decide cómo interpretarlo según el modo,
+para que el % de gama —que siempre se mide por unidad— siga saliendo bien:
+divide ese total entre las unidades reales de la línea antes de compararlo con
+el precio de SAP de los demás modos.
+
+## Nombres de los modos, más explícitos
+
+A petición de Pablo: los nombres antiguos («Importe de línea», «Precio
+correcto por unidad») no dejaban claro qué se restaba de qué. Ahora todos los
+modos que restan dicen «SAP − cargo» en el propio nombre:
+
+| Antes | Ahora |
+|---|---|
+| Importe de línea | Diferencia de línea (el cargo ya la da) |
+| — (nuevo) | Totales de línea: SAP − cargo (restar) |
+| Precio correcto/ud | Precio SAP − cargo, por unidad (restar) |
+| Precio correcto/caja | Precio SAP − cargo, por caja (restar) |
+| Diferencia/ud | Diferencia por unidad (el cargo ya la da) |
+| Diferencia/caja | Diferencia por caja (el cargo ya la da) |
+
+Son claves internas (`importe`, `total_linea`, `precio_ud`...) que no cambian:
+solo el texto que se ve.
+
+## Fecha del pedido: siempre a mano
+
+Se planteó leerla sola del propio cargo (algunos, como Peninsulaco, la traen
+en su cabecera: «Nº pedido / Fecha pedido»), pero Pablo prefirió escribirla
+siempre él: la fecha del cargo es siempre posterior a la del pedido, así que
+no hay una regla fiable para deducirla sola en todos los formatos. Campo
+manual en la ficha, junto a Marca; sale también en el Excel y en la
+exportación a CSV.
