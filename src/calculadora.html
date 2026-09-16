@@ -1270,14 +1270,21 @@ const GAMAS = {
   // aceitunas
   FRAGATA: 'Fragata'
 };
-const RE_GAMA = new RegExp('\\b(' + Object.keys(GAMAS).join('|') + ')\\b', 'i');
+// El código sale abreviado distinto según de dónde se copie el texto: el PDF
+// de la propia factura escribe «FRAGATA» entero, pero lo que se pega tal
+// cual desde SAP trae «FRA». Se normalizan al código de siempre para que el
+// resumen no enseñe dos etiquetas distintas para la misma gama.
+const ALIAS_GAMA = { FRA: 'FRAGATA' };
+const RE_GAMA = new RegExp('\\b(' + Object.keys(GAMAS).concat(Object.keys(ALIAS_GAMA)).join('|') + ')\\b', 'i');
 
 // La gama se saca SIEMPRE de la descripción de nuestra factura: es el único
 // documento con el mismo formato para todos los clientes. La del cargo varía
 // demasiado según quién lo mande, y muchos ni traen descripción reconocible.
 function gamaDe(descFactura){
   const m = RE_GAMA.exec(norm(descFactura || ''));
-  return m ? m[1].toUpperCase() : null;
+  if(!m) return null;
+  const cod = m[1].toUpperCase();
+  return ALIAS_GAMA[cod] || cod;
 }
 
 // % de descuento no aplicado en esa línea: la diferencia por unidad de
@@ -4050,9 +4057,12 @@ function pintarPanelManual(){
   $('#camposFacturaManual').classList.toggle('oculto', !esFactura);
   $('#pistaManual').innerHTML = esFactura
     ? 'Una línea por artículo, con los campos separados por tabulador o por dos espacios '+
-      'o más (así queda al copiar del PDF o de Excel). El orden esperado es '+
-      '<b>posición · material · descripción · cantidad · precio</b>, y lo que falte se '+
-      'deduce: basta con que cada renglón acabe en la cantidad.'
+      'o más (así queda al copiar del PDF, de Excel o directamente de SAP). El orden '+
+      'esperado es <b>posición · material · descripción · cantidad · precio</b>, y lo '+
+      'que falte se deduce: basta con que cada renglón acabe en la cantidad. Si '+
+      'termina en cantidad e importe con la moneda detrás (como sale de SAP: '+
+      '<code>60&nbsp;&nbsp;UC&nbsp;&nbsp;122,59&nbsp;&nbsp;EUR</code>), ese número se '+
+      'entiende como el importe neto de la línea, no como un precio por unidad.'
     : 'Para cuando el PDF no se deja leer. Selecciona el texto en el PDF, cópialo y '+
       'pégalo aquí tal cual: una línea por artículo, con su número al final. '+
       'Vale también pegar desde Excel o teclearlo a mano.';
@@ -4066,7 +4076,13 @@ function pintarPanelManual(){
 /* Líneas de factura escritas o pegadas a mano. Se separa por tabuladores o por
    dos espacios o más, que es como queda al copiar de un PDF o de Excel. De los
    números del final se toman, en este orden, cantidad · precio · importe; lo de
-   delante es posición, material y descripción. */
+   delante es posición, material y descripción.
+
+   Lo que se copia y pega directamente de SAP no trae precio unitario, solo
+   cantidad e importe neto de la línea (con la moneda detrás, «60 UC 122,59
+   EUR»): con dos números al final y una moneda reconocida, el segundo se
+   entiende como importe, no como precio — si no hubiera moneda seguiría
+   leyéndose como precio, igual que al copiar de un PDF o de Excel. */
 function leerLineasFacturaManual(texto){
   const salida = [];
   const esNum = c => /\d/.test(c) && isFinite(num(c));
@@ -4075,9 +4091,10 @@ function leerLineasFacturaManual(texto){
     if(!l) return;
     let campos = l.split(/\t|\s{2,}/).map(s => s.trim()).filter(Boolean);
     if(campos.length < 2) campos = l.split(/\s+/);          // último recurso
-    let um = 'UC';
+    let um = 'UC', huboMoneda = false;
     campos = campos.filter(c => {
       if(/^(UC|CS|CJ|US|KG|UD)$/i.test(c)){ um = c.toUpperCase(); return false; }
+      if(/^(EUR|USD|GBP)$/i.test(c)){ huboMoneda = true; return false; }
       return true;
     });
     // números pegados al final
@@ -4087,8 +4104,9 @@ function leerLineasFacturaManual(texto){
     }
     if(!cola.length) return;
     const cantidad = cola[0];
-    const precio   = cola.length > 1 ? cola[1] : null;
-    const importe  = cola.length > 2 ? cola[2] : null;
+    let precio = null, importe = null;
+    if(huboMoneda && cola.length === 2){ importe = cola[1]; }
+    else { precio = cola.length > 1 ? cola[1] : null; importe = cola.length > 2 ? cola[2] : null; }
     if(!isFinite(cantidad) || cantidad <= 0) return;
 
     const delante = campos.slice(0, campos.length - cola.length);

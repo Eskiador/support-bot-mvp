@@ -1219,6 +1219,57 @@ forzando el ancho de su columna por encima de lo que ocupa el campo debajo;
 se resuelve dejando que las cabeceras hagan salto de línea en vez de
 imponer su propio ancho a la columna.
 
+## Por qué no se guardaba ninguna gama: el PDF no es de fiar para esto
+
+Pablo mandó un cálculo real donde la columna Gamas salía vacía. Mirando el
+PDF de su propia factura, la gama va en una **segunda línea de texto**,
+justo debajo del nombre del artículo:
+
+```
+60  2009446  8  MERMELADA HIGO
+                  FR 263 ML 280G
+                  LVF COCINA SELECTA        ← la gama está aquí
+```
+
+El lector del PDF agrupa el texto en filas por coordenada Y (`filasDePDF`), y
+solo construye una línea de factura con la fila que trae posición + material
++ cantidad + precio + importe juntos; esa segunda línea de texto, sin
+números, no encaja en ese patrón y se descarta entera. Por eso `gamaDe()`
+nunca llegaba a ver la palabra que dice la gama.
+
+Peor aún: en esa segunda línea, la gama no es un código suelto («LVD»,
+«LVC», «LVT»...) sino **«LVF» + una palabra** («LVF DIET», «LVF COCINA
+SELECTA», «LVF COMBINA CON TODO»). Aunque se leyera esa línea, con la lógica
+de antes se habría detectado «LVF» (Tradicional) en todas, antes de llegar a
+mirar la palabra que sigue.
+
+**La solución no fue arreglar el lector del PDF.** Pablo encontró que
+copiando y pegando el texto directamente desde SAP —selecciona las líneas
+de la factura en SAP y las pega tal cual— la gama sale ya como código
+suelto al principio de la descripción: «LVD MERM MELOC DIET», «LVC MERM
+HIGOS», «FRA MANZ REL ANCHO». Sin ambigüedad ninguna: son los mismos
+códigos que ya tenía el catálogo `GAMAS`, así que **no hizo falta añadir
+ninguno nuevo ni adivinar cómo se escribe cada uno** — solo arreglar el
+lector de «Pegar texto a mano» (que ya existía, para cuando el PDF no se
+deja leer) para que entendiera bien esta forma concreta de pegar:
+
+- Ese texto no trae precio por unidad, solo **cantidad e importe neto de la
+  línea**, con la moneda detrás («60 UC 122,59 EUR»). El lector antiguo
+  asumía que, con dos números al final, el segundo siempre era un precio
+  por unidad — aquí habría entendido 122,59 €/unidad, un disparate. Ahora,
+  si detecta un código de moneda (EUR/USD/GBP) al final de la línea, sabe
+  que ese número es el importe de toda la línea, no un precio.
+- «FRA» es como sale la gama de aceitunas al copiar de SAP; el PDF de la
+  factura la escribe entera, «FRAGATA». Se normalizan las dos al mismo
+  código con un pequeño diccionario de alias (`ALIAS_GAMA`), para que el
+  resumen no le enseñe al comercial dos etiquetas distintas para la misma
+  gama según de dónde se haya copiado el texto.
+
+El lector del PDF se deja como estaba: el cuadre de importes seguía
+funcionando bien con él (los números de cantidad/precio si estaban en la
+fila correcta), el problema era solo de las gamas, y ese problema ya no
+existe si la factura se pega en vez de arrastrarse.
+
 ## Modo noche
 
 Pablo pidió una «versión noche» del programa porque prefiere trabajar sobre

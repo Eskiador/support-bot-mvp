@@ -665,6 +665,11 @@ const dice = (bien, etiqueta, detalle='') => {
       ['COCINA SELECTA LVC 280G', 'LVC'], ['MERMELADA LVT COMBINA CON TODO 350G', 'LVT'],
       ['INFUSION MANZANILLA INFU 20 BOLSAS', 'INFU'],
       ['INFUSION LAXANTES 20 BOLSAS', 'LAXANTES'], ['ACEITUNA RELLENA ANCHOA FRAGATA 300G', 'FRAGATA'],
+      // «FRA» es como sale la gama de aceitunas al copiar y pegar directamente
+      // de SAP (el PDF de la propia factura la escribe entera, «FRAGATA»): se
+      // normaliza al mismo código para que el resumen no enseñe dos etiquetas
+      // distintas de la misma gama.
+      ['FRA MANZ REL ANCHO 18 12x350 G', 'FRAGATA'],
       ['TISANA RELAX 20 BOLSAS', null], ['AGUA MINERAL 1,5L', null]
     ];
     const detectadas = casos.map(([d, esperado]) => [d, window.__gamaDe(d), esperado]);
@@ -713,6 +718,29 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(/LVF \(Tradicional\): 10,00 %/.test(gamas.resumenTexto), 'el resumen agrupa por gama con su nombre');
   dice(/1 línea\(s\) sin gama/.test(gamas.resumenTexto), 'el resumen avisa de las líneas sin gama, sin tratarlo como error');
   dice(gamas.botonVisible, 'aparece el botón de copiar el resumen');
+
+  // ------------------------------------------------------------------
+  // Pablo encontró que copiando y pegando directamente desde SAP (en vez de
+  // arrastrar el PDF de la factura) la gama sale como código suelto al
+  // principio de la descripción («LVD MERM MELOC DIET»), sin adivinar nada.
+  // Ese texto no trae precio por unidad, solo cantidad e importe neto de la
+  // línea con la moneda detrás — hay que leerlo como importe, no como precio.
+  console.log('\n=== 5j-bis · Pegar la factura tal cual sale de SAP ===');
+  const pegadoSap = await pagina.evaluate(() => {
+    const texto = '10\t2012880\tFRA MANZ REL ANCHO 18 12x350 G\t60\tUC\t122,59 \tEUR\n'+
+                  '40\t2009398\tLVD MERM MELOC DIET 8x263ML\t56\tUC\t127,61 \tEUR';
+    const lineas = window.leerLineasFacturaManual(texto);
+    return lineas.map(l => ({pos:l.pos, material:l.material, desc:l.desc, cantidad:l.cantidad,
+      um:l.um, precio:l.precio, importe:l.importe, gama:window.__gamaDe(l.desc)}));
+  });
+  const [p1, p2] = pegadoSap;
+  dice(p1 && p1.desc === 'FRA MANZ REL ANCHO 18 12x350 G' && p1.cantidad === 60,
+       'la descripción y la cantidad se leen bien de la línea pegada', JSON.stringify(p1));
+  dice(p1 && p1.precio === null && p1.importe === 122.59,
+       'con la moneda detrás, el número se entiende como importe, no como precio', JSON.stringify(p1));
+  dice(p1 && p1.gama === 'FRAGATA', 'la gama «FRA» de esa línea se detecta como Fragata', JSON.stringify(p1));
+  dice(p2 && p2.gama === 'LVD' && p2.importe === 127.61,
+       'segunda línea: gama LVD e importe correctos', JSON.stringify(p2));
 
   // ------------------------------------------------------------------
   // Modo nuevo: cuando el cargo da el TOTAL de la línea (no un precio por
