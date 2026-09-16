@@ -1179,6 +1179,46 @@ ninguna regla que lo deduzca de otro documento, porque cada cliente lo
 expresa a su manera (o no lo trae). Sale al lado de «Fecha del pedido», y
 también en el Excel y en la exportación a CSV.
 
+## Cada pestaña con su propio scroll
+
+Las tres pestañas (Cola de cargos, Calculadora, Comerciales) son tres `<div>`
+que se muestran u ocultan con `display:none`; la página nunca ha tenido un
+contenedor de scroll por pestaña, sino uno solo, el de la ventana. Subir o
+bajar en una pestaña movía ese único scroll, y al cambiar a otra —que
+comparte el mismo scroll de ventana— aparecía en ese mismo punto, como si se
+hubiera movido sola. `cambiarVista()` ahora guarda el `scrollY` de la
+pestaña que se abandona en un objeto en memoria (`scrollPorVista`, por
+nombre de vista) y restaura el de la que se abre, con 0 la primera vez que
+se visita. No hace falta guardarlo en el archivo de datos: es una posición
+de pantalla de esta sesión, no un dato del trabajo.
+
+## «Marcar todas» no marcaba las líneas sin emparejar
+
+El botón solo ponía `afectada = true` en las líneas que ya tenían una línea
+del cargo asignada automáticamente (`cargoIdx >= 0`). Si el emparejado
+automático fallaba para una línea —descripciones que no se parecen lo
+bastante— el botón no la tocaba, aunque esa línea tuviera un valor tecleado
+a mano en «Dato del cargo» con el que el cálculo funciona igual de bien sin
+necesidad de una línea del cargo asignada (`datoCargo()` mira primero
+`fila.manual`). «Marcar todas» ahora marca literalmente todas, que es lo que
+dice el botón; «Desmarcar todas» ya lo hacía bien, sin esa condición.
+
+## La tabla de líneas y diferencias, sin scroll horizontal
+
+Doce columnas, dos de ellas desplegables con texto largo («Línea del cargo»,
+con la descripción de cada línea del cargo; «Modo», con etiquetas del tipo
+«Precio SAP − cargo, por unidad (restar)»), hacían que la tabla se saliera
+de una pantalla normal — para ver la columna «Diferencia» había que deslizar
+de lado. Iguala el tratamiento que ya tenía la cola de cargos (que sí cabía
+en pantalla con sus catorce columnas): tipo más pequeño, menos relleno, y un
+ancho máximo en los dos desplegables y en la descripción (con el texto
+completo disponible al pasar el ratón o al desplegar, nunca se pierde
+información, solo se deja de ver entera de un vistazo). Quedaba un sobrante
+de 10 px por las cabeceras largas («Precio / total SAP», «Dato del cargo»)
+forzando el ancho de su columna por encima de lo que ocupa el campo debajo;
+se resuelve dejando que las cabeceras hagan salto de línea en vez de
+imponer su propio ancho a la columna.
+
 ## Modo noche
 
 Pablo pidió una «versión noche» del programa porque prefiere trabajar sobre

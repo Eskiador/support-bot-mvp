@@ -844,6 +844,69 @@ const dice = (bien, etiqueta, detalle='') => {
        enLibroConPedidoCliente.join(' · ').slice(0,100));
 
   // ------------------------------------------------------------------
+  // Las tres pestañas comparten el scroll de la ventana (solo una está
+  // visible a la vez): subir o bajar en una se notaba también al volver a
+  // otra. Cada pestaña debe recordar su propio punto de scroll.
+  console.log('\n=== 5o · Cada pestaña con su propio scroll ===');
+  const scrolls = await pagina.evaluate(() => {
+    window.cambiarVista('cargos');
+    window.scrollTo(0, 300);
+    const cola300 = window.scrollY;
+    window.cambiarVista('calc');
+    const calcAlEntrar = window.scrollY;
+    window.cambiarVista('cargos');
+    const colaAlVolver = window.scrollY;
+    return {cola300, calcAlEntrar, colaAlVolver};
+  });
+  dice(scrolls.calcAlEntrar === 0, 'al cambiar de pestaña no arrastra el scroll de la anterior',
+       JSON.stringify(scrolls));
+  dice(scrolls.colaAlVolver === scrolls.cola300, 'al volver a una pestaña recupera su propio scroll',
+       JSON.stringify(scrolls));
+
+  // ------------------------------------------------------------------
+  // «Marcar todas» debía marcar solo las líneas ya emparejadas con una línea
+  // del cargo, así que en cuanto el emparejado automático fallaba (o el
+  // cargo aún no estaba cargado) el botón no marcaba nada, aunque las líneas
+  // tuvieran un valor tecleado a mano con el que sí se puede calcular.
+  console.log('\n=== 5p · «Marcar todas» marca también las líneas sin emparejar ===');
+  const marcadas = await pagina.evaluate(() => {
+    window.cambiarVista('calc');
+    window.E.filas = [
+      {fac:{pos:10, material:'1', desc:'SIN EMPAREJAR 1', cantidad:10, um:'UC', udsCaja:null, precio:1},
+       cargoIdx:-1, afectada:false, modo:'importe', manual:'5', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:null},
+      {fac:{pos:20, material:'2', desc:'SIN EMPAREJAR 2', cantidad:20, um:'UC', udsCaja:null, precio:1},
+       cargoIdx:-1, afectada:false, modo:'importe', manual:'7', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:null}
+    ];
+    window.pintarLineas();
+    document.querySelector('#btnTodas').click();
+    return window.E.filas.map(f => f.afectada);
+  });
+  dice(marcadas.every(Boolean), '«Marcar todas» marca hasta las líneas sin línea del cargo asignada',
+       JSON.stringify(marcadas));
+
+  // ------------------------------------------------------------------
+  // La tabla de líneas tenía doce columnas sin acotar (dos desplegables con
+  // texto largo, entre ellas) y se salía de una pantalla normal: había que
+  // deslizar de lado para ver la diferencia calculada.
+  console.log('\n=== 5q · La tabla de líneas cabe sin deslizar de lado ===');
+  const anchoTabla = await pagina.evaluate(() => {
+    window.cambiarVista('calc');
+    window.E.filas = [
+      {fac:{pos:10, material:'2007482', desc:'MERMELADA DE FRESAS LVF TRADICIONAL 800G',
+            cantidad:100, um:'UC', udsCaja:12, precio:2.5},
+       cargoIdx:-1, afectada:true, modo:'precio_ud', manual:null, objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:'2.2'}
+    ];
+    window.pintarLineas();
+    const env = document.querySelector('#tablaLineas').closest('.tablaenv');
+    return {cliente: env.clientWidth, scroll: env.scrollWidth};
+  });
+  dice(anchoTabla.scroll <= anchoTabla.cliente, 'la tabla de líneas no necesita scroll horizontal',
+       JSON.stringify(anchoTabla));
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {

@@ -94,6 +94,18 @@ tr.aviso td{background:var(--ambar-claro)}
 tr.ajustada td{background:var(--azul-claro)}
 td .desc{max-width:190px;overflow:hidden;text-overflow:ellipsis;display:block;white-space:nowrap}
 
+/* Líneas y diferencias: doce columnas, dos de ellas desplegables con texto
+   largo (Línea del cargo, Modo). Sin acotarlas la tabla se sale de pantalla
+   y hay que deslizar de lado a lado para ver el resto. Igual que la cola de
+   cargos, se aprieta el tipo y se limita el ancho de lo que puede recortarse
+   sin perder información: el texto completo sigue ahí, en el despliegue y
+   en el title. */
+#tablaLineas th,#tablaLineas td,#tablaSalida th,#tablaSalida td{padding:6px 7px;font-size:12.5px}
+#tablaLineas th,#tablaSalida th{white-space:normal;line-height:1.25}
+#tablaLineas td .desc{max-width:130px}
+#tablaLineas .selCargo{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+#tablaLineas .selModo{max-width:140px;overflow:hidden;text-overflow:ellipsis}
+
 /* ---------- resultado ---------- */
 .marcador{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:1px;background:var(--line)}
 @media(max-width:820px){.marcador{grid-template-columns:1fr 1fr}}
@@ -90502,8 +90514,9 @@ function pintarLineas(){
             title="${fila.modo==='total_linea' ? 'Total facturado en SAP para TODA la línea, no por unidad.' : 'Precio neto por unidad.'}"
             placeholder="${necesitaPrecioSap(fila.modo) ? (fila.modo==='total_linea' ? 'total línea' : 'teclea') : '—'}"
             ${necesitaPrecioSap(fila.modo) ? '' : 'disabled'}></td>
-      <td><select data-i="${i}" class="selCargo">${opciones.join('')}</select></td>
-      <td><select data-i="${i}" class="selModo">${Object.entries(MODOS).map(([k,v])=>
+      <td><select data-i="${i}" class="selCargo" title="${esc(opciones.length>1 && fila.cargoIdx>=0
+            ? (E.cargo.lineas[fila.cargoIdx].desc||'') : '')}">${opciones.join('')}</select></td>
+      <td><select data-i="${i}" class="selModo" title="${esc(etiquetaModo(fila.modo))}">${Object.entries(MODOS).map(([k,v])=>
             `<option value="${k}" ${fila.modo===k?'selected':''}>${v}</option>`).join('')}</select></td>
       <td class="n"><input class="num datoMan" data-i="${i}" style="width:92px"
             title="${esc(origenDelDato(fila))}"
@@ -91222,7 +91235,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
       .map(v=>[v.cliente, v.marca || 'todo el cliente', v.nombre, v.correo, v.notas]));
 
   $('#btnRegistrar').onclick = registrarCalculo;
-  $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ if(f.cargoIdx>=0) f.afectada=true; });
+  $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ f.afectada=true; });
     limpiarAjuste(); refrescar(); };
   $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); limpiarAjuste(); refrescar(); };
   $('#btnAplicarModo').onclick = ()=>{ const m=$('#fModo').value;
@@ -92877,7 +92890,14 @@ function registrarCalculo(){
 }
 
 /* ------------------------------------------------ pestañas */
+// Las tres vistas comparten el scroll de la ventana (solo una está visible a
+// la vez), así que subir o bajar en una se notaba también al volver a otra:
+// parecía que las pestañas «se movían solas». Cada una recuerda su propio
+// punto de scroll y se restaura al volver a ella.
+const scrollPorVista = {};
 function cambiarVista(v){
+  const anterior = $('.pest.activa')?.dataset.vista;
+  if(anterior) scrollPorVista[anterior] = window.scrollY;
   $$('.pest').forEach(b=>b.classList.toggle('activa', b.dataset.vista === v));
   $('#vistaCargos').classList.toggle('oculto', v !== 'cargos');
   $('#vistaCalc').classList.toggle('oculto', v !== 'calc');
@@ -92885,6 +92905,7 @@ function cambiarVista(v){
   if(v === 'cargos') pintarCola();
   if(v === 'comerciales') pintarComerciales();
   if(v === 'calc') pintarEnlaceCargo();
+  window.scrollTo(0, scrollPorVista[v] || 0);
 }
 
 /* Ganchos para las pruebas automáticas y para depurar desde la consola. */
