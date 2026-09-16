@@ -815,6 +815,34 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(enLibroConGama.includes('Fecha pedido'), 'la fecha del pedido sale en el Excel',
        enLibroConGama.join(' · ').slice(0,100));
 
+  // El nº de pedido del cliente, igual que la fecha del pedido: campo manual
+  // en la ficha, sin ninguna regla que lo deduzca de otro documento.
+  console.log('\n=== 5n · Nº de pedido de cliente, campo manual en la ficha ===');
+  const pedidoCliente = await pagina.evaluate(() => {
+    window.E.memoria.cargos = {pc: {
+      cliente:'COVIRAN, S.COOP.', asignacion:'C/8002', importe:-10, fecha:'2026-08-05', ndoc:'',
+      moneda:'EUR', clave:'I', abono:'', fechaAbono:'', conforme:null, marcadoEnSap:false,
+      compensado:false, reclamado:false, fechaReclamacion:'', nota:'', clasificado:'',
+      calculo:null, enListado:true, pdfGuardado:false, cerrado:false, marca:'', fechaPedido:'',
+      pedidoCliente:'', estado:'pendiente'
+    }};
+    window.__pintarCola();
+    document.querySelector('tr[data-id="pc"] td').click();
+    document.querySelector('#xPedidoCliente').value = 'PC-2026-4471';
+    document.querySelector('#xGuardarFicha').click();
+    return window.E.memoria.cargos.pc.pedidoCliente;
+  });
+  dice(pedidoCliente === 'PC-2026-4471', 'el nº de pedido de cliente se guarda desde la ficha',
+       pedidoCliente);
+
+  const enLibroConPedidoCliente = await pagina.evaluate(() => {
+    const fila = window.__hojasDelLibro()[0].filas[0];
+    return fila.map(c => (c && c.v) || c);
+  });
+  dice(enLibroConPedidoCliente.includes('Nº pedido de cliente'),
+       'el nº de pedido de cliente sale en el Excel',
+       enLibroConPedidoCliente.join(' · ').slice(0,100));
+
   // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
@@ -915,7 +943,7 @@ for n in z.namelist():
     if 'worksheets/' in n:
         formulas += re.findall(r'<f>(.*?)</f>', z.read(n).decode())
 print(json.dumps({'hojas': wb.sheetnames, 'formulas': formulas,
-                  'cliente': wb['Cargos'].cell(row=2, column=4).value}))
+                  'cliente': wb['Cargos'].cell(row=2, column=5).value}))
 `], {encoding:'utf8'}));
     dice(r.hojas.length === 4, 'el libro se abre y tiene las cuatro hojas', r.hojas.join(', '));
     dice(r.formulas.length > 0, 'lleva los botones de abrir el PDF y escribir al comercial');

@@ -1172,6 +1172,13 @@ no hay una regla fiable para deducirla sola en todos los formatos. Campo
 manual en la ficha, junto a Marca; sale también en el Excel y en la
 exportación a CSV.
 
+## Nº de pedido de cliente
+
+Mismo mecanismo que la fecha del pedido: campo manual en la ficha, sin
+ninguna regla que lo deduzca de otro documento, porque cada cliente lo
+expresa a su manera (o no lo trae). Sale al lado de «Fecha del pedido», y
+también en el Excel y en la exportación a CSV.
+
 ## Modo noche
 
 Pablo pidió una «versión noche» del programa porque prefiere trabajar sobre
