@@ -1323,3 +1323,16 @@ cliente», y «Pegar la factura a mano…» pegado del todo a la derecha, bajo
 su extremo en vez de los dos apretados al lado de su zona. El desplegable
 se deja donde estaba por si hay que cambiar de modo una vez abierto el
 panel, pero ya no hace falta tocarlo lo normal: entrar y pegar.
+
+## Orden de columnas del Excel, pensado para el comercial
+
+La hoja Cargos había ido creciendo columna a columna, cada una añadida al
+final de la anterior según se iba necesitando — sin pensar en qué orden
+le conviene a quien la lee, casi siempre un comercial buscando datos de un
+cargo concreto. Pablo pidió fijar las doce primeras en el orden en que las
+necesita: Fecha, Cliente, Asignación, Importe, Fecha pedido, Nº pedido de
+cliente, Nº abono, Marca, Clasificación, Conforme, Gamas, Nota. El resto
+—Días, Nº documento, Estado, Fecha abono, Marcado en SAP, Compensado,
+Reclamado, Comercial, Abrir el cargo, Nombre del PDF— sigue detrás, en el
+orden que ya tenía: son columnas que usa sobre todo la propia herramienta,
+no algo que el comercial necesite mirar primero.

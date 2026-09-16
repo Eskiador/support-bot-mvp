@@ -871,6 +871,19 @@ const dice = (bien, etiqueta, detalle='') => {
        'el nº de pedido de cliente sale en el Excel',
        enLibroConPedidoCliente.join(' · ').slice(0,100));
 
+  // Orden de columnas pedido por Pablo para que el comercial vea antes lo
+  // que le hace falta: lo demás (Días, Estado, Fecha abono...) va detrás,
+  // en cualquier orden — solo se fija el orden de las doce primeras.
+  console.log('\n=== 5n-bis · Orden de columnas del Excel, pensado para el comercial ===');
+  const cabecerasCargos = await pagina.evaluate(() =>
+    window.__hojasDelLibro()[0].filas[0].map(c => (c && c.v) || c));
+  const primerasDoce = [
+    'Fecha','Cliente','Asignación','Importe','Fecha pedido','Nº pedido de cliente',
+    'Nº abono','Marca','Clasificación','Conforme','Gamas','Nota'
+  ];
+  dice(JSON.stringify(cabecerasCargos.slice(0,12)) === JSON.stringify(primerasDoce),
+       'las doce primeras columnas van en el orden pedido', cabecerasCargos.slice(0,12).join(' · '));
+
   // ------------------------------------------------------------------
   // Las tres pestañas comparten el scroll de la ventana (solo una está
   // visible a la vez): subir o bajar en una se notaba también al volver a
@@ -1056,7 +1069,7 @@ for n in z.namelist():
     if 'worksheets/' in n:
         formulas += re.findall(r'<f>(.*?)</f>', z.read(n).decode())
 print(json.dumps({'hojas': wb.sheetnames, 'formulas': formulas,
-                  'cliente': wb['Cargos'].cell(row=2, column=5).value}))
+                  'cliente': wb['Cargos'].cell(row=2, column=2).value}))
 `], {encoding:'utf8'}));
     dice(r.hojas.length === 4, 'el libro se abre y tiene las cuatro hojas', r.hojas.join(', '));
     dice(r.formulas.length > 0, 'lleva los botones de abrir el PDF y escribir al comercial');

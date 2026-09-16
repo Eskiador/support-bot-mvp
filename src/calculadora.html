@@ -3708,11 +3708,16 @@ function hojasDelLibro(){
   lista.forEach(recalcularEstado);
   lista.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
 
+  // Orden pensado para el comercial: lo que necesita mirar primero, delante;
+  // el resto —lo que usa sobre todo la propia herramienta— va después, en
+  // cualquier orden.
   const cargos = [[
-    CAB('Fecha'), CAB('Fecha pedido'), CAB('Nº pedido de cliente'), CAB('Días'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
-    CAB('Nº documento'), CAB('Estado'), CAB('Marca'), CAB('Clasificación'), CAB('Nº abono'),
-    CAB('Fecha abono'), CAB('Conforme'), CAB('Marcado en SAP'), CAB('Compensado'),
-    CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Gamas'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
+    CAB('Fecha'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
+    CAB('Fecha pedido'), CAB('Nº pedido de cliente'), CAB('Nº abono'), CAB('Marca'),
+    CAB('Clasificación'), CAB('Conforme'), CAB('Gamas'), CAB('Nota'),
+    CAB('Días'), CAB('Nº documento'), CAB('Estado'), CAB('Fecha abono'),
+    CAB('Marcado en SAP'), CAB('Compensado'), CAB('Reclamado'), CAB('Comercial'),
+    CAB('Abrir el cargo'), CAB('Nombre del PDF')
   ]];
   for(const c of lista){
     const com = comercialDe(c.cliente, c.marca);
@@ -3721,15 +3726,15 @@ function hojasDelLibro(){
       .map(g => `${g.gama} (${GAMAS[g.gama] || g.gama}): ${nf.format(g.media)}%`)
       .join('; ') || '';
     cargos.push([
-      fechaCorta(c.fecha), c.fechaPedido||'', c.pedidoCliente||'', diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
-      {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.marca||'', c.clasificado||'',
-      c.abono||'', c.fechaAbono ? fechaCorta(c.fechaAbono) : '',
-      c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'NO conforme'),
+      fechaCorta(c.fecha), c.cliente, c.asignacion, {v:+c.importe||0, s:2},
+      c.fechaPedido||'', c.pedidoCliente||'', c.abono||'', c.marca||'',
+      c.clasificado||'', c.conforme === null ? '' : (c.conforme ? 'Conforme' : 'NO conforme'),
+      gamasStr, c.nota||'',
+      diasDesde(c.fecha) ?? '', c.ndoc, ESTADOS[c.estado].et,
+      c.fechaAbono ? fechaCorta(c.fechaAbono) : '',
       c.marcadoEnSap?'Sí':'No', c.compensado?'Sí':'No',
       c.conforme === false ? (c.reclamado?'Sí':'PENDIENTE') : '',
       com ? (com.nombre || com.correo || '') : '',
-      c.nota||'',
-      gamasStr,
       ruta ? ENL('file:///'+ruta.replace(/\\/g,'/'), 'Abrir PDF') : '',
       (buscarDoc(c)||{}).nombre || ''
     ]);
@@ -3774,7 +3779,7 @@ function hojasDelLibro(){
   }
 
   return [
-    {nombre:'Cargos', filas:cargos, anchos:[11,12,18,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,30,13,30]},
+    {nombre:'Cargos', filas:cargos, anchos:[11,30,18,13,12,18,13,8,13,13,30,34,7,13,12,12,15,13,12,20,13,30]},
     {nombre:'Comerciales', filas:comerciales, anchos:[32,15,24,30,26,9,12]},
     {nombre:'Calculadora', filas:calc, anchos:[82]},
     {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
