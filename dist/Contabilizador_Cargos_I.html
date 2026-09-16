@@ -92623,11 +92623,14 @@ function hojasDelLibro(){
     CAB('Fecha'), CAB('Fecha pedido'), CAB('Días'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'),
     CAB('Nº documento'), CAB('Estado'), CAB('Marca'), CAB('Clasificación'), CAB('Nº abono'),
     CAB('Fecha abono'), CAB('Conforme'), CAB('Marcado en SAP'), CAB('Compensado'),
-    CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
+    CAB('Reclamado'), CAB('Comercial'), CAB('Nota'), CAB('Gamas'), CAB('Abrir el cargo'), CAB('Nombre del PDF')
   ]];
   for(const c of lista){
     const com = comercialDe(c.cliente, c.marca);
     const ruta = rutaCompleta(c);
+    const gamasStr = (c.calculo?.gamas || [])
+      .map(g => `${g.gama} (${GAMAS[g.gama] || g.gama}): ${nf.format(g.media)}%`)
+      .join('; ') || '';
     cargos.push([
       fechaCorta(c.fecha), c.fechaPedido||'', diasDesde(c.fecha) ?? '', c.cliente, c.asignacion,
       {v:+c.importe||0, s:2}, c.ndoc, ESTADOS[c.estado].et, c.marca||'', c.clasificado||'',
@@ -92637,6 +92640,7 @@ function hojasDelLibro(){
       c.conforme === false ? (c.reclamado?'Sí':'PENDIENTE') : '',
       com ? (com.nombre || com.correo || '') : '',
       c.nota||'',
+      gamasStr,
       ruta ? ENL('file:///'+ruta.replace(/\\/g,'/'), 'Abrir PDF') : '',
       (buscarDoc(c)||{}).nombre || ''
     ]);
@@ -92681,7 +92685,7 @@ function hojasDelLibro(){
   }
 
   return [
-    {nombre:'Cargos', filas:cargos, anchos:[11,12,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,13,30]},
+    {nombre:'Cargos', filas:cargos, anchos:[11,12,7,30,18,13,13,12,8,13,13,12,13,15,13,12,20,34,30,13,30]},
     {nombre:'Comerciales', filas:comerciales, anchos:[32,15,24,30,26,9,12]},
     {nombre:'Calculadora', filas:calc, anchos:[82]},
     {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
