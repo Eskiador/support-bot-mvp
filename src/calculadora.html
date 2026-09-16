@@ -393,9 +393,13 @@ try{
           <p>Arrastra aquí el PDF de la factura<br>o haz clic para elegirlo</p>
         </div>
       </div>
+      <div class="barra">
+        <button id="btnPegarCargo">Pegar el cargo a mano…</button>
+        <div class="crece"></div>
+        <button id="btnPegarFactura">Pegar la factura a mano…</button>
+      </div>
       <input type="file" id="selArchivo" accept=".pdf,.xps,.oxps" class="oculto">
       <div class="barra">
-        <button id="btnPegar">Pegar texto a mano…</button>
         <button id="btnEjemplo" class="oculto">Cargar caso de ejemplo</button>
         <span id="estadoLectura" class="chip oculto"></span>
       </div>
@@ -2331,7 +2335,8 @@ window.addEventListener('pdfjs-listo', async ()=>{
     $('#mTexto').focus();
     $('#secManual').scrollIntoView({behavior:'smooth', block:'start'});
   };
-  $('#btnPegar').onclick = ()=>abrirManual();
+  $('#btnPegarCargo').onclick = ()=>abrirManual('cargo');
+  $('#btnPegarFactura').onclick = ()=>abrirManual('factura');
   $('#btnCerrarManual').onclick = ()=>$('#secManual').classList.add('oculto');
   $('#btnUsarManual').onclick = ()=>
     ($('#mQue').value === 'factura' ? usarLineasFacturaManual() : usarLineasManuales());

@@ -1309,3 +1309,17 @@ pedido.
 ordenador y este navegador, no un dato del trabajo, así que no tiene que
 viajar en el JSON ni en el Excel. Vuelve a arrancar en el mismo modo la
 próxima vez que se abra el HTML, sin volver a tocar el botón.
+
+## Un botón de pegar por cada zona, no un desplegable
+
+Con el pegado desde SAP como forma habitual de meter la factura, elegir
+«cargo» o «factura» en un desplegable antes de escribir se había quedado
+en un paso de más, en cada cargo. El botón único «Pegar texto a mano…» se
+sustituye por dos, cada uno abriendo el panel ya en el modo que toca, sin
+preguntar: «Pegar el cargo a mano…» a la izquierda, bajo «Cargo del
+cliente», y «Pegar la factura a mano…» pegado del todo a la derecha, bajo
+«Factura original» — con un espaciador entre los dos (la misma pieza
+`.crece` que ya separaba otros pares de botones) para que cada uno quede en
+su extremo en vez de los dos apretados al lado de su zona. El desplegable
+se deja donde estaba por si hay que cambiar de modo una vez abierto el
+panel, pero ya no hace falta tocarlo lo normal: entrar y pegar.

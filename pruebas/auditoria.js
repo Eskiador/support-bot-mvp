@@ -1004,6 +1004,28 @@ const dice = (bien, etiqueta, detalle='') => {
        segundaHoja.error || `${segundaHoja.leidos} cargo(s), ${segundaHoja.cliente}`);
 
   // ------------------------------------------------------------------
+  // Antes había un solo botón «Pegar texto a mano…» y había que elegir en un
+  // desplegable si era el cargo o la factura; ahora hay un botón junto a
+  // cada zona de arrastre que abre directamente en el modo que toca, sin esa
+  // pregunta de más.
+  console.log('\n=== 8b · Un botón de pegar por cada zona, sin tener que elegir ===');
+  const botonesPegar = await pagina.evaluate(() => {
+    document.querySelector('#btnPegarCargo').click();
+    const trasCargo = {modo: document.querySelector('#mQue').value,
+                        titulo: document.querySelector('#tituloManual').textContent};
+    document.querySelector('#btnCerrarManual').click();
+    document.querySelector('#btnPegarFactura').click();
+    const trasFactura = {modo: document.querySelector('#mQue').value,
+                          titulo: document.querySelector('#tituloManual').textContent};
+    document.querySelector('#btnCerrarManual').click();
+    return {trasCargo, trasFactura};
+  });
+  dice(botonesPegar.trasCargo.modo === 'cargo' && /cargo a mano/i.test(botonesPegar.trasCargo.titulo),
+       'el botón de la zona del cargo abre directamente en modo cargo', JSON.stringify(botonesPegar.trasCargo));
+  dice(botonesPegar.trasFactura.modo === 'factura' && /factura a mano/i.test(botonesPegar.trasFactura.titulo),
+       'el botón de la zona de la factura abre directamente en modo factura', JSON.stringify(botonesPegar.trasFactura));
+
+  // ------------------------------------------------------------------
   console.log('\n=== 9 · Lo que queda tras «Vaciar y empezar otro cargo» ===');
   const restos = await pagina.evaluate(() => {
     document.querySelector('#mNumFactura').value = '90224478';
