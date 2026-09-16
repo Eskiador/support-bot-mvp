@@ -480,7 +480,7 @@ try{
           </select>
         </div>
         <div class="campo"><label>Marca</label>
-          <select id="fMarcaCalc" title="Solo en MDF se detecta la gama y el % de descuento no aplicado">
+          <select id="fMarcaCalc" title="La gama y el % de descuento no aplicado se detectan igual, la marques ya o no">
             <option value="">— sin decidir —</option>
             <option value="MDD">MDD · marca de distribuidor</option>
             <option value="MDF">MDF · marca de fabricante</option>
@@ -534,7 +534,7 @@ try{
             <th class="n" title="Neto que devuelve SAP al meter el ZNET de prueba con esta misma base. Rellénalo y el ZNET sale exacto.">Neto de la prueba</th>
             <th class="n">ZNET</th><th>por</th><th class="n">Importe que dará SAP</th>
             <th class="n">Objetivo</th><th class="n">Desvío</th>
-            <th title="Solo en MDF: la gama detectada en la descripción de nuestra factura">Gama</th>
+            <th title="La gama detectada en la descripción de nuestra factura (normal que no salga en tisanas u otros artículos sin gama)">Gama</th>
             <th class="n" title="Diferencia de la línea entre el precio de SAP, respecto al precio correcto que dice el cargo">% no aplicado</th>
           </tr></thead>
           <tbody></tbody>
@@ -90197,12 +90197,14 @@ function precioSapPorUnidad(fila){
 }
 
 /* ==================================================================
-   5b · GAMA Y % DE DESCUENTO NO APLICADO (solo cargos MDF)
+   5b · GAMA Y % DE DESCUENTO NO APLICADO
    Cuando un cargo de precio es no conforme, a veces hay que detallarle al
    comercial qué gama de producto lleva el descuento que no se aplicó, y en
    qué % — la marca propia (MDF) tiene un catálogo de gamas con su propio
    código dentro de la descripción; la marca del distribuidor (MDD) no, así
-   que esto no se calcula ahí.
+   que en la práctica esto solo sale en cargos MDF. No hace falta marcar la
+   Marca del cargo para que se calcule: la gama se detecta sola en la
+   descripción, marques ya el cargo o lo marques después de calcular.
    ================================================================== */
 const GAMAS = {
   // mermeladas
@@ -90233,8 +90235,12 @@ function gamaDe(descFactura){
 // % de descuento no aplicado en esa línea: la diferencia por unidad de
 // consumo, sobre el precio de SAP (también por unidad). Siempre en positivo —
 // es el número que se le dice al comercial, no importa la dirección.
+// No depende de la Marca del cargo: la gama ya viene de la propia
+// descripción de la factura (gamaDe), así que si se detecta una gama es
+// que el artículo es de fabricación propia, la hayas marcado ya como MDF
+// o todavía no — a veces se marca después de calcular, y no tiene sentido
+// perder el dato mientras tanto.
 function pctGamaDe(fila, objetivoLinea){
-  if($('#fMarcaCalc').value !== 'MDF') return NaN;
   const pUnit = precioSapPorUnidad(fila);
   const uds = unidadesReales(fila.fac);
   if(!isFinite(pUnit) || pUnit <= 0 || !isFinite(uds) || uds <= 0 || !isFinite(objetivoLinea))
@@ -90245,8 +90251,7 @@ function pctGamaDe(fila, objetivoLinea){
 
 // Agrupa las líneas ya calculadas por gama y saca la media del % de cada una.
 // Se usa tanto para pintarlo en pantalla como para guardarlo al registrar.
-function resumenGamas(salida, esMDF){
-  if(!esMDF) return {filas:[], sinGama:[]};
+function resumenGamas(salida){
   const conGama = salida.filter(s => s.gama && isFinite(s.pct));
   const sinGama = salida.filter(s => !s.gama);
   const porGama = {};
@@ -90730,10 +90735,13 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = 
   });
 
   // --- resumen por gama, para pasárselo rápido al comercial ---
+  // No depende de la Marca: se enseña en cuanto hay alguna línea con gama
+  // detectada, se haya marcado ya el cargo como MDF o no (a veces se marca
+  // después de calcular, y la información es la misma).
   const cajaGamas = $('#resumenGamas'), btnCopiarGamas = $('#btnCopiarGamas');
-  const esMDF = $('#fMarcaCalc').value === 'MDF';
-  const {filas: filasGama, sinGama} = resumenGamas(salida, esMDF);
-  if(esMDF && (filasGama.length || sinGama.length)){
+  const {filas: filasGama, sinGama} = resumenGamas(salida);
+  const hayGama = salida.some(s => s.gama);
+  if(hayGama){
     cajaGamas.classList.remove('oculto');
     cajaGamas.innerHTML = `<b>Resumen por gama, para el comercial:</b><br>`+
       (filasGama.length
@@ -92882,8 +92890,7 @@ function registrarCalculo(){
     avisar('Ese cargo no estaba en el listado: lo he dado de alta.');
   }
   const c = E.memoria.cargos[id];
-  const esMDF = $('#fMarcaCalc').value === 'MDF';
-  const {filas: filasGama} = resumenGamas(u.salida, esMDF);
+  const {filas: filasGama} = resumenGamas(u.salida);
   c.calculo = {
     fecha: new Date().toISOString(), suma: u.suma, total: u.total, zaju: u.zaju,
     lineas: u.salida.length, factura: $('#fNumFactura').value.trim(),

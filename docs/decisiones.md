@@ -1336,3 +1336,27 @@ cliente, Nº abono, Marca, Clasificación, Conforme, Gamas, Nota. El resto
 Reclamado, Comercial, Abrir el cargo, Nombre del PDF— sigue detrás, en el
 orden que ya tenía: son columnas que usa sobre todo la propia herramienta,
 no algo que el comercial necesite mirar primero.
+
+## La gama y el % ya no dependen de la Marca del cargo
+
+Pablo calculó un cargo con productos MDF de verdad (FRA/LVF/LVC/LVT
+detectados en las gamas de la tabla) y el % no aplicado le salió vacío en
+todas las líneas. La causa: tenía la Marca puesta en MDF, pero la había
+marcado **después** de calcular — y `pctGamaDe()` la comprobaba en el
+momento del cálculo, no después, así que aunque la marcara bien más tarde
+el % ya calculado se quedaba sin rellenar hasta volver a pulsar Calcular.
+
+Quitando de en medio el porqué exacto, Pablo lo dijo más simple: da igual
+que la Marca esté vacía o en MDD, esa información no estorba. Y tiene
+razón — la gama ya se detecta solo con el texto de la factura
+(`gamaDe()`), sin mirar la Marca en ningún momento; exigir la Marca solo
+para el % era una comprobación de más, que además dependía de en qué orden
+exacto se hicieran los pasos.
+
+Se quita esa comprobación de `pctGamaDe()` y de `resumenGamas()`. El
+resumen de gamas ahora se enseña en cuanto **hay alguna línea con gama
+detectada** (`salida.some(s => s.gama)`), sin mirar la Marca: así no
+aparece de más en cargos MDD sin ningún artículo de gama, pero tampoco
+depende de si la Marca se marcó antes, después o nunca. Dicho de otra
+forma: antes la Marca decidía si se calculaba el %; ahora la propia
+detección de la gama es la que decide, que es la señal de verdad.

@@ -656,7 +656,7 @@ const dice = (bien, etiqueta, detalle='') => {
   // Cuando un cargo de precio es no conforme, a veces hay que detallarle al
   // comercial la gama de producto y el % de descuento que no se aplicó. Solo
   // tiene sentido en MDF (marca propia): la del distribuidor no tiene gamas.
-  console.log('\n=== 5j · Gama y % de descuento no aplicado (solo MDF) ===');
+  console.log('\n=== 5j · Gama y % de descuento no aplicado ===');
   const gamas = await pagina.evaluate(() => {
     const casos = [
       ['MERMELADA DE FRESAS LVF 800G', 'LVF'], ['MERMELADA DE NARANJA LVZ 800G', 'LVZ'],
@@ -687,13 +687,17 @@ const dice = (bien, etiqueta, detalle='') => {
     ]};
     document.querySelector('#fTotal').value = '44,00';
     document.querySelector('#fModo').value = 'precio_ud';
+    // La gama y el % no dependen de la Marca del cargo: se detectan solo con
+    // el texto de la factura, se haya marcado ya el cargo o no — a veces se
+    // marca después de calcular, y perder el dato mientras tanto no ayuda.
     document.querySelector('#fMarcaCalc').value = '';           // primero, sin marca
     window.__emparejar();
     window.E.filas[0].precioSap = '2,00';
     window.E.filas[1].precioSap = '2,20';
     window.E.filas[2].precioSap = '1,50';
     window.__calcular();
-    const sinMarca = document.querySelector('#resumenGamas').classList.contains('oculto');
+    const filasSinMarca = window.E.ultimaSalida.salida.map(s => ({pos:s.fila.fac.pos, gama:s.gama, pct:s.pct}));
+    const sinMarcaVisible = !document.querySelector('#resumenGamas').classList.contains('oculto');
 
     document.querySelector('#fMarcaCalc').value = 'MDF';
     window.__calcular();
@@ -703,14 +707,20 @@ const dice = (bien, etiqueta, detalle='') => {
 
     document.querySelector('#fMarcaCalc').value = 'MDD';
     window.__calcular();
-    const conMDD = document.querySelector('#resumenGamas').classList.contains('oculto');
+    const conMDDVisible = !document.querySelector('#resumenGamas').classList.contains('oculto');
+    const conMDDPct = window.E.ultimaSalida.salida[0].pct;
 
-    return {detectadas, sinMarca, filas, resumenTexto, botonVisible, conMDD};
+    return {detectadas, filasSinMarca, sinMarcaVisible, filas, resumenTexto, botonVisible,
+            conMDDVisible, conMDDPct};
   });
   for(const [desc, real, esperado] of gamas.detectadas)
     dice(real === esperado, `gama de «${desc}»`, `esperado ${esperado}, obtenido ${real}`);
-  dice(gamas.sinMarca, 'sin marca puesta no se muestra el resumen de gamas');
-  dice(gamas.conMDD, 'con marca MDD tampoco se muestra (las gamas son solo de MDF)');
+  const [ls1, ls2] = gamas.filasSinMarca;
+  dice(ls1.gama === 'LVF' && Math.abs(ls1.pct - 10) < 0.01,
+       'sin marca puesta el % se calcula igual', JSON.stringify(ls1));
+  dice(gamas.sinMarcaVisible, 'sin marca puesta el resumen se enseña igual (hay gama detectada)');
+  dice(gamas.conMDDVisible && Math.abs(gamas.conMDDPct - 10) < 0.01,
+       'con marca MDD también se enseña, con el mismo %', String(gamas.conMDDPct));
   const [l1, l2, l3] = gamas.filas;
   dice(l1.gama === 'LVF' && Math.abs(l1.pct - 10) < 0.01, 'línea LVF: 10 % no aplicado', JSON.stringify(l1));
   dice(l2.gama === 'LVZ' && Math.abs(l2.pct - 9.09) < 0.01, 'línea LVZ: 9,09 % no aplicado', JSON.stringify(l2));

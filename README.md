@@ -114,7 +114,7 @@ impuestos. El neto de verdad solo se ve en SAP, así que se teclea en la columna
 referencia. Si falta, esa línea no se calcula — antes que dar un número que
 parece bueno.
 
-### Gama y % de descuento no aplicado (solo MDF)
+### Gama y % de descuento no aplicado
 
 Cuando un cargo de precio es no conforme, a veces hay que detallarle al
 comercial qué gama de producto lleva el descuento que no se aplicó. La
@@ -124,9 +124,13 @@ de **nuestra factura** — el único documento con el mismo formato para todos
 los clientes — y calcula el % de descuento no aplicado de cada línea:
 `diferencia por unidad ÷ precio de SAP × 100`.
 
-Esto **solo se calcula en cargos de marca MDF** (marca de fabricante): la
-marca de distribuidor no tiene gamas. Se ve en dos sitios, columna por columna
-y agrupado por gama en un resumen listo para copiar y pasarle al comercial.
+En la práctica esto solo aparece en cargos de marca MDF (marca de
+fabricante), porque la marca de distribuidor no lleva gamas propias en la
+descripción, pero **no hace falta marcar la Marca del cargo para que se
+calcule**: la gama se detecta sola con el texto de la factura, se haya
+marcado ya el cargo o se marque después de calcular. Se ve en dos sitios,
+columna por columna y agrupado por gama en un resumen listo para copiar y
+pasarle al comercial.
 
 Las **unidades por caja** salen de la columna `UC/US` de nuestra propia factura,
 así que la conversión cajas ↔ unidades no hay que teclearla.
