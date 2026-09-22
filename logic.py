@@ -32,6 +32,17 @@ CRUCE_SHEET = "Cruce_EAN_SAP"
 CRUCE_COL_EAN = 1
 CRUCE_COL_SAP = 2
 
+# Textos de motivo de SAP que se muestran con una redacción más clara en
+# Observaciones en vez del texto literal de la columna L. La clave se
+# compara normalizada (espacios colapsados, sin distinguir mayúsculas).
+TEXTOS_MOTIVO_PERSONALIZADOS = {
+    "ac falta disponibilidad de la mercancía": "Falta de disponibilidad informada",
+}
+
+
+def _clave_normalizada(texto: str) -> str:
+    return " ".join(texto.split()).casefold()
+
 
 @dataclass
 class ResultadoCruce:
@@ -121,10 +132,13 @@ def procesar(comercial_path, sap_path, cruce_path, salida_path) -> ResultadoCruc
                 break
 
         if motivo_encontrado:
-            obs_cell.value = motivo_encontrado
+            texto_final = TEXTOS_MOTIVO_PERSONALIZADOS.get(
+                _clave_normalizada(motivo_encontrado), motivo_encontrado
+            )
+            obs_cell.value = texto_final
             resultado.actualizadas += 1
             resultado.filas_detalle.append(
-                {"fila": row[0].row, "pedido": pedido, "ean": ean, "observacion": motivo_encontrado}
+                {"fila": row[0].row, "pedido": pedido, "ean": ean, "observacion": texto_final}
             )
         else:
             obs_cell.value = SIN_INCIDENCIA

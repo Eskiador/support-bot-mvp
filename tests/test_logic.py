@@ -135,6 +135,24 @@ def test_ean_no_esta_en_tabla_cruce(tmp_path: Path):
     assert ws.cell(row=2, column=11).value == SIN_CODIGO_SAP
 
 
+def test_motivo_con_texto_personalizado(tmp_path: Path):
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H700", "X1", "5555555555555", 1)])
+    _crear_sap(
+        tmp_path / "sap.xlsx",
+        [("H700", "8000000", "AC Falta  disponibilidad de la mercancía", "Z2")],
+    )
+    _crear_cruce(tmp_path / "cruce.xlsx", [("5555555555555", "8000000", "p")])
+
+    resultado = procesar(
+        tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx"
+    )
+
+    assert resultado.actualizadas == 1
+    wb = openpyxl.load_workbook(tmp_path / "out.xlsx")
+    ws = wb["Prov-Ref"]
+    assert ws.cell(row=2, column=11).value == "Falta de disponibilidad informada"
+
+
 def test_fila_no_servidas_cero_no_se_toca(tmp_path: Path):
     _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H600", "X1", "1111111111111", 0)])
     _crear_sap(tmp_path / "sap.xlsx", [])
