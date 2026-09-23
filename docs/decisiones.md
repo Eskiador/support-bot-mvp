@@ -1360,3 +1360,19 @@ aparece de más en cargos MDD sin ningún artículo de gama, pero tampoco
 depende de si la Marca se marcó antes, después o nunca. Dicho de otra
 forma: antes la Marca decidía si se calculaba el %; ahora la propia
 detección de la gama es la que decide, que es la señal de verdad.
+
+## «Aplicar el modo a todas» borraba lo que ya estaba escrito
+
+Con un cargo de muchas líneas sin «Línea del cargo» asignada (formatos como
+el de dos renglones por artículo, facturado/corregido, donde emparejar
+automáticamente no es de fiar), Pablo escribe el dato de cada línea a mano
+en «Dato del cargo». Si luego pulsaba «Aplicar el modo a todas» —aunque
+fuera para confirmar el mismo modo que ya tenían todas— el botón hacía
+`f.manual = null` en cada línea, y la tabla se quedaba en blanco de golpe:
+sin línea del cargo asignada y sin el dato a mano, no hay nada que restar.
+
+El cambio de modo de **una sola línea**, con su propio desplegable, sigue
+limpiando lo escrito a mano — ahí sí tiene sentido, es el usuario diciendo
+«quiero repensar esta línea en concreto». Pero aplicar el modo a **todas**
+es sobre todo poner de acuerdo el modo en bloque, no una señal de «borra
+todo lo que hayas tecleado» — así que ese botón ya no toca `f.manual`.

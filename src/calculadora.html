@@ -2318,8 +2318,13 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnTodas').onclick = ()=>{ E.filas.forEach(f=>{ f.afectada=true; });
     limpiarAjuste(); refrescar(); };
   $('#btnNinguna').onclick = ()=>{ E.filas.forEach(f=>f.afectada=false); limpiarAjuste(); refrescar(); };
+  // Ojo: NO se borra f.manual aquí. Cuando cambias el modo de una sola línea
+  // con su propio desplegable sí tiene sentido limpiar lo escrito a mano (se
+  // entiende que vas a repensar esa línea); pero aplicar el modo a TODAS es
+  // sobre todo confirmar el mismo modo en bloque para líneas que ya llevan
+  // el dato del cargo tecleado — borrarlo de golpe dejaba la tabla en blanco.
   $('#btnAplicarModo').onclick = ()=>{ const m=$('#fModo').value;
-    E.filas.forEach(f=>{ f.modo=m; f.manual=null; }); limpiarAjuste(); refrescar(); };
+    E.filas.forEach(f=>{ f.modo=m; }); limpiarAjuste(); refrescar(); };
   $('#btnVaciar').onclick = ()=>{
     if(E.ultimaSalida && !confirm('¿Vaciar la calculadora y empezar otro cargo?\n\n'+
        'Lo que ya hayas registrado en el archivo de cargos no se toca.')) return;

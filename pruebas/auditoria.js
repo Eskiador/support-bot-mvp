@@ -938,6 +938,31 @@ const dice = (bien, etiqueta, detalle='') => {
        JSON.stringify(marcadas));
 
   // ------------------------------------------------------------------
+  // «Aplicar el modo a todas» borraba «Dato del cargo» en TODAS las líneas,
+  // aunque fuera al mismo modo que ya tenían — un cargo con muchas líneas
+  // escritas a mano (sin línea del cargo asignada) se quedaba en blanco de
+  // golpe. El cambio de modo por línea, con su propio desplegable, sigue
+  // limpiando lo escrito a mano (ahí sí tiene sentido: se repiensa esa
+  // línea en concreto); el botón de aplicar a todas ya no lo toca.
+  console.log('\n=== 5p-bis · «Aplicar el modo a todas» no borra lo escrito a mano ===');
+  const trasAplicarModo = await pagina.evaluate(() => {
+    window.E.filas = [
+      {fac:{pos:10, material:'1', desc:'CON DATO A MANO 1', cantidad:10, um:'UC', udsCaja:null, precio:1},
+       cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'1.74', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:'2.04'},
+      {fac:{pos:20, material:'2', desc:'CON DATO A MANO 2', cantidad:20, um:'UC', udsCaja:null, precio:1},
+       cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'2.16', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:'2.27'}
+    ];
+    window.pintarLineas();
+    document.querySelector('#fModo').value = 'precio_ud';
+    document.querySelector('#btnAplicarModo').click();
+    return window.E.filas.map(f => f.manual);
+  });
+  dice(trasAplicarModo.every(m => m != null), '«Aplicar el modo a todas» conserva el dato del cargo',
+       JSON.stringify(trasAplicarModo));
+
+  // ------------------------------------------------------------------
   // La tabla de líneas tenía doce columnas sin acotar (dos desplegables con
   // texto largo, entre ellas) y se salía de una pantalla normal: había que
   // deslizar de lado para ver la diferencia calculada.
