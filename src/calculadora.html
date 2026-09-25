@@ -1334,6 +1334,12 @@ function factorDe(fila, q, por){
   return (isFinite(q) && q > 0) ? q / por : NaN;
 }
 
+// Modos en los que la cantidad de la línea hace falta para saber la propia
+// diferencia (multiplican o dividen por unidades/cajas). En «importe» y
+// «total_linea» el cargo ya da la diferencia entera, así que la cantidad
+// solo hace falta después, para expresar el ZNET «por cada 100 unidades».
+const NECESITA_CANTIDAD = new Set(['dif_ud', 'dif_cj', 'precio_ud', 'precio_cj']);
+
 function calcular(){
   const tol = Math.abs(num($('#fTolerancia').value)) || 0.01;
   const total = num($('#fTotal').value);
@@ -1352,17 +1358,27 @@ function calcular(){
     // no se ven desde aquí; si el usuario ha medido el neto real con un ZNET de
     // prueba, esa medición manda sobre cualquier cálculo teórico.
     const factor = factorDe(fila, q, por);
+    const factorValido = isFinite(factor) && factor > 0;
     let znet = NaN, importe = NaN;
-    if(isFinite(objetivo) && isFinite(factor) && factor > 0){
+    if(isFinite(objetivo) && factorValido){
       znet = r2(objetivo / factor);
       importe = r2(znet * factor);
-      suma = r2(suma + importe);
+    } else if(isFinite(objetivo) && !NECESITA_CANTIDAD.has(fila.modo)){
+      // En estos modos el cargo ya da la diferencia entera, sin pasar por la
+      // cantidad («importe», «totales de línea»): lo que falta por saber es
+      // la tarifa que se teclea en SAP (el ZNET, que sí va «por cada 100
+      // unidades»), no el importe en sí. Cuenta en la suma igual, para que
+      // el cuadre refleje lo que de verdad dice el cargo; el ZNET se deja en
+      // blanco hasta que haya una cantidad real que pasarle.
+      importe = objetivo;
     }
+    if(isFinite(importe)) suma = r2(suma + importe);
     // Hay un caso mudo: la línea tiene diferencia, pero la cantidad no se puede
     // pasar a la unidad de la base (cajas sin saber cuántas unidades lleva cada
-    // una). Sin decirlo, la línea desaparecía del cuadre sin explicación.
-    if(isFinite(objetivo) && !(isFinite(factor) && factor > 0))
-      sinCantidad.push({fila, objetivo, um});
+    // una). Sin decirlo, la línea desaparecía del cuadre sin explicación —o,
+    // en los modos de arriba, se quedaba sin ZNET sin que se notara por qué.
+    if(isFinite(objetivo) && !factorValido)
+      sinCantidad.push({fila, objetivo, um, contada: isFinite(importe)});
     // el desvío se mide siempre contra el cargo, esté ajustada la línea o no
     const desvio = (isFinite(importe)&&isFinite(objetivoCargo)) ? r2(importe - objetivoCargo) : NaN;
     const ajustada = fila.objetivoForzado != null;
@@ -1752,15 +1768,38 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = 
   const cajaAv = $('#avisosZnet');
   cajaAv.innerHTML = '';
   if(sinCantidad.length){
-    const d = document.createElement('div');
-    d.className = 'aviso-caja rojo';
-    d.innerHTML = `<b>${sinCantidad.length} línea(s) con diferencia pero sin ZNET.</b> `+
-      `No puedo pasar su cantidad a la unidad de la base: `+
-      sinCantidad.map(s=>`pos. ${s.fila.fac.pos} (${cant(s.fila.fac.cantidad)} ${s.fila.fac.um}`+
-        `${s.fila.fac.udsCaja ? '' : ', sin unidades por caja'} → ${s.um})`).join(', ')+`.<br>`+
-      `Su diferencia (${eur(sinCantidad.reduce((a,s)=>a+s.objetivo,0))}) <b>no está contada en la suma</b>. `+
-      `Escribe las unidades por caja en la factura, o cambia la base de esa línea.`;
-    cajaAv.appendChild(d);
+    const detalle = s => `pos. ${s.fila.fac.pos} (${cant(s.fila.fac.cantidad)} ${s.fila.fac.um}`+
+      `${s.fila.fac.udsCaja ? '' : ', sin unidades por caja'} → ${s.um})`;
+    // En «importe»/«total_linea» el cargo ya da la diferencia entera, así que
+    // esas líneas SÍ cuentan en la suma aunque falte la cantidad — lo único
+    // que falta es la tarifa para teclear en SAP (el ZNET). En los demás
+    // modos la cantidad hace falta para la propia diferencia, así que esas
+    // no cuentan todavía: mezclarlas en un solo aviso ocultaba la diferencia
+    // entre «esto ya está contado, solo falta el ZNET» y «esto ni siquiera
+    // se sabe cuánto es».
+    const noContadas = sinCantidad.filter(s => !s.contada);
+    const contadas = sinCantidad.filter(s => s.contada);
+    if(noContadas.length){
+      const d = document.createElement('div');
+      d.className = 'aviso-caja rojo';
+      d.innerHTML = `<b>${noContadas.length} línea(s) con diferencia pero sin ZNET.</b> `+
+        `No puedo pasar su cantidad a la unidad de la base: `+
+        noContadas.map(detalle).join(', ')+`.<br>`+
+        `Su diferencia (${eur(noContadas.reduce((a,s)=>a+s.objetivo,0))}) <b>no está contada en la suma</b>. `+
+        `Escribe las unidades por caja en la factura, o cambia la base de esa línea.`;
+      cajaAv.appendChild(d);
+    }
+    if(contadas.length){
+      const d = document.createElement('div');
+      d.className = 'aviso-caja';
+      d.innerHTML = `<b>${contadas.length} línea(s) contadas en la suma, pero todavía sin ZNET que `+
+        `teclear en SAP.</b> El cargo ya da la diferencia entera, así que cuenta en el cuadre; lo `+
+        `que falta es la cantidad para expresarla «por cada 100 unidades»: `+
+        contadas.map(detalle).join(', ')+`.<br>`+
+        `Antes de cerrar el cargo, escribe las unidades por caja en la factura, cambia la base de `+
+        `esa línea, o mide el ZNET en SAP (columna «Neto de la prueba»).`;
+      cajaAv.appendChild(d);
+    }
   }
   if(avisos.length){
     const d = document.createElement('div');
@@ -1776,6 +1815,7 @@ function pintarResultado({salida, suma, total, zaju, tol, avisos, sinCantidad = 
     const tr = document.createElement('tr');
     if(s.alerta) tr.className = 'aviso';
     else if(s.ajustada && Math.abs(s.desvio) > 0.0001) tr.className = 'ajustada';
+    else if(isFinite(s.importe) && !isFinite(s.znet)) tr.className = 'aviso';
     tr.innerHTML = `
       <td>${s.fila.fac.pos}</td><td>${esc(s.fila.fac.material)}</td>
       <td><span class="desc">${esc(s.fila.fac.desc)}</span></td>

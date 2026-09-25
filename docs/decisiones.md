@@ -1405,3 +1405,36 @@ cuántas unidades son esas cajas no hay forma de calcular esa tarifa. Meter
 la diferencia en la suma sin un ZNET real detrás habría hecho «CUADRA» un
 cargo que SAP en realidad no va a abonar así, hasta que se resuelva esa
 línea aparte — justo lo que este programa evita a propósito.
+
+## Rectificación: la suma sí puede contar sin cantidad, en los modos que no la necesitan
+
+Lo de arriba se quedó corto. Pablo probó a escribir un número cualquiera de
+unidades por caja (puso «1», al azar) en una línea del modo «Diferencia de
+línea» y comprobó que cuadraba igual que con el número real — porque en
+ese modo `diferenciaDe()` no usa la cantidad para nada: `objetivo` sale
+directo del dato que da el cargo. El ZNET se calcula como
+`objetivo / factor`, y el importe final como `znet × factor` — así que
+para CUALQUIER factor (cualquier número de unidades por caja, inventado o
+no) el importe vuelve a salir prácticamente igual al objetivo, por
+construcción. Exigir una cantidad real antes de contar la línea en la suma
+no protegía nada: solo obligaba a escribir algo, verdadero o inventado,
+para que la herramienta se diera por satisfecha — y un número inventado
+"cuadra" exactamente igual que uno real.
+
+Dicho de otra forma: la objeción de más arriba («sin cantidad no hay ZNET
+real, y contar la línea daría un CUADRA falso») confundía dos cosas
+distintas. Es verdad para modos donde la cantidad afecta a la propia
+diferencia (`precio_ud`, `precio_cj`, `dif_ud`, `dif_cj`): ahí, sin
+cantidad, ni siquiera se sabe cuánto vale `objetivo`, y un número
+inventado de unidades por caja SÍ cambiaría el resultado. Pero en
+`importe` y `total_linea`, el cargo ya da el número final: la cantidad
+solo hace falta después, para partir ese número en un ZNET expresable
+«por cada 100 unidades», y el cuadre (importe ≈ objetivo) no depende de si
+esa cantidad es correcta.
+
+Con esto, `calcular()` distingue los dos casos (`NECESITA_CANTIDAD`): en
+`importe`/`total_linea` sin cantidad válida, `importe = objetivo` entra en
+la suma igual, y el ZNET se deja en blanco con un aviso ámbar explicando
+que falta la tarifa para SAP, no el importe. En los demás modos, sigue
+bloqueado como antes, en rojo: ahí sí falta un dato real, no solo una
+tarifa.

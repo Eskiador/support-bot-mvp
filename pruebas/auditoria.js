@@ -967,9 +967,39 @@ const dice = (bien, etiqueta, detalle='') => {
   // caja (columna «Ud/cj» con un guion), no hay forma de pasar la cantidad
   // a unidades para el ZNET, y la línea se quedaba fuera de la suma sin que
   // Pablo pudiera arreglarlo desde la herramienta: esa celda no tenía ningún
-  // campo para escribir. Ahora se escribe ahí mismo.
+  // campo para escribir. Ahora se escribe ahí mismo. Se usa el modo «precio
+  // por unidad», que sí necesita la cantidad para la propia diferencia (a
+  // diferencia de «importe», ver 5p-quater más abajo).
   console.log('\n=== 5p-ter · Unidades por caja, editable cuando la factura no las trae ===');
   const udsCaja = await pagina.evaluate(async () => {
+    document.querySelector('#fTotal').value = '69,12';
+    window.E.filas = [
+      {fac:{pos:20, material:'2012464', desc:'WES INF COLA CABALLERO', cantidad:144, um:'CJ',
+            udsCaja:null, precio:881.28},
+       cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'1.10', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:'1.32'}
+    ];
+    window.pintarLineas();
+    const antes = window.__calcular ? (window.__calcular(), window.E.ultimaSalida.suma) : null;
+    const input = document.querySelector('.udsCajaManual[data-i="0"]');
+    input.value = '12';
+    input.dispatchEvent(new Event('change'));
+    return {antes, udsCaja: window.E.filas[0].fac.udsCaja, suma: window.E.ultimaSalida.suma};
+  });
+  dice(udsCaja.antes === 0, 'sin unidades por caja, esta línea no cuenta en la suma (sí la necesita)',
+       JSON.stringify(udsCaja));
+  dice(udsCaja.udsCaja === 12 && udsCaja.suma > 0,
+       'escribir las unidades por caja a mano arregla la suma de la línea', JSON.stringify(udsCaja));
+
+  // ------------------------------------------------------------------
+  // Pablo probó a escribir cualquier número al azar en «unidades por caja»
+  // y comprobó que cuadraba igual: en el modo «Diferencia de línea» el
+  // cargo ya da el importe entero, así que la cantidad no hace falta para
+  // saber cuánto es la diferencia — solo hace falta para expresar el ZNET
+  // «por cada 100 unidades». Antes, sin esa cantidad, la línea entera se
+  // quedaba fuera de la suma aunque el importe ya se supiera con certeza.
+  console.log('\n=== 5p-quater · «Diferencia de línea» cuenta en la suma sin cantidad, sin ZNET todavía ===');
+  const sinCantidadImporte = await pagina.evaluate(() => {
     document.querySelector('#fTotal').value = '69,12';
     window.E.filas = [
       {fac:{pos:20, material:'2012464', desc:'WES INF COLA CABALLERO', cantidad:144, um:'CJ',
@@ -977,15 +1007,33 @@ const dice = (bien, etiqueta, detalle='') => {
        cargoIdx:-1, afectada:true, modo:'importe', manual:'69.12', objetivoForzado:null, base:null,
        netoPrueba:null, precioSap:null}
     ];
-    window.pintarLineas();
-    const antes = window.E.ultimaSalida ? window.E.ultimaSalida.suma : null;
-    const input = document.querySelector('.udsCajaManual[data-i="0"]');
-    input.value = '12';
-    input.dispatchEvent(new Event('change'));
-    return {antes, udsCaja: window.E.filas[0].fac.udsCaja, suma: window.E.ultimaSalida.suma};
+    window.__calcular();
+    const s = window.E.ultimaSalida;
+    return {suma:s.suma, importe:s.salida[0].importe, znet:s.salida[0].znet,
+            avisoAmbar: document.querySelector('#avisosZnet').textContent};
   });
-  dice(udsCaja.udsCaja === 12 && Math.abs(udsCaja.suma - 69.12) < 0.01,
-       'escribir las unidades por caja a mano arregla la suma de la línea', JSON.stringify(udsCaja));
+  dice(Math.abs(sinCantidadImporte.suma - 69.12) < 0.01, 'cuenta en la suma aunque falte la cantidad',
+       JSON.stringify(sinCantidadImporte));
+  dice(!isFinite(sinCantidadImporte.znet), 'pero el ZNET se deja en blanco, no se inventa una tarifa',
+       String(sinCantidadImporte.znet));
+  dice(/contadas en la suma.*sin ZNET/.test(sinCantidadImporte.avisoAmbar),
+       'avisa de que falta el ZNET aunque ya cuente en el cuadre');
+
+  // Y el caso contrario: un modo que SÍ necesita la cantidad para la propia
+  // diferencia (no solo para el ZNET) sigue sin contar si falta.
+  const conCantidadPrecioUd = await pagina.evaluate(() => {
+    window.E.filas = [
+      {fac:{pos:20, material:'2012464', desc:'WES INF COLA CABALLERO', cantidad:144, um:'CJ',
+            udsCaja:null, precio:881.28},
+       cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'1.10', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:'1.32'}
+    ];
+    window.__calcular();
+    return {suma: window.E.ultimaSalida.suma};
+  });
+  dice(conCantidadPrecioUd.suma === 0,
+       'un modo que sí necesita la cantidad para la diferencia sigue sin contar si falta',
+       JSON.stringify(conCantidadPrecioUd));
 
   // ------------------------------------------------------------------
   // La tabla de líneas tenía doce columnas sin acotar (dos desplegables con
