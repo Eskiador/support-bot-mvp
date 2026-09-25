@@ -1376,3 +1376,32 @@ limpiando lo escrito a mano — ahí sí tiene sentido, es el usuario diciendo
 «quiero repensar esta línea en concreto». Pero aplicar el modo a **todas**
 es sobre todo poner de acuerdo el modo en bloque, no una señal de «borra
 todo lo que hayas tecleado» — así que ese botón ya no toca `f.manual`.
+
+## Unidades por caja, editables cuando la factura no las trae
+
+Pablo tenía una línea en cajas (144 CJ) que la factura no traía con
+unidades por caja: la celda salía con un guion, la cantidad no se podía
+pasar a unidades para el ZNET, y la línea se quedaba fuera de la suma —el
+programa ya avisaba de esto con una caja roja, con dos salidas: escribir
+las unidades por caja, o medir el ZNET en SAP (que no necesita cantidad
+para nada, `factorDe()` usa el neto medido directamente). El problema es
+que la primera salida **no se podía hacer**: esa celda era un `<td>` fijo,
+sin ningún campo para escribir.
+
+Ahora es un campo editable, igual que el precio de SAP o el dato del
+cargo. Al escribir un número, se guarda directamente en `fila.fac.udsCaja`
+— es literalmente el mismo objeto que usan `unidadesReales()` y
+`cantidadEnBase()` para todo el cálculo (cada `fila.fac` es la línea de la
+factura de esa fila, no algo compartido entre filas), así que no hace
+falta tocar ninguna otra función: en cuanto se escribe, la cantidad se
+puede pasar a unidades y la línea entra en la suma.
+
+Se descarta la otra idea que se planteó —que el modo «Diferencia de línea»
+no necesitara la cantidad para nada, ya que el número ya viene calculado
+por el cargo—: la diferencia en sí no la necesita (`diferenciaDe()` no usa
+`uds` en ese modo), pero el **ZNET sí**, porque en SAP no se teclea un
+importe total: se teclea una tarifa «por cada 100 UC/CJ», y sin saber
+cuántas unidades son esas cajas no hay forma de calcular esa tarifa. Meter
+la diferencia en la suma sin un ZNET real detrás habría hecho «CUADRA» un
+cargo que SAP en realidad no va a abonar así, hasta que se resuelva esa
+línea aparte — justo lo que este programa evita a propósito.

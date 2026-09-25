@@ -963,6 +963,31 @@ const dice = (bien, etiqueta, detalle='') => {
        JSON.stringify(trasAplicarModo));
 
   // ------------------------------------------------------------------
+  // Cuando una línea viene en cajas y la factura no trae las unidades por
+  // caja (columna «Ud/cj» con un guion), no hay forma de pasar la cantidad
+  // a unidades para el ZNET, y la línea se quedaba fuera de la suma sin que
+  // Pablo pudiera arreglarlo desde la herramienta: esa celda no tenía ningún
+  // campo para escribir. Ahora se escribe ahí mismo.
+  console.log('\n=== 5p-ter · Unidades por caja, editable cuando la factura no las trae ===');
+  const udsCaja = await pagina.evaluate(async () => {
+    document.querySelector('#fTotal').value = '69,12';
+    window.E.filas = [
+      {fac:{pos:20, material:'2012464', desc:'WES INF COLA CABALLERO', cantidad:144, um:'CJ',
+            udsCaja:null, precio:881.28},
+       cargoIdx:-1, afectada:true, modo:'importe', manual:'69.12', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:null}
+    ];
+    window.pintarLineas();
+    const antes = window.E.ultimaSalida ? window.E.ultimaSalida.suma : null;
+    const input = document.querySelector('.udsCajaManual[data-i="0"]');
+    input.value = '12';
+    input.dispatchEvent(new Event('change'));
+    return {antes, udsCaja: window.E.filas[0].fac.udsCaja, suma: window.E.ultimaSalida.suma};
+  });
+  dice(udsCaja.udsCaja === 12 && Math.abs(udsCaja.suma - 69.12) < 0.01,
+       'escribir las unidades por caja a mano arregla la suma de la línea', JSON.stringify(udsCaja));
+
+  // ------------------------------------------------------------------
   // La tabla de líneas tenía doce columnas sin acotar (dos desplegables con
   // texto largo, entre ellas) y se salía de una pantalla normal: había que
   // deslizar de lado para ver la diferencia calculada.

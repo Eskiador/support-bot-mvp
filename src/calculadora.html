@@ -1584,7 +1584,10 @@ function pintarLineas(){
       <td>${esc(lf.material)}</td>
       <td><span class="desc" title="${esc(lf.desc)}">${esc(lf.desc)}</span></td>
       <td class="n">${cant(lf.cantidad)} ${lf.um}</td>
-      <td class="n">${lf.udsCaja ?? '—'}</td>
+      <td class="n"><input class="num udsCajaManual" data-i="${i}" style="width:56px"
+            value="${esc(lf.udsCaja != null ? lf.udsCaja : '')}"
+            title="Unidades por caja. Si la factura no la trae (sale con «—») y la línea está en cajas, escríbela aquí para poder pasar la cantidad a unidades."
+            placeholder="—"></td>
       <td class="n" style="color:var(--muted)">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
       <td class="n"><input class="num precioSap" data-i="${i}" style="width:86px"
             value="${esc(fila.precioSap != null ? fila.precioSap : '')}"
@@ -1616,6 +1619,16 @@ function pintarLineas(){
     E.filas[+e.target.dataset.i].manual = e.target.value; limpiarAjuste(); refrescar(); });
   $$('.precioSap').forEach(el=>el.onchange = e=>{
     E.filas[+e.target.dataset.i].precioSap = e.target.value.trim() || null;
+    limpiarAjuste(); refrescar(); });
+  // Las unidades por caja normalmente vienen solas de la factura; si esa
+  // línea no las trae (sale «—») y está en cajas, no hay forma de pasarla a
+  // unidades para el ZNET. Se escribe aquí a mano, directamente sobre la
+  // línea de la factura — es la misma fila.fac en todo el cálculo, así que
+  // no hace falta guardarlo aparte.
+  $$('.udsCajaManual').forEach(el=>el.onchange = e=>{
+    const fila = E.filas[+e.target.dataset.i];
+    const v = parseInt(e.target.value, 10);
+    fila.fac.udsCaja = (isFinite(v) && v > 0) ? v : null;
     limpiarAjuste(); refrescar(); });
 }
 
