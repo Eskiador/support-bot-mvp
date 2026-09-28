@@ -25,6 +25,7 @@ SAP_SHEET = "Data"
 SAP_COL_PEDIDO = 1       # A
 SAP_COL_MATERIAL = 7     # G
 SAP_COL_MOTIVO_DESC = 12  # L
+SAP_COL_MOTIVO_COD = 13   # M
 SAP_HEADER_ROW = 1
 SAP_DATA_START_ROW = 2
 
@@ -32,16 +33,13 @@ CRUCE_SHEET = "Cruce_EAN_SAP"
 CRUCE_COL_EAN = 1
 CRUCE_COL_SAP = 2
 
-# Textos de motivo de SAP que se muestran con una redacción más clara en
-# Observaciones en vez del texto literal de la columna L. La clave se
-# compara normalizada (espacios colapsados, sin distinguir mayúsculas).
-TEXTOS_MOTIVO_PERSONALIZADOS = {
-    "ac falta disponibilidad de la mercancía": "Falta de disponibilidad informada",
+# Texto a escribir en Observaciones según el código de motivo (columna M).
+# Códigos que no estén aquí usan el texto literal de la columna L.
+TEXTOS_POR_CODIGO_MOTIVO = {
+    "Z1": "Cancelado por el cliente",
+    "Z2": "Falta de disponibilidad informada",
+    "Z7": "La mercancía salió completa del almacén",
 }
-
-
-def _clave_normalizada(texto: str) -> str:
-    return " ".join(texto.split()).casefold()
 
 
 @dataclass
@@ -77,7 +75,7 @@ def cargar_tabla_cruce(cruce_path) -> dict[str, set[str]]:
 
 
 def cargar_incidencias_sap(sap_path) -> dict[str, dict[str, str]]:
-    """Pedido -> {codigo_material -> motivo} (solo filas con motivo relleno)."""
+    """Pedido -> {codigo_material -> texto de Observaciones} (solo filas con motivo)."""
     wb = openpyxl.load_workbook(sap_path, data_only=True)
     ws = wb[SAP_SHEET]
     incidencias: dict[str, dict[str, str]] = {}
@@ -85,9 +83,11 @@ def cargar_incidencias_sap(sap_path) -> dict[str, dict[str, str]]:
         pedido = _normalizar(row[SAP_COL_PEDIDO - 1].value)
         material = _normalizar(row[SAP_COL_MATERIAL - 1].value)
         motivo = _normalizar(row[SAP_COL_MOTIVO_DESC - 1].value)
-        if not pedido or not material or not motivo:
+        codigo_motivo = _normalizar(row[SAP_COL_MOTIVO_COD - 1].value).upper()
+        if not pedido or not material or not (motivo or codigo_motivo):
             continue
-        incidencias.setdefault(pedido, {})[material] = motivo
+        texto = TEXTOS_POR_CODIGO_MOTIVO.get(codigo_motivo) or motivo or codigo_motivo
+        incidencias.setdefault(pedido, {})[material] = texto
     return incidencias
 
 
@@ -132,13 +132,10 @@ def procesar(comercial_path, sap_path, cruce_path, salida_path) -> ResultadoCruc
                 break
 
         if motivo_encontrado:
-            texto_final = TEXTOS_MOTIVO_PERSONALIZADOS.get(
-                _clave_normalizada(motivo_encontrado), motivo_encontrado
-            )
-            obs_cell.value = texto_final
+            obs_cell.value = motivo_encontrado
             resultado.actualizadas += 1
             resultado.filas_detalle.append(
-                {"fila": row[0].row, "pedido": pedido, "ean": ean, "observacion": texto_final}
+                {"fila": row[0].row, "pedido": pedido, "ean": ean, "observacion": motivo_encontrado}
             )
         else:
             obs_cell.value = SIN_INCIDENCIA

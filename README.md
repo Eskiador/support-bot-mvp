@@ -11,7 +11,9 @@ SAP y la tabla de correspondencia EAN ↔ Código SAP.
 2. La app cruza primero por número de pedido, y dentro del mismo pedido busca
    el código de material SAP asociado al EAN (usando `data/cruce_ean_sap.xlsx`).
 3. Rellena la columna Observaciones en cada línea con `No Servidas` ≠ 0:
-   - El motivo literal de SAP si se encuentra.
+   - Si se encuentra el motivo en SAP, el texto según su código (tabla
+     `TEXTOS_POR_CODIGO_MOTIVO` en `logic.py`: Z1, Z2, Z7). Para códigos
+     que no estén en esa tabla, el texto literal de SAP.
    - `"Sin incidencia registrada en SAP"` si no hay motivo para ese material.
    - `"Código SAP no localizado"` si el EAN no está en la tabla de cruce.
 4. Descarga del excel del comercial ya actualizado, con un resumen de

@@ -53,7 +53,7 @@ def _crear_cruce(path: Path, filas: list[tuple]) -> None:
 
 def test_motivo_encontrado(tmp_path: Path):
     _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H100", "X1", "1111111111111", 5)])
-    _crear_sap(tmp_path / "sap.xlsx", [("H100", "9999999", "Falta disponibilidad", "Z2")])
+    _crear_sap(tmp_path / "sap.xlsx", [("H100", "9999999", "Falta disponibilidad", "Z99")])
     _crear_cruce(tmp_path / "cruce.xlsx", [("1111111111111", "9999999", "producto")])
 
     resultado = procesar(
@@ -135,22 +135,41 @@ def test_ean_no_esta_en_tabla_cruce(tmp_path: Path):
     assert ws.cell(row=2, column=11).value == SIN_CODIGO_SAP
 
 
-def test_motivo_con_texto_personalizado(tmp_path: Path):
-    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H700", "X1", "5555555555555", 1)])
+def test_texto_segun_codigo_de_motivo(tmp_path: Path):
+    _crear_comercial(
+        tmp_path / "comercial.xlsx",
+        [
+            ("1", "H700", "X1", "5555555555555", 1),
+            ("1", "H700", "X2", "6666666666666", 1),
+            ("1", "H700", "X3", "7777777777777", 1),
+        ],
+    )
     _crear_sap(
         tmp_path / "sap.xlsx",
-        [("H700", "8000000", "AC Falta  disponibilidad de la mercancía", "Z2")],
+        [
+            ("H700", "8000000", "AC Falta  disponibilidad de la mercancía", "Z2"),
+            ("H700", "8000001", "AC  Cancelado por el cliente", "Z1"),
+            ("H700", "8000002", "AC Falta en la Carga", "Z7"),
+        ],
     )
-    _crear_cruce(tmp_path / "cruce.xlsx", [("5555555555555", "8000000", "p")])
+    _crear_cruce(
+        tmp_path / "cruce.xlsx",
+        [
+            ("5555555555555", "8000000", "p"),
+            ("6666666666666", "8000001", "p"),
+            ("7777777777777", "8000002", "p"),
+        ],
+    )
 
     resultado = procesar(
         tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx"
     )
 
-    assert resultado.actualizadas == 1
-    wb = openpyxl.load_workbook(tmp_path / "out.xlsx")
-    ws = wb["Prov-Ref"]
+    assert resultado.actualizadas == 3
+    ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
     assert ws.cell(row=2, column=11).value == "Falta de disponibilidad informada"
+    assert ws.cell(row=3, column=11).value == "Cancelado por el cliente"
+    assert ws.cell(row=4, column=11).value == "La mercancía salió completa del almacén"
 
 
 def test_fila_no_servidas_cero_no_se_toca(tmp_path: Path):
