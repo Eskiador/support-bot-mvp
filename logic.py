@@ -25,12 +25,21 @@ SAP_SHEET = "Data"
 SAP_COL_PEDIDO = 1       # A
 SAP_COL_MATERIAL = 7     # G
 SAP_COL_MOTIVO_DESC = 12  # L
+SAP_COL_MOTIVO_COD = 13   # M
 SAP_HEADER_ROW = 1
 SAP_DATA_START_ROW = 2
 
 CRUCE_SHEET = "Cruce_EAN_SAP"
 CRUCE_COL_EAN = 1
 CRUCE_COL_SAP = 2
+
+# Texto a escribir en Observaciones según el código de motivo (columna M).
+# Códigos que no estén aquí usan el texto literal de la columna L.
+TEXTOS_POR_CODIGO_MOTIVO = {
+    "Z1": "Cancelado por el cliente",
+    "Z2": "Falta de disponibilidad informada",
+    "Z7": "La mercancía salió completa del almacén",
+}
 
 
 @dataclass
@@ -66,7 +75,7 @@ def cargar_tabla_cruce(cruce_path) -> dict[str, set[str]]:
 
 
 def cargar_incidencias_sap(sap_path) -> dict[str, dict[str, str]]:
-    """Pedido -> {codigo_material -> motivo} (solo filas con motivo relleno)."""
+    """Pedido -> {codigo_material -> texto de Observaciones} (solo filas con motivo)."""
     wb = openpyxl.load_workbook(sap_path, data_only=True)
     ws = wb[SAP_SHEET]
     incidencias: dict[str, dict[str, str]] = {}
@@ -74,9 +83,11 @@ def cargar_incidencias_sap(sap_path) -> dict[str, dict[str, str]]:
         pedido = _normalizar(row[SAP_COL_PEDIDO - 1].value)
         material = _normalizar(row[SAP_COL_MATERIAL - 1].value)
         motivo = _normalizar(row[SAP_COL_MOTIVO_DESC - 1].value)
-        if not pedido or not material or not motivo:
+        codigo_motivo = _normalizar(row[SAP_COL_MOTIVO_COD - 1].value).upper()
+        if not pedido or not material or not (motivo or codigo_motivo):
             continue
-        incidencias.setdefault(pedido, {})[material] = motivo
+        texto = TEXTOS_POR_CODIGO_MOTIVO.get(codigo_motivo) or motivo or codigo_motivo
+        incidencias.setdefault(pedido, {})[material] = texto
     return incidencias
 
 
