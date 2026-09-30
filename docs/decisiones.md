@@ -1438,3 +1438,22 @@ la suma igual, y el ZNET se deja en blanco con un aviso ámbar explicando
 que falta la tarifa para SAP, no el importe. En los demás modos, sigue
 bloqueado como antes, en rojo: ahí sí falta un dato real, no solo una
 tarifa.
+
+## Gama pegada a una cifra, sin espacio: `\b` no cortaba ahí
+
+Recalculando un cargo antiguo de Peninsulaco (para sacarle el % con
+carácter retroactivo) apareció una línea que no detectaba gama:
+«SAL.DULC PIM. ROJ JALAP LVF280», con el código pegado directamente al
+número («LVF280»), a diferencia de otras líneas del mismo documento que sí
+llevan espacio («CHUTNEY MANG CEBOL LVF 280»). `RE_GAMA` usaba `\bLVF\b`:
+un límite de **palabra**, y una cifra cuenta como parte de la misma
+palabra que las letras de al lado — «F» y «2» son ambos `\w`, así que no
+hay límite entre ellos y la búsqueda no encontraba nada.
+
+Se cambia el límite por dos comprobaciones más estrictas: que no haya una
+**letra** justo antes ni justo después del código (`(?<![A-Z])...(?![A-Z])`
+en vez de `\b...\b`). Una cifra detrás ya no bloquea la coincidencia, pero
+otra letra sí — «LVF280» encuentra LVF, «ALVF» no. Como el texto pasa
+siempre por `norm()` antes (mayúsculas, sin acentos, solo A-Z/0-9/espacios),
+esta comprobación cubre todos los casos reales sin volverse más permisiva
+de lo necesario.

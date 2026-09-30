@@ -670,6 +670,10 @@ const dice = (bien, etiqueta, detalle='') => {
       // normaliza al mismo código para que el resumen no enseñe dos etiquetas
       // distintas de la misma gama.
       ['FRA MANZ REL ANCHO 18 12x350 G', 'FRAGATA'],
+      // Un código pegado a una cifra, sin espacio («LVF280», frente a «LVF
+      // 800G»): \b no corta ahí (una cifra es parte de la misma «palabra»),
+      // así que hacía falta algo más estricto que un límite de palabra.
+      ['SAL.DULC PIM. ROJ JALAP LVF280', 'LVF'],
       ['TISANA RELAX 20 BOLSAS', null], ['AGUA MINERAL 1,5L', null]
     ];
     const detectadas = casos.map(([d, esperado]) => [d, window.__gamaDe(d), esperado]);

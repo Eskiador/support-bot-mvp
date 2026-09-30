@@ -1281,7 +1281,13 @@ const GAMAS = {
 // cual desde SAP trae «FRA». Se normalizan al código de siempre para que el
 // resumen no enseñe dos etiquetas distintas para la misma gama.
 const ALIAS_GAMA = { FRA: 'FRAGATA' };
-const RE_GAMA = new RegExp('\\b(' + Object.keys(GAMAS).concat(Object.keys(ALIAS_GAMA)).join('|') + ')\\b', 'i');
+// \b no vale aquí: es límite de PALABRA, y una cifra pegada detrás del
+// código («LVF280», frente a «LVF 800G») cuenta como la misma palabra, así
+// que \b no corta entre la F y el 2 y el código se queda sin detectar. La
+// descripción ya viene solo en A-Z/0-9/espacios (pasa por norm() antes),
+// así que basta con exigir que no haya una LETRA justo antes o después.
+const RE_GAMA = new RegExp('(?<![A-Z])(' +
+  Object.keys(GAMAS).concat(Object.keys(ALIAS_GAMA)).join('|') + ')(?![A-Z])', 'i');
 
 // La gama se saca SIEMPRE de la descripción de nuestra factura: es el único
 // documento con el mismo formato para todos los clientes. La del cargo varía
