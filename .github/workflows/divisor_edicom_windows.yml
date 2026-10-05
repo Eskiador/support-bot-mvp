@@ -1,0 +1,41 @@
+name: Divisor EDICOM (Windows)
+
+on:
+  push:
+    paths:
+      - "divisor_edicom/**"
+      - ".github/workflows/divisor_edicom_windows.yml"
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Construir el ZIP portable
+        run: python divisor_edicom/herramientas/construir_portable.py dist
+
+      - name: Tests con el Python portable del ZIP
+        working-directory: divisor_edicom
+        run: |
+          ..\dist\DivisorEDICOM\python\python.exe -m pip install --quiet pytest
+          ..\dist\DivisorEDICOM\python\python.exe -m pytest tests -v
+
+      - name: Prueba de la herramienta tal cual se entrega (simulación)
+        working-directory: dist/DivisorEDICOM
+        run: |
+          .\python\python.exe -m divisor --simular "..\..\divisor_edicom\ejemplos\lote1\report - 2026-10-05T120721.750.pdf"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DivisorEDICOM
+          path: dist/DivisorEDICOM.zip

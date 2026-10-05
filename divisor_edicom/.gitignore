@@ -3,3 +3,4 @@ registro/
 _procesados/
 __pycache__/
 .pytest_cache/
+dist/

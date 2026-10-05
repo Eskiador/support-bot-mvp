@@ -69,6 +69,29 @@ def manual(cfg, archivos: list[Path], simular: bool, con_total: bool) -> int:
         return 1 if errores else 0
 
 
+def vigilar_con_avisos() -> int:
+    """La vigilancia corre sin ventana (pythonw): los problemas se avisan con ventanas."""
+    from . import avisos
+    from .vigilancia import TITULO, vigilar
+
+    try:
+        cfg = cargar_configuracion()
+    except ErrorConfiguracion as e:
+        avisos.ventana_error(TITULO, f"La vigilancia NO se ha iniciado.\n\nError de configuración:\n{e}")
+        return 1
+    try:
+        avisos.notificar(TITULO, f"Vigilancia activa en {cfg.descargas}")
+        vigilar(cfg)
+        return 0
+    except Ocupado:
+        avisos.notificar(TITULO, "La vigilancia ya estaba en marcha.")
+        return 0
+    except Exception:
+        escribir_log(cfg, f"VIGILANCIA DETENIDA POR ERROR INESPERADO\n{traceback.format_exc()}")
+        avisos.ventana_error(TITULO, "La vigilancia se ha detenido por un error inesperado.\nRevisa el log en la carpeta registro\\logs.")
+        return 1
+
+
 def main(argv=None) -> int:
     for flujo in (sys.stdout, sys.stderr):
         try:
@@ -83,16 +106,13 @@ def main(argv=None) -> int:
     ap.add_argument("--pausa", action="store_true", help="esperar Intro al terminar (para el .bat)")
     args = ap.parse_args(argv)
 
+    if args.vigilar:
+        return vigilar_con_avisos()
+
     codigo = 1
     try:
         cfg = cargar_configuracion()
-        if args.vigilar:
-            from .vigilancia import vigilar
-
-            vigilar(cfg)
-            codigo = 0
-        else:
-            codigo = manual(cfg, args.archivos, args.simular, not args.sin_total)
+        codigo = manual(cfg, args.archivos, args.simular, not args.sin_total)
     except ErrorConfiguracion as e:
         print(f"ERROR DE CONFIGURACIÓN: {e}")
     except Ocupado as e:
