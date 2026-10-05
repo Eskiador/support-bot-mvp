@@ -67,6 +67,18 @@ def main() -> None:
         check=True,
     )
 
+    # Fuera lo que la herramienta no usa (el ZIP debe pesar menos de 30 MB).
+    py = destino / "python"
+    for sobrante in [
+        "tcl", "include", "libs", "Lib/tkinter", "Lib/idlelib", "Lib/turtledemo", "Lib/ensurepip",
+        "Lib/lib2to3", "Lib/pydoc_data", "Lib/site-packages/pip", "Lib/venv",
+    ]:
+        shutil.rmtree(py / sobrante, ignore_errors=True)
+    for patron in ["DLLs/_tkinter.pyd", "DLLs/tcl*.dll", "DLLs/tk*.dll", "DLLs/_test*.pyd", "Lib/site-packages/pip-*",
+                   "Lib/site-packages/PIL/_avif*.pyd", "DLLs/sqlite3.dll", "DLLs/_sqlite3.pyd"]:
+        for f in py.glob(patron):
+            shutil.rmtree(f) if f.is_dir() else f.unlink()
+
     for nombre in INCLUIR:
         origen = RAIZ / nombre
         if origen.is_dir():

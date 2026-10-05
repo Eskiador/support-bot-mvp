@@ -26,8 +26,10 @@ jobs:
       - name: Tests con el Python portable del ZIP
         working-directory: divisor_edicom
         run: |
-          ..\dist\DivisorEDICOM\python\python.exe -m pip install --quiet pytest
-          ..\dist\DivisorEDICOM\python\python.exe -m pytest tests -v
+          python -m pip install --quiet --target ..\pytest_libs pytest
+          $env:PYTHONPATH = (Resolve-Path ..\pytest_libs).Path
+          ..\dist\DivisorEDICOM\python\python.exe -m pytest tests -v -p no:cacheprovider
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Prueba de la herramienta tal cual se entrega (simulación)
         working-directory: dist/DivisorEDICOM
