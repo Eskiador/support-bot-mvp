@@ -1,0 +1,137 @@
+"""Los ejemplos reales de ediwin: el resultado debe coincidir EXACTAMENTE."""
+
+import re
+from pathlib import Path
+
+import pytest
+from conftest import COMBINADO_1, COMBINADO_2, EJEMPLOS, contenido
+from openpyxl import load_workbook
+from pypdf import PdfReader
+
+from divisor.analisis import analizar, leer_paginas
+from divisor.proceso import procesar
+
+P = "Confirmación Recepción_"
+
+# (Nº doc, páginas del combinado, GLN emisor, nombre del archivo generado)
+ESPERADO_LOTE1 = [
+    ("28199", [1], "8480000009609", P + "MERCADONA RIBARROJA SECOS.pdf"),
+    ("20265076540779", [2], "8430803111139", P + "7005232818.pdf"),
+    ("1043946", [3], "8480011999999", P + "DESARROLLO DE MARCAS 1.pdf"),
+    ("1041909", [4], "8480011999999", P + "DESARROLLO DE MARCAS 2.pdf"),
+    ("20265076483596", [5, 6, 7], "8480015979997", P + "CARREFOUR 1.pdf"),
+    ("20265076518284", [8, 9, 10], "8480015979997", P + "CARREFOUR 2.pdf"),
+    ("201704004", [11, 12, 13], "8422410000005", P + "BON PREU 1.pdf"),
+    ("201703984", [14], "8422410000005", P + "BON PREU 2.pdf"),
+    ("201703973", [15], "8422410000005", P + "BON PREU 3.pdf"),
+    ("201703835", [16, 17], "8422410000005", P + "BON PREU 4.pdf"),
+    ("0690264428", [18, 19], "8480029069004", P + "PGC VALDEMORO.pdf"),
+]
+
+# Procesado DESPUÉS del lote 1 (Ribarroja ya existe sin número -> continúa en 2)
+ESPERADO_LOTE2 = [
+    ("15046", [1], "8480000010766", P + "MERCADONA VITORIA SECOS 1.pdf"),
+    ("20310", [2], "8480000009265", P + "MERCADONA CIEMPOZUELOS SECOS 1.pdf"),
+    ("22076", [3], "8480000009449", P + "MERCADONA ANTEQUERA SECOS 1.pdf"),
+    ("10370", [4], "8480000010261", P + "MERCADONA GUADIX SECOS 1.pdf"),
+    ("10362", [5], "8480000010261", P + "MERCADONA GUADIX SECOS 2.pdf"),
+    ("14393", [6], "8480000011534", P + "MERCADONA 1153 1.pdf"),
+    ("14683", [7], "8480000010766", P + "MERCADONA VITORIA SECOS 2.pdf"),
+    ("21818", [8], "8480000009449", P + "MERCADONA ANTEQUERA SECOS 2.pdf"),
+    ("19678", [9], "8480000009265", P + "MERCADONA CIEMPOZUELOS SECOS 2.pdf"),
+    ("14209", [10], "8480000011534", P + "MERCADONA 1153 2.pdf"),
+    ("19920", [11], "8480000009265", P + "MERCADONA CIEMPOZUELOS SECOS 3.pdf"),
+    ("28193", [12], "8480000009609", P + "MERCADONA RIBARROJA SECOS 2.pdf"),
+    ("12489", [13], "5606001007106", P + "IRMADONA 1.pdf"),
+    ("12399", [14], "5606001007106", P + "IRMADONA 2.pdf"),
+    ("12234", [15], "5606001007106", P + "IRMADONA 3.pdf"),
+]
+
+CABECERA = re.compile(r"^(Nº\.? [Cc]onfirmación: \S+ )?\d\d/\d\d/\d{4} \d\d:\d\d Página \d+$")
+
+
+@pytest.mark.parametrize("combinado,esperado", [(COMBINADO_1, ESPERADO_LOTE1), (COMBINADO_2, ESPERADO_LOTE2)])
+def test_division_del_combinado(cfg, combinado, esperado):
+    a = analizar(combinado, cfg)
+    assert [(d.num_doc, d.paginas, d.gln) for d in a.documentos] == [e[:3] for e in esperado]
+    assert sum(len(d.paginas) for d in a.documentos) == a.total_paginas
+
+
+def _sin_cabeceras(paginas):
+    return [l for p in paginas for l in p if not CABECERA.match(l)]
+
+
+@pytest.mark.parametrize("lote", ["lote1", "lote2"])
+def test_cada_documento_coincide_con_su_descarga_individual(cfg, lote):
+    """El contenido de cada documento del combinado = el PDF descargado uno a uno."""
+    combinado = next((EJEMPLOS / lote).glob("report*.pdf"))
+    a = analizar(combinado, cfg)
+    individuales = {}
+    for f in (EJEMPLOS / lote / "individuales").glob("*.pdf"):
+        ai = analizar(f, cfg)  # combinado de un único documento
+        assert len(ai.documentos) == 1
+        individuales[ai.documentos[0].num_doc] = ai
+    assert set(individuales) == {d.num_doc for d in a.documentos}
+    for d in a.documentos:
+        ind = individuales[d.num_doc]
+        assert len(d.paginas) == ind.total_paginas
+        assert _sin_cabeceras([a.textos[n - 1] for n in d.paginas]) == _sin_cabeceras(ind.textos)
+        assert ind.documentos[0].gln == d.gln
+
+
+def test_proceso_completo_de_los_dos_lotes(cfg, descargar):
+    for combinado, esperado in [(COMBINADO_1, ESPERADO_LOTE1), (COMBINADO_2, ESPERADO_LOTE2)]:
+        ruta = descargar(combinado)
+        res = procesar(ruta, cfg)
+        assert res.estado == "ok", res.mensaje
+        assert [f["archivo"] for f in res.filas] == [e[3] for e in esperado]
+        assert not ruta.exists()  # el combinado se ha movido a procesados
+
+        lector = PdfReader(combinado)
+        for num, paginas, _, nombre in esperado:
+            salida = cfg.destino / nombre
+            r = PdfReader(salida)
+            assert len(r.pages) == len(paginas)
+            # Páginas copiadas tal cual: mismo contenido gráfico byte a byte.
+            for i, n in enumerate(paginas):
+                assert r.pages[i].get_contents().get_data() == lector.pages[n - 1].get_contents().get_data()
+            assert leer_paginas(salida) == [leer_paginas(combinado)[n - 1] for n in paginas]
+
+    assert len(contenido(cfg.destino)) == len(ESPERADO_LOTE1) + len(ESPERADO_LOTE2)
+    assert len(contenido(cfg.procesados)) == 2
+    assert contenido(cfg.descargas) == []
+
+    ws = load_workbook(cfg.registro / "registro_confirmaciones.xlsx").active
+    filas = list(ws.iter_rows(values_only=True))[1:]
+    assert [(f[2], f[1]) for f in filas] == [(e[0], e[3]) for e in ESPERADO_LOTE1 + ESPERADO_LOTE2]
+    assert all(isinstance(f[4], str) and len(f[4]) == 13 for f in filas)  # GLN como texto
+
+
+def test_simular_no_escribe_nada(cfg, descargar):
+    ruta = descargar(COMBINADO_1)
+    res = procesar(ruta, cfg, simular=True)
+    assert res.estado == "simulado"
+    assert [f["archivo"] for f in res.filas] == [e[3] for e in ESPERADO_LOTE1]
+    assert contenido(cfg.destino) == []
+    assert not cfg.registro.exists() and not cfg.procesados.exists()
+    assert ruta.exists()
+
+
+def test_combinado_de_un_unico_documento(cfg, descargar):
+    """Un 'report' con un solo documento (descarga individual) también se procesa."""
+    ind = EJEMPLOS / "lote1" / "individuales" / "report - 2026-10-05T120624.021.pdf"  # Carrefour, 3 págs
+    res = procesar(descargar(ind), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert contenido(cfg.destino) == [P + "CARREFOUR.pdf"]
+    assert res.filas[0]["paginas"] == 3
+
+
+def test_reprocesar_el_mismo_combinado_se_detiene(cfg, descargar):
+    assert procesar(descargar(COMBINADO_1), cfg).estado == "ok"
+    antes = contenido(cfg.destino)
+    ruta = descargar(COMBINADO_1, "report - otra vez.pdf")
+    res = procesar(ruta, cfg)
+    assert res.estado == "error"
+    assert "ya procesados" in res.mensaje and "28199" in res.mensaje
+    assert contenido(cfg.destino) == antes
+    assert ruta.exists()
