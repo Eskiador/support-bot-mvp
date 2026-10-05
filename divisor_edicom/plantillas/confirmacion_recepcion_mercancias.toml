@@ -1,0 +1,29 @@
+# Plantilla B: "Confirmación de Recepción de Mercancías" (Mercadona / Irmadona)
+# Verificada con los ejemplos reales de ejemplos/lote1 y ejemplos/lote2
+# (16 documentos, todos de 1 página).
+#
+# Las expresiones van entre comillas simples ('...') para que la barra
+# invertida \ se lea tal cual. Si algo no encaja EXACTAMENTE con estas reglas,
+# el programa se detiene: no adivina.
+
+id = "B"
+nombre = "Confirmación de Recepción de Mercancías"
+tipo_registro = "Confirmación Recepción Mercancías"
+
+titulo = "Confirmación de Recepción de Mercancías"
+
+numero_doc = '^Número de documento: (?P<num>\S+)$'
+
+cabecera = '^(?:Nº\. Confirmación: (?P<num>\S+) )?(?P<fecha>\d\d/\d\d/\d{4} \d\d:\d\d) Página (?P<pag>\d+)$'
+
+# AÚN NO VERIFICADO: no hay ningún ejemplo de Mercadona de 2 o más páginas.
+# Mientras esté en false, una página de continuación de esta plantilla hace
+# que el programa se detenga. Cambiar a true SOLO tras verificarlo con un
+# ejemplo real y añadir su test.
+permite_continuacion = false
+
+emisor = '^Emisor Mensaje\b'
+
+fecha_documento = '^Fecha documento (?P<fecha>\d\d/\d\d/\d{4})\b'
+
+pedido = '\bNº\. pedido (?P<pedido>\S+)'

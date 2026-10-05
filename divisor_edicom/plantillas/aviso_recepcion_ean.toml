@@ -1,0 +1,35 @@
+# Plantilla A: "Aviso de recepción (código EAN)"
+# Verificada con los ejemplos reales de ejemplos/lote1 (Carrefour, Bon Preu,
+# Desarrollo de Marcas, PGC Valdemoro y emisor 8430803111139), incluidos
+# documentos de 2 y 3 páginas.
+#
+# Las expresiones van entre comillas simples ('...') para que la barra
+# invertida \ se lea tal cual. Si algo no encaja EXACTAMENTE con estas reglas,
+# el programa se detiene: no adivina.
+
+id = "A"
+nombre = "Aviso de recepción (código EAN)"
+tipo_registro = "Aviso de recepción EAN"
+
+# Línea que marca el INICIO de un documento (debe ser la línea completa).
+titulo = "Aviso de recepción (código EAN)"
+
+# Línea con el número del documento en la página de inicio (línea completa).
+numero_doc = '^Nº de confirmación (?P<num>\S+)$'
+
+# Cabecera de cada página (línea completa). En las páginas de continuación
+# lleva el Nº del documento al que pertenecen. "pag" es el contador de
+# páginas del combinado y "fecha" la hora de generación.
+cabecera = '^(?:Nº confirmación: (?P<num>\S+) )?(?P<fecha>\d\d/\d\d/\d{4} \d\d:\d\d) Página (?P<pag>\d+)$'
+
+# ¿Puede un documento ocupar más de una página? (verificado: sí)
+permite_continuacion = true
+
+# Línea del emisor: de ella se saca el código GLN (13 dígitos) del cliente.
+emisor = '^Emisor mensaje\b'
+
+# Fecha del documento (página de inicio).
+fecha_documento = '^Fecha documento (?P<fecha>\d\d/\d\d/\d{4})\b'
+
+# Nº de pedido (se busca dentro de la línea).
+pedido = '\bNº de pedido (?P<pedido>\S+)'
