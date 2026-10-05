@@ -10,6 +10,8 @@ on:
 jobs:
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     defaults:
       run:
         shell: pwsh
@@ -53,3 +55,24 @@ jobs:
         with:
           name: DivisorEDICOM
           path: dist/DivisorEDICOM.zip
+
+      # Solo si todo lo anterior ha pasado: deja el ZIP en una rama aparte
+      # (una sola versión, la última probada) para poder entregarlo.
+      - name: Dejar el ZIP probado en la rama divisor-edicom-entrega
+        if: github.event_name == 'push' && github.ref == 'refs/heads/claude/sleepy-mayer-jbxkbo'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $huella = (Get-FileHash dist\DivisorEDICOM.zip -Algorithm SHA256).Hash
+          $tmp = Join-Path $env:RUNNER_TEMP "entrega"
+          New-Item -ItemType Directory $tmp | Out-Null
+          Copy-Item dist\DivisorEDICOM.zip $tmp
+          Set-Location $tmp
+          git init -q
+          git checkout -q -b divisor-edicom-entrega
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add DivisorEDICOM.zip
+          git commit -q -m "DivisorEDICOM.zip probado en Windows (commit ${{ github.sha }}) SHA256 $huella"
+          git push -q -f "https://x-access-token:$env:GH_TOKEN@github.com/${{ github.repository }}.git" divisor-edicom-entrega
+          "Publicado. SHA256: $huella"
