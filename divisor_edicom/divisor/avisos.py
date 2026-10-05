@@ -1,6 +1,6 @@
 """Avisos en Windows con el cuadro de mensaje estándar de Windows (user32).
 
-No se lanza ningún otro programa (ni PowerShell ni nada oculto): todo pasa
+No se lanza ningún otro programa ni nada en segundo plano: todo pasa
 dentro del propio proceso de Python, visible en su ventana."""
 
 from __future__ import annotations
