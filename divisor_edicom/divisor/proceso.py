@@ -105,7 +105,7 @@ def _procesar(archivo, cfg, simular, pedir_total, salida) -> Resultado:
             num_doc=d.num_doc,
             cliente=d.origen,
             gln=d.gln,
-            tipo=d.plantilla.tipo_registro,
+            tipo=d.tipo,
             fecha_documento=d.fecha_documento,
             pedido=d.pedido or "",
             paginas=len(d.paginas),

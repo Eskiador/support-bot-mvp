@@ -36,12 +36,14 @@ class Pagina:
     num_doc: str | None = None
     contador: int | None = None  # "Página N" impreso
     fecha_generacion: str | None = None
+    titulo: str | None = None  # solo en páginas de inicio
 
 
 @dataclass
 class Documento:
     plantilla: Plantilla
     num_doc: str
+    tipo: str = ""  # texto de la columna Tipo (según el título)
     paginas: list[int] = field(default_factory=list)  # números de página (1, 2...)
     gln: str = ""
     nombre_cliente: str = ""  # lo que va en el nombre del archivo
@@ -90,11 +92,11 @@ def _clasificar(pag: Pagina, plantillas: tuple[Plantilla, ...]) -> None:
             f"Página {n}: no tiene texto extraíble (¿PDF escaneado o página en blanco?). "
             "No se puede saber a qué documento pertenece."
         )
-    titulos = [p for p in plantillas if p.titulo in pag.lineas]
-    for p in titulos:
-        if pag.lineas.count(p.titulo) > 1:
-            raise ErrorDivision(f"Página {n}: el título '{p.titulo}' aparece más de una vez.")
-    if len(titulos) > 1:
+    encontrados = [(p, t) for p in plantillas for t in p.titulos if t in pag.lineas]
+    for _, t in encontrados:
+        if pag.lineas.count(t) > 1:
+            raise ErrorDivision(f"Página {n}: el título '{t}' aparece más de una vez.")
+    if len(encontrados) > 1:
         raise ErrorDivision(f"Página {n}: tiene títulos de dos tipos de documento distintos.")
 
     # Cabeceras CON Nº de documento: identifican la plantilla sin ambigüedad.
@@ -103,8 +105,8 @@ def _clasificar(pag: Pagina, plantillas: tuple[Plantilla, ...]) -> None:
     if len(plantillas_con_num) > 1:
         raise ErrorDivision(f"Página {n}: tiene cabeceras de dos tipos de documento distintos.")
 
-    if titulos:
-        plantilla = titulos[0]
+    if encontrados:
+        plantilla, pag.titulo = encontrados[0]
         if plantillas_con_num and plantillas_con_num[0] is not plantilla:
             raise ErrorDivision(
                 f"Página {n}: el título es de '{plantilla.nombre}' pero la cabecera es de "
@@ -121,7 +123,8 @@ def _clasificar(pag: Pagina, plantillas: tuple[Plantilla, ...]) -> None:
         plantilla = plantillas_con_num[0]
         if any(plantilla.numero_doc.fullmatch(l) for l in pag.lineas):
             raise ErrorDivision(
-                f"Página {n}: tiene la línea de Nº de documento pero no el título '{plantilla.titulo}'."
+                f"Página {n}: tiene la línea de Nº de documento pero ninguno de los títulos conocidos "
+                f"({' / '.join(plantilla.titulos)}). ¿Es un tipo de documento nuevo?"
             )
         nums = {m.group("num") for m in con_num[plantilla.id]}
         if len(nums) != 1:
@@ -215,7 +218,7 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
     # con Nº de una plantilla conocida, no es nuestro: se ignora sin tocarlo.
     def reconocible(pag: Pagina) -> bool:
         return any(
-            p.titulo in pag.lineas or any(m.group("num") for m in _cabeceras(pag.lineas, p))
+            any(t in pag.lineas for t in p.titulos) or any(m.group("num") for m in _cabeceras(pag.lineas, p))
             for p in cfg.plantillas
         )
 
@@ -247,7 +250,9 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
             )
 
         if pag.es_inicio:
-            documentos.append(Documento(plantilla=pag.plantilla, num_doc=pag.num_doc, paginas=[n]))
+            documentos.append(
+                Documento(plantilla=pag.plantilla, num_doc=pag.num_doc, paginas=[n], tipo=pag.plantilla.titulos[pag.titulo])
+            )
         else:
             if not documentos:
                 raise ErrorDivision(f"Página {n}: el PDF empieza con una página de continuación.")

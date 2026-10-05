@@ -19,8 +19,7 @@ class ErrorConfiguracion(Exception):
 class Plantilla:
     id: str
     nombre: str
-    tipo_registro: str
-    titulo: str
+    titulos: dict[str, str]  # título que aparece en el PDF -> texto de la columna Tipo
     numero_doc: re.Pattern
     cabecera: re.Pattern
     permite_continuacion: bool
@@ -59,7 +58,7 @@ def cargar_plantilla(ruta: Path) -> Plantilla:
         datos = tomllib.loads(ruta.read_text(encoding="utf-8-sig"))
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise ErrorConfiguracion(f"No se puede leer la plantilla {ruta.name}: {e}") from e
-    obligatorios = ["id", "nombre", "tipo_registro", "titulo", "permite_continuacion", *_CAMPOS_REGEX]
+    obligatorios = ["id", "nombre", "titulos", "permite_continuacion", *_CAMPOS_REGEX]
     faltan = [c for c in obligatorios if c not in datos]
     if faltan:
         raise ErrorConfiguracion(f"A la plantilla {ruta.name} le faltan los campos: {', '.join(faltan)}")
@@ -74,11 +73,15 @@ def cargar_plantilla(ruta: Path) -> Plantilla:
         regex[campo] = patron
     if "num" not in regex["cabecera"].groupindex or "fecha" not in regex["cabecera"].groupindex:
         raise ErrorConfiguracion(f"Plantilla {ruta.name}, campo 'cabecera': necesita los grupos num, fecha y pag")
+    titulos = datos["titulos"]
+    if not isinstance(titulos, dict) or not titulos or not all(
+        isinstance(t, str) and t.strip() and isinstance(v, str) and v.strip() for t, v in titulos.items()
+    ):
+        raise ErrorConfiguracion(f"Plantilla {ruta.name}: la sección [titulos] debe tener líneas \"título\" = \"tipo\"")
     return Plantilla(
         id=str(datos["id"]),
         nombre=str(datos["nombre"]),
-        tipo_registro=str(datos["tipo_registro"]),
-        titulo=str(datos["titulo"]),
+        titulos=titulos,
         permite_continuacion=bool(datos["permite_continuacion"]),
         archivo=ruta.name,
         **regex,
@@ -90,7 +93,7 @@ def cargar_plantillas(carpeta: Path) -> tuple[Plantilla, ...]:
     if not plantillas:
         raise ErrorConfiguracion(f"No hay plantillas (*.toml) en {carpeta}")
     ids = [p.id for p in plantillas]
-    titulos = [p.titulo for p in plantillas]
+    titulos = [t for p in plantillas for t in p.titulos]
     if len(set(ids)) != len(ids) or len(set(titulos)) != len(titulos):
         raise ErrorConfiguracion("Hay dos plantillas con el mismo id o el mismo título")
     return plantillas

@@ -1,7 +1,8 @@
-# Plantilla A: "Aviso de recepción (código EAN)"
-# Verificada con los ejemplos reales de ejemplos/lote1 (Carrefour, Bon Preu,
-# Desarrollo de Marcas, PGC Valdemoro y emisor 8430803111139), incluidos
-# documentos de 2 y 3 páginas.
+# Plantilla A: "Aviso de recepción (código EAN)" y su variante de CONSUM
+# "Aviso de expedición de mercancías" (misma estructura y misma numeración).
+# Verificada con los ejemplos reales de ejemplos/lote1 y ejemplos/lote3
+# (Carrefour, Bon Preu, Desarrollo de Marcas, PGC Valdemoro, Transgourmet,
+# CONSUM y emisor 8430803111139), incluidos documentos de 2 y 3 páginas.
 #
 # Las expresiones van entre comillas simples ('...') para que la barra
 # invertida \ se lea tal cual. Si algo no encaja EXACTAMENTE con estas reglas,
@@ -9,10 +10,6 @@
 
 id = "A"
 nombre = "Aviso de recepción (código EAN)"
-tipo_registro = "Aviso de recepción EAN"
-
-# Línea que marca el INICIO de un documento (debe ser la línea completa).
-titulo = "Aviso de recepción (código EAN)"
 
 # Línea con el número del documento en la página de inicio (línea completa).
 numero_doc = '^Nº de confirmación (?P<num>\S+)$'
@@ -33,3 +30,10 @@ fecha_documento = '^Fecha documento (?P<fecha>\d\d/\d\d/\d{4})\b'
 
 # Nº de pedido (se busca dentro de la línea).
 pedido = '\bNº de pedido (?P<pedido>\S+)'
+
+# Títulos que marcan el INICIO de un documento (cada uno debe ser una línea
+# completa del PDF) = texto que se pone en la columna "Tipo" del Excel.
+# Esta sección debe ir siempre al FINAL del archivo.
+[titulos]
+"Aviso de recepción (código EAN)" = "Aviso de recepción EAN"
+"Aviso de expedición de mercancías" = "Aviso de expedición"

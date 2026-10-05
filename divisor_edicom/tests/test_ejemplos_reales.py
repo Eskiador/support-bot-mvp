@@ -163,3 +163,52 @@ def test_fecha_y_pedido_de_cada_documento(cfg):
         for d in analizar(combinado, cfg).documentos:
             leidos[d.num_doc] = (d.fecha_documento, d.pedido)
     assert leidos == FECHA_Y_PEDIDO
+
+
+# Lote 3 (05/10/2026 11:34): incluye CONSUM con el título "Aviso de expedición
+# de mercancías" (variante de la plantilla A) y tres clientes nuevos.
+COMBINADO_3 = EJEMPLOS / "lote3" / "report.pdf"
+ESPERADO_LOTE3 = [
+    ("24244", [1], "8480000009791", P + "MERCADONA SAN ISIDRO SECOS.pdf", "Confirmación Recepción Mercancías"),
+    ("20205", [2], "8480000009265", P + "MERCADONA CIEMPOZUELOS SECOS 1.pdf", "Confirmación Recepción Mercancías"),
+    ("15046", [3], "8480000010766", P + "MERCADONA VITORIA SECOS.pdf", "Confirmación Recepción Mercancías"),
+    ("20310", [4], "8480000009265", P + "MERCADONA CIEMPOZUELOS SECOS 2.pdf", "Confirmación Recepción Mercancías"),
+    ("14209", [5], "8480000011534", P + "MERCADONA 1153.pdf", "Confirmación Recepción Mercancías"),
+    ("20265076330186", [6, 7, 8], "8480015979997", P + "CARREFOUR 1.pdf", "Aviso de recepción EAN"),
+    ("20265076359278", [9, 10, 11], "8480015979997", P + "CARREFOUR 2.pdf", "Aviso de recepción EAN"),
+    ("20265076292100", [12, 13, 14], "8480015979997", P + "CARREFOUR 3.pdf", "Aviso de recepción EAN"),
+    ("5010124589", [15], "8413080000006", P + "TRANSGOURMET.pdf", "Aviso de recepción EAN"),
+    ("1040590", [16], "8480011999999", P + "DESARROLLO DE MARCAS 1.pdf", "Aviso de recepción EAN"),
+    ("1038687", [17], "8480011999999", P + "DESARROLLO DE MARCAS 2.pdf", "Aviso de recepción EAN"),
+    ("201701577", [18], "8422410000005", P + "BON PREU 1.pdf", "Aviso de recepción EAN"),
+    ("201701536", [19], "8422410000005", P + "BON PREU 2.pdf", "Aviso de recepción EAN"),
+    ("0690261620", [20, 21], "8480029069004", P + "PGC VALDEMORO.pdf", "Aviso de recepción EAN"),
+    ("00009200000357115", [22], "8414807000002", P + "CONSUM.pdf", "Aviso de expedición"),
+]
+
+
+def test_lote3_con_consum_y_clientes_nuevos(cfg, descargar):
+    a = analizar(COMBINADO_3, cfg)
+    assert [(d.num_doc, d.paginas, d.gln, d.tipo) for d in a.documentos] == [
+        (e[0], e[1], e[2], e[4]) for e in ESPERADO_LOTE3
+    ]
+    ruta = descargar(COMBINADO_3)
+    res = procesar(ruta, cfg)
+    assert res.estado == "ok", res.mensaje
+    assert [f["archivo"] for f in res.filas] == [e[3] for e in ESPERADO_LOTE3]
+    lector = PdfReader(COMBINADO_3)
+    for _, paginas, _, nombre, _ in ESPERADO_LOTE3:
+        r = PdfReader(cfg.destino / nombre)
+        assert [p.get_contents().get_data() for p in r.pages] == [
+            lector.pages[n - 1].get_contents().get_data() for n in paginas
+        ]
+
+
+def test_lote3_tras_lote2_detecta_los_mercadona_repetidos(cfg, descargar):
+    assert procesar(descargar(COMBINADO_2), cfg).estado == "ok"
+    ruta = descargar(COMBINADO_3)
+    res = procesar(ruta, cfg)
+    assert res.estado == "error"
+    for num in ("15046", "20310", "14209"):
+        assert f"Nº {num}" in res.mensaje
+    assert ruta.exists()

@@ -8,9 +8,6 @@
 
 id = "B"
 nombre = "Confirmación de Recepción de Mercancías"
-tipo_registro = "Confirmación Recepción Mercancías"
-
-titulo = "Confirmación de Recepción de Mercancías"
 
 numero_doc = '^Número de documento: (?P<num>\S+)$'
 
@@ -27,3 +24,8 @@ emisor = '^Emisor Mensaje\b'
 fecha_documento = '^Fecha documento (?P<fecha>\d\d/\d\d/\d{4})\b'
 
 pedido = '\bNº\. pedido (?P<pedido>\S+)'
+
+# Títulos que marcan el INICIO de un documento = texto de la columna "Tipo".
+# Esta sección debe ir siempre al FINAL del archivo.
+[titulos]
+"Confirmación de Recepción de Mercancías" = "Confirmación Recepción Mercancías"

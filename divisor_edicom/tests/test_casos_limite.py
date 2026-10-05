@@ -230,3 +230,17 @@ def test_pdf_danado(cfg):
     with pytest.raises(ErrorDivision):
         analizar(ruta, cfg)
     assert procesar(ruta, cfg).estado == "error"
+
+
+def test_tipo_de_documento_nuevo_con_estructura_conocida(cfg):
+    """Lo que pasó con CONSUM antes de añadir su título: título desconocido
+    pero con la línea de Nº de documento -> para y lo dice."""
+    pag = [
+        "Nº confirmación: 777 05/10/2026 11:34 Página 1",
+        "Pedido de compra",
+        "Nº de confirmación 777",
+        "Fecha documento 29/09/2026",
+        "Emisor mensaje CONSUM 8414807000002",
+    ]
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [pag])
+    error(cfg, ruta, "Página 1", "ninguno de los títulos conocidos", "tipo de documento nuevo")

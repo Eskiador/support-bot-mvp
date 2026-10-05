@@ -94,6 +94,18 @@ Si el nombre lleva `{pedido}`, se sustituye por el Nº de pedido del documento.
 
 ## 6. Añadir un tipo de documento nuevo
 
+Si el error dice **"ninguno de los títulos conocidos… ¿Es un tipo de documento
+nuevo?"**, ha llegado un documento con un título que la herramienta no conoce.
+Si tiene la misma estructura que uno existente (como pasó con CONSUM, "Aviso de
+expedición de mercancías"), basta con añadir su título al final del archivo de
+la plantilla, en la sección `[titulos]`:
+
+    "Aviso de expedición de mercancías" = "Aviso de expedición"
+
+(a la izquierda, el título exacto del PDF; a la derecha, lo que saldrá en la
+columna Tipo del Excel). Lo más seguro es pasar el PDF para verificarlo y
+añadirlo a los tests.
+
 Cada tipo de documento es un archivo en `plantillas\` (`.toml`) con sus reglas:
 título que marca el inicio, línea del Nº de documento, cabecera de cada página,
 línea del emisor, fecha y pedido. Para un tipo nuevo se copia uno existente y se

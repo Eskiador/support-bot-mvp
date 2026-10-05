@@ -52,7 +52,7 @@ def test_tabla_de_clientes_real_valida():
     clientes = cargar_clientes(RAIZ / "clientes.ini")
     assert clientes["8480015979997"] == "CARREFOUR"
     assert clientes["8430803111139"] == "{pedido}"
-    assert len(clientes) == 12
+    assert len(clientes) == 15
 
 
 def test_clientes_con_gln_invalido(tmp_path):
