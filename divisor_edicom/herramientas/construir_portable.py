@@ -1,9 +1,13 @@
-"""Construye el ZIP portable para Windows: Python 3.12 + librerías + herramienta.
+"""Construye el ZIP portable para Windows.
 
 Uso:  python herramientas/construir_portable.py [carpeta_salida]
 
-No necesita Windows: descarga un Python portable oficial para Windows
-(python-build-standalone) y las librerías en su versión para Windows.
+Contenido:
+- Python 3.12 "embeddable" OFICIAL de python.org (binarios firmados por la
+  Python Software Foundation; vcruntime firmado por Microsoft).
+- pypdf y openpyxl: librerías escritas solo en Python (ningún .exe/.dll/.pyd).
+- La herramienta y sus .bat.
+- HUELLAS.txt: SHA256 de todos los archivos, para que Informática los verifique.
 """
 
 from __future__ import annotations
@@ -12,15 +16,12 @@ import hashlib
 import shutil
 import subprocess
 import sys
-import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path
 
-PYTHON_URL = (
-    "https://github.com/astral-sh/python-build-standalone/releases/download/20250409/"
-    "cpython-3.12.10+20250409-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
-)
+PYTHON_VERSION = "3.12.10"
+PYTHON_URL = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/python-{PYTHON_VERSION}-embed-amd64.zip"
 
 RAIZ = Path(__file__).resolve().parent.parent
 NOMBRE = "DivisorEDICOM"
@@ -33,10 +34,13 @@ INCLUIR = [
     "Procesar.bat",
     "Simular.bat",
     "Vigilar.bat",
-    "Detener_vigilancia.bat",
-    "Activar_inicio_con_Windows.bat",
-    "Desactivar_inicio_con_Windows.bat",
+    "NOTA_PARA_INFORMATICA.md",
 ]
+BINARIOS = {".exe", ".dll", ".pyd"}
+
+
+def sha256(ruta: Path) -> str:
+    return hashlib.sha256(ruta.read_bytes()).hexdigest()
 
 
 def main() -> None:
@@ -44,40 +48,36 @@ def main() -> None:
     destino = salida / NOMBRE
     if destino.exists():
         shutil.rmtree(destino)
-    destino.mkdir(parents=True)
+    py = destino / "python"
+    py.mkdir(parents=True)
 
-    tar = salida / "python-windows.tar.gz"
-    if not tar.exists():
-        print("Descargando Python portable para Windows...")
-        urllib.request.urlretrieve(PYTHON_URL, tar)
-    huella = hashlib.sha256(tar.read_bytes()).hexdigest()
-    with tarfile.open(tar) as t:
-        t.extractall(destino)  # crea destino/python/
-    assert (destino / "python" / "python.exe").exists()
+    zip_python = salida / f"python-{PYTHON_VERSION}-embed-amd64.zip"
+    if not zip_python.exists():
+        print(f"Descargando {PYTHON_URL}")
+        urllib.request.urlretrieve(PYTHON_URL, zip_python)
+    with zipfile.ZipFile(zip_python) as z:
+        z.extractall(py)
+    assert (py / "python.exe").exists()
 
-    print("Instalando librerías (versión Windows)...")
+    # Rutas de Python: sus librerías, las nuestras y la carpeta de la herramienta
+    # (el archivo ._pth hace que Python ignore variables de entorno: aislado).
+    pth = next(py.glob("python3*._pth"))
+    zip_std = next(py.glob("python3*.zip")).name
+    pth.write_text(f"{zip_std}\n.\nLib\\site-packages\n..\n", encoding="ascii")
+
+    print("Instalando pypdf y openpyxl...")
     subprocess.run(
         [
             sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
-            "--target", str(destino / "python" / "Lib" / "site-packages"),
+            "--no-compile", "--target", str(py / "Lib" / "site-packages"),
             "--platform", "win_amd64", "--python-version", "3.12", "--implementation", "cp",
-            "--only-binary=:all:", "--upgrade",
-            "-r", str(RAIZ / "requirements.txt"),
+            "--only-binary=:all:", "-r", str(RAIZ / "requirements.txt"),
         ],
         check=True,
     )
-
-    # Fuera lo que la herramienta no usa (el ZIP debe pesar menos de 30 MB).
-    py = destino / "python"
-    for sobrante in [
-        "tcl", "include", "libs", "Lib/tkinter", "Lib/idlelib", "Lib/turtledemo", "Lib/ensurepip",
-        "Lib/lib2to3", "Lib/pydoc_data", "Lib/site-packages/pip", "Lib/venv",
-    ]:
-        shutil.rmtree(py / sobrante, ignore_errors=True)
-    for patron in ["DLLs/_tkinter.pyd", "DLLs/tcl*.dll", "DLLs/tk*.dll", "DLLs/_test*.pyd", "Lib/site-packages/pip-*",
-                   "Lib/site-packages/PIL/_avif*.pyd", "DLLs/sqlite3.dll", "DLLs/_sqlite3.pyd"]:
-        for f in py.glob(patron):
-            shutil.rmtree(f) if f.is_dir() else f.unlink()
+    extra = [f for f in (py / "Lib").rglob("*") if f.suffix.lower() in BINARIOS]
+    if extra:
+        raise SystemExit(f"Las librerías han traído binarios compilados y no deberían: {extra}")
 
     for nombre in INCLUIR:
         origen = RAIZ / nombre
@@ -86,15 +86,24 @@ def main() -> None:
         else:
             shutil.copy2(origen, destino / nombre)
     shutil.copy2(RAIZ / "README.md", destino / "LEEME.txt")
-    (destino / "VERSION.txt").write_text(
-        f"Python: {PYTHON_URL}\nSHA256: {huella}\nLibrerías: {(RAIZ / 'requirements.txt').read_text()}",
+
+    archivos = sorted(f for f in destino.rglob("*") if f.is_file())
+    huellas = [f"{sha256(f)}  {f.relative_to(destino).as_posix()}" for f in archivos]
+    (destino / "HUELLAS.txt").write_text(
+        f"Divisor EDICOM - huellas SHA256 de todos los archivos\n"
+        f"Python oficial: {PYTHON_URL}\n"
+        f"SHA256 del paquete de Python descargado: {sha256(zip_python)}\n\n" + "\n".join(huellas) + "\n",
         encoding="utf-8",
     )
+    print("Ejecutables y bibliotecas incluidos:")
+    for f in archivos:
+        if f.suffix.lower() in BINARIOS:
+            print(f"  {f.relative_to(destino).as_posix()}")
 
     zip_ruta = salida / f"{NOMBRE}.zip"
     with zipfile.ZipFile(zip_ruta, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for f in sorted(destino.rglob("*")):
-            if f.is_file() and "__pycache__" not in f.parts:
+            if f.is_file():
                 z.write(f, f.relative_to(salida))
     print(f"Creado: {zip_ruta} ({zip_ruta.stat().st_size / 1e6:.1f} MB)")
 

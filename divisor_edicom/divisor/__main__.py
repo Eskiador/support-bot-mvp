@@ -70,7 +70,7 @@ def manual(cfg, archivos: list[Path], simular: bool, con_total: bool) -> int:
 
 
 def vigilar_con_avisos() -> int:
-    """La vigilancia corre sin ventana (pythonw): los problemas se avisan con ventanas."""
+    """Vigilancia en una ventana visible: cerrar la ventana = parar."""
     from . import avisos
     from .vigilancia import TITULO, vigilar
 
@@ -79,16 +79,21 @@ def vigilar_con_avisos() -> int:
     except ErrorConfiguracion as e:
         avisos.ventana_error(TITULO, f"La vigilancia NO se ha iniciado.\n\nError de configuración:\n{e}")
         return 1
+    print("=" * 70)
+    print(f" VIGILANCIA ACTIVA en {cfg.descargas}")
+    print(" Cada PDF 'report - ...' nuevo se procesa automáticamente.")
+    print(" Puedes minimizar esta ventana. Para PARAR la vigilancia, ciérrala.")
+    print("=" * 70)
     try:
-        avisos.notificar(TITULO, f"Vigilancia activa en {cfg.descargas}")
         vigilar(cfg)
         return 0
     except Ocupado:
-        avisos.notificar(TITULO, "La vigilancia ya estaba en marcha.")
+        avisos.ventana_error(TITULO, "La vigilancia ya está en marcha en otra ventana.\nEsta se cerrará.")
         return 0
     except Exception:
         escribir_log(cfg, f"VIGILANCIA DETENIDA POR ERROR INESPERADO\n{traceback.format_exc()}")
-        avisos.ventana_error(TITULO, "La vigilancia se ha detenido por un error inesperado.\nRevisa el log en la carpeta registro\\logs.")
+        traceback.print_exc()
+        avisos.ventana_error(TITULO, "La vigilancia se ha detenido por un error inesperado.\nRevisa la ventana y el log (carpeta registro\\logs).")
         return 1
 
 

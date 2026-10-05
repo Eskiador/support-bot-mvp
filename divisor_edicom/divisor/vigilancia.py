@@ -8,7 +8,7 @@ import traceback
 from . import avisos, estado
 from .bloqueo import Ocupado, bloqueo
 from .configuracion import Configuracion
-from .proceso import escribir_log, procesar, tabla
+from .proceso import escribir_log, procesar
 
 TITULO = "Divisor EDICOM"
 
@@ -45,8 +45,13 @@ def vigilar(cfg: Configuracion, vueltas: int | None = None) -> None:
 
 def _procesar_uno(cfg: Configuracion, f, datos: dict, k: str) -> None:
     lineas: list[str] = []
+
+    def salida(texto: str) -> None:  # a la ventana de la vigilancia y al log
+        lineas.append(texto)
+        print(texto)
+
     try:
-        res = procesar(f, cfg, salida=lineas.append)
+        res = procesar(f, cfg, salida=salida)
     except Exception:  # error inesperado: nunca debe tumbar la vigilancia
         escribir_log(cfg, f"{f.name}: ERROR INESPERADO\n{traceback.format_exc()}")
         datos["vistos"][k] = "error"

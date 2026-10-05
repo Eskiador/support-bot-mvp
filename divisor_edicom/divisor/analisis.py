@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import pdfplumber
+from pypdf import PdfReader
 
 from .configuracion import Configuracion, Plantilla, gln_valido
 
@@ -60,20 +60,23 @@ class Analisis:
 
 
 def leer_paginas(archivo: Path) -> list[list[str]]:
-    """Texto de cada página (lista de líneas). Error si una página no tiene texto."""
+    """Texto de cada página como lista de líneas, en el orden en que se ven
+    (modo "layout" de pypdf). Los espacios repetidos se reducen a uno."""
     try:
-        pdf = pdfplumber.open(archivo)
-    except Exception as e:  # PDF dañado, cifrado...
-        raise ErrorDivision(f"No se puede abrir el PDF '{archivo.name}': {e}") from e
-    with pdf:
-        if not pdf.pages:
-            raise ErrorDivision(f"El PDF '{archivo.name}' no tiene páginas.")
+        lector = PdfReader(archivo)
+        if lector.is_encrypted:
+            raise ErrorDivision(f"El PDF '{archivo.name}' está protegido con contraseña.")
         paginas = []
-        for i, p in enumerate(pdf.pages, 1):
-            texto = p.extract_text() or ""
-            lineas = [l.rstrip() for l in texto.splitlines() if l.strip()]
-            paginas.append(lineas)
-        return paginas
+        for pagina in lector.pages:
+            texto = pagina.extract_text(extraction_mode="layout") or ""
+            paginas.append([" ".join(l.split()) for l in texto.splitlines() if l.strip()])
+    except ErrorDivision:
+        raise
+    except Exception as e:  # PDF dañado o ilegible
+        raise ErrorDivision(f"No se puede leer el PDF '{archivo.name}': {e}") from e
+    if not paginas:
+        raise ErrorDivision(f"El PDF '{archivo.name}' no tiene páginas.")
+    return paginas
 
 
 def _cabeceras(lineas: list[str], plantilla: Plantilla) -> list[re.Match]:

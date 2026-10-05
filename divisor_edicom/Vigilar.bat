@@ -1,9 +1,9 @@
 @echo off
+rem Divisor EDICOM. Solo ejecuta el Python incluido en esta carpeta, en esta
+rem misma ventana y a la vista. No usa PowerShell ni procesos ocultos.
 chcp 65001 >nul
 cd /d "%~dp0"
-set PYTHONIOENCODING=utf-8
-set PYTHONDONTWRITEBYTECODE=1
-rem Arranca la vigilancia de Descargas en segundo plano (sin ventana).
-start "" "%~dp0python\pythonw.exe" -m divisor --vigilar
-echo Vigilancia iniciada. Veras una notificacion de Windows.
-timeout /t 4 >nul
+title Divisor EDICOM - Vigilancia (cierra esta ventana para pararla)
+rem Vigila Descargas mientras esta ventana este abierta. Cerrarla = parar.
+"%~dp0python\python.exe" -m divisor --vigilar
+pause

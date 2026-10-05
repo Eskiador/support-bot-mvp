@@ -28,7 +28,7 @@ def generar(analisis: Analisis, nombres: list[str], carpeta: Path) -> list[Path]
     carpeta.mkdir(parents=True, exist_ok=True)
     lector = PdfReader(analisis.archivo)
     if len(lector.pages) != analisis.total_paginas:
-        raise ErrorDivision("pypdf y pdfplumber no ven el mismo número de páginas en el combinado.")
+        raise ErrorDivision("El combinado ha cambiado mientras se procesaba (distinto número de páginas).")
     rutas = []
     for doc, nombre in zip(analisis.documentos, nombres, strict=True):
         escritor = PdfWriter()

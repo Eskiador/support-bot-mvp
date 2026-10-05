@@ -20,14 +20,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Construir el ZIP portable
+      - name: Construir el ZIP portable (Python oficial de python.org)
         run: python divisor_edicom/herramientas/construir_portable.py dist
 
-      - name: Tests con el Python portable del ZIP
+      - name: Firma digital de todos los ejecutables del ZIP
+        run: |
+          $bins = Get-ChildItem dist\DivisorEDICOM -Recurse -Include *.exe,*.dll,*.pyd
+          $mal = @()
+          foreach ($b in $bins) {
+            $s = Get-AuthenticodeSignature $b.FullName
+            $firmante = if ($s.SignerCertificate) { ($s.SignerCertificate.Subject -split ',')[0] } else { '-' }
+            "{0,-9} {1,-28} {2}" -f $s.Status, $b.Name, $firmante
+            if ($s.Status -ne 'Valid') { $mal += $b.FullName }
+          }
+          "Total: $($bins.Count) binarios"
+          if ($mal) { "SIN FIRMA VALIDA:"; $mal; exit 1 }
+
+      - name: Tests con el Python del ZIP
         working-directory: divisor_edicom
         run: |
-          python -m pip install --quiet --target ..\pytest_libs pytest
-          $env:PYTHONPATH = (Resolve-Path ..\pytest_libs).Path
+          python -m pip install --quiet --target ..\dist\DivisorEDICOM\python\Lib\site-packages pytest
           ..\dist\DivisorEDICOM\python\python.exe -m pytest tests -v -p no:cacheprovider
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
