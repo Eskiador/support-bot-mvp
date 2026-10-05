@@ -51,6 +51,19 @@ pytest tests/
 5. Para dejarla fuera de servicio en cualquier momento: desde tu panel en
    share.streamlit.io puedes pausar o eliminar la app cuando quieras.
 
+## Despliegue alternativo (Render, gratis)
+
+El archivo `render.yaml` deja la app lista para Render:
+
+1. En [render.com](https://render.com) entra con tu cuenta de GitHub.
+2. **New +** → **Blueprint** → elige este repositorio y la rama `main`.
+3. **Apply**. Render instala las librerías y publica la app (tarda unos
+   minutos la primera vez).
+4. Al ser gratuito, la app se duerme tras 15 minutos sin uso y tarda
+   alrededor de un minuto en despertar la siguiente vez.
+5. Para apagarla: en Render, entra en el servicio → **Settings** →
+   **Suspend** (se puede reactivar) o **Delete Web Service**.
+
 ## Actualizar la tabla de cruce EAN ↔ SAP
 
 La tabla vive en `data/cruce_ean_sap.xlsx` (hoja `Cruce_EAN_SAP`, columnas
