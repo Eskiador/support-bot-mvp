@@ -14,7 +14,8 @@ página falla y no escribe nada. Nunca adivina.
    marca **Desbloquear** (abajo) → Aceptar. Así Windows no bloquea los `.bat`.
 2. Descomprime el ZIP en `C:\EDICOM\` (quedará `C:\EDICOM\DivisorEDICOM\`).
    No hace falta instalar Python ni nada más: va incluido.
-3. Haz una prueba con **`Simular.bat`** (no escribe nada).
+3. Primera prueba: **arrastra un PDF combinado de ediwin encima de `Simular.bat`**.
+   Verás la tabla de documentos y los nombres que tendrían, sin escribir nada.
 
 
 ## 2. Uso diario
@@ -39,7 +40,9 @@ para que lo cuadres con el Total de ediwin.
 | `Activar_inicio_con_Windows.bat` | La vigilancia arrancará sola al encender el PC |
 | `Desactivar_inicio_con_Windows.bat` | Lo deshace |
 
-Los PDF "report" que ya estaban en Descargas el primer día se ignoran.
+Los PDF "report" que ya estaban en Descargas la primera vez que se ejecuta la
+herramienta se ignoran (ya los archivaste a mano). Si quieres procesar uno de
+ellos, arrástralo encima de `Procesar.bat`.
 Los "report" que no son confirmaciones (p. ej. un pedido) se ignoran sin tocarlos.
 
 
