@@ -26,7 +26,7 @@ def _envejecer(ruta, segundos=3600):
 
 
 def test_vigilancia(cfg, capturar_avisos):
-    viejo = shutil.copy(COMBINADO_2, cfg.descargas / "report - de antes.pdf")
+    viejo = shutil.copy(COMBINADO_2, cfg.descargas / "report.pdf")
     _envejecer(viejo)
     estado.leer(cfg)  # primera ejecución: "instalación"
     shutil.copy(COMBINADO_1, cfg.descargas / "report - nuevo.pdf")
@@ -37,7 +37,7 @@ def test_vigilancia(cfg, capturar_avisos):
     vigilar(cfg, vueltas=3)
 
     assert len(contenido(cfg.destino)) == 11  # solo el nuevo
-    assert contenido(cfg.descargas) == ["otro.pdf", "report - de antes.pdf", "report - escaneado.pdf", "report - pedido.pdf"]
+    assert contenido(cfg.descargas) == ["otro.pdf", "report - escaneado.pdf", "report - pedido.pdf", "report.pdf"]
     tipos = sorted(t for t, _ in capturar_avisos)
     assert tipos == ["error", "notificacion", "notificacion"]
     assert any("11 confirmaciones" in x for _, x in capturar_avisos)
@@ -94,3 +94,29 @@ def test_no_pueden_trabajar_dos_a_la_vez(tmp_path):
                 pass
     with bloqueo(tmp_path / "proceso.lock"):  # liberado al terminar
         pass
+
+
+def test_reconoce_los_nombres_que_pone_edge(cfg):
+    from divisor.estado import descargas_ediwin
+
+    for n in ["report.pdf", "report (1).pdf", "report (100).pdf", "report - 2026-10-05T120721.750.pdf",
+              "reporte.pdf", "report (1) - copia.pdf", "mi report.pdf", "report (1).pdf.crdownload", "otro.pdf"]:
+        (cfg.descargas / n).write_bytes(b"%PDF")
+    assert sorted(f.name for f in descargas_ediwin(cfg)) == [
+        "report (1).pdf", "report (100).pdf", "report - 2026-10-05T120721.750.pdf", "report.pdf",
+    ]
+
+
+def test_manual_procesa_aunque_se_descargaran_antes_de_la_primera_ejecucion(cfg, monkeypatch, capsys):
+    a = shutil.copy(COMBINADO_1, cfg.descargas / "report.pdf")
+    b = shutil.copy(COMBINADO_2, cfg.descargas / "report (1).pdf")
+    _envejecer(a, 120)
+    _envejecer(b, 60)
+    estado.leer(cfg)  # primera ejecución DESPUÉS de descargar
+    respuestas = iter(["11", "15"])
+    monkeypatch.setattr("builtins.input", lambda *_: next(respuestas))
+    assert manual(cfg, [], simular=False, con_total=True) == 0
+    assert len(contenido(cfg.destino)) == 26
+    assert contenido(cfg.descargas) == []
+    salida = capsys.readouterr().out
+    assert salida.index("report.pdf") < salida.index("report (1).pdf")  # del más antiguo al más nuevo

@@ -42,7 +42,7 @@ Si algo no cuadra, se detiene y no escribe nada.
 
 ## Comportamiento en el equipo
 
-- **Lee:** los PDF `report - *.pdf` de `C:\Users\pablo.montes\Downloads`.
+- **Lee:** los PDF de ediwin (`report.pdf`, `report (N).pdf`, `report - *.pdf`) de `C:\Users\pablo.montes\Downloads`.
 - **Escribe:** en `\\hq.gac\files\wmn\PEDIDOS\RECADV`, y dentro de su propia carpeta
   (`_procesados`, `registro`, `estado`).
 - **Avisos:** el cuadro de mensaje estándar de Windows (`MessageBoxW` de user32).

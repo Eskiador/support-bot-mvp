@@ -37,7 +37,7 @@ class Configuracion:
     procesados: Path
     registro: Path
     estado: Path
-    patron_descargas: str
+    patron_descargas: tuple[str, ...]
     prefijo: str
     longitud_maxima_nombre: int
     intervalo_segundos: float
@@ -145,7 +145,7 @@ def cargar_configuracion(carpeta: Path = CARPETA_HERRAMIENTA, **sustituir) -> Co
             procesados=_ruta(r["procesados"], carpeta),
             registro=_ruta(r["registro"], carpeta),
             estado=_ruta(r["estado"], carpeta),
-            patron_descargas=a["patron_descargas"].strip(),
+            patron_descargas=tuple(p.strip() for p in a["patron_descargas"].split("|") if p.strip()),
             prefijo=a["prefijo"].strip(),
             longitud_maxima_nombre=a.getint("longitud_maxima_nombre"),
             intervalo_segundos=v.getfloat("intervalo_segundos"),

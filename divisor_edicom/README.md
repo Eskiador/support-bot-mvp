@@ -1,6 +1,6 @@
 # Divisor de confirmaciones EDICOM
 
-Divide el PDF combinado que descargas de ediwin ("report - ….pdf") en un PDF por
+Divide el PDF combinado que descargas de ediwin (`report.pdf`, `report (1).pdf`…) en un PDF por
 documento, con el nombre `Confirmación Recepción_CLIENTE.pdf`, y los guarda en
 `\\hq.gac\files\wmn\PEDIDOS\RECADV`.
 
@@ -27,8 +27,9 @@ No usa PowerShell, no lanza procesos ocultos y no se instala en Windows.
 
 1. En ediwin, Entrada > Recibidos: selecciona las confirmaciones y descarga el
    PDF combinado. Fíjate en el número "Total".
-2. Doble clic en **`Procesar.bat`**. Procesa los "report - ….pdf" pendientes de
-   Descargas, te enseña la tabla de documentos y te pide el Total de ediwin.
+2. Doble clic en **`Procesar.bat`**. Procesa todos los PDF de ediwin que haya en
+   Descargas (`report.pdf`, `report (1).pdf` … `report (100).pdf` y
+   `report - fecha.pdf`), del más antiguo al más nuevo, te enseña la tabla de documentos y te pide el Total de ediwin.
    Si coincide, guarda los PDFs y mueve el combinado a `_procesados`.
    (También puedes arrastrar un PDF encima de `Procesar.bat`.)
 
@@ -44,9 +45,9 @@ de la vigilancia la detiene.**
 | `Simular.bat` | Enseña lo que haría, sin escribir nada |
 | `Vigilar.bat` | Vigila Descargas mientras su ventana esté abierta |
 
-Los PDF "report" que ya estaban en Descargas la primera vez que se ejecuta la
-herramienta se ignoran (ya los archivaste a mano). Si quieres procesar uno de
-ellos, arrástralo encima de `Procesar.bat`.
+Los combinados procesados se mueven a `_procesados`, así que no se repiten. La
+**vigilancia** solo coge los PDF descargados después de la primera vez que se
+usó la herramienta; para uno anterior, usa `Procesar.bat`.
 Los "report" que no son confirmaciones (p. ej. un pedido) se ignoran sin tocarlos.
 
 

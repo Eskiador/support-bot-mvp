@@ -30,14 +30,15 @@ def manual(cfg, archivos: list[Path], simular: bool, con_total: bool) -> int:
     with bloqueo(cfg.estado / "proceso.lock"):
         if not archivos:
             datos = estado.leer(cfg)
-            antiguos = estado.anteriores(cfg, datos)
             archivos = []
-            for f in estado.candidatos(cfg, datos):
+            for f in estado.descargas_ediwin(cfg):
                 if datos["vistos"].get(estado.clave(f)) == "ignorado":
                     continue
                 archivos.append(f)
-            if antiguos:
-                print(f"(Se ignoran {antiguos} PDF 'report' descargados antes de instalar la herramienta.)")
+            if archivos:
+                print(f"PDF de ediwin encontrados en Descargas: {len(archivos)}")
+                for f in archivos:
+                    print(f"  - {f.name}")
             if not archivos:
                 print(f"No hay combinados de ediwin pendientes en {cfg.descargas}")
                 return 0

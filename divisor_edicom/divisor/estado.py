@@ -1,7 +1,8 @@
 """Qué PDFs de Descargas están pendientes.
 
-Al usarse por primera vez se anota la fecha de "instalación": los PDFs
-descargados antes se ignoran (ya se archivaron a mano)."""
+Modo manual: todos los PDF de ediwin que haya en Descargas (los ya
+procesados se mueven a _procesados, así que no vuelven a aparecer).
+Vigilancia: solo los descargados después de la primera ejecución."""
 
 from __future__ import annotations
 
@@ -42,17 +43,29 @@ def clave(archivo: Path) -> str:
     return f"{archivo.name}|{st.st_size}|{st.st_mtime_ns}"
 
 
-def candidatos(cfg: Configuracion, datos: dict) -> list[Path]:
-    """PDFs de ediwin en Descargas descargados después de la instalación."""
+def descargas_ediwin(cfg: Configuracion) -> list[Path]:
+    """PDFs de Descargas con nombre de descarga de ediwin, del más antiguo al más nuevo."""
+    vistos: dict[str, Path] = {}
+    for patron in cfg.patron_descargas:
+        for f in cfg.descargas.glob(patron):
+            vistos[str(f).lower()] = f
     res = []
-    for f in cfg.descargas.glob(cfg.patron_descargas):
+    for f in vistos.values():
         try:
-            if f.is_file() and f.stat().st_mtime >= datos["desde"]:
+            if f.is_file():
+                res.append((f.stat().st_mtime, f))
+        except OSError:
+            continue
+    return [f for _, f in sorted(res, key=lambda x: x[0])]
+
+
+def candidatos(cfg: Configuracion, datos: dict) -> list[Path]:
+    """Para la vigilancia: los descargados después de la primera ejecución."""
+    res = []
+    for f in descargas_ediwin(cfg):
+        try:
+            if f.stat().st_mtime >= datos["desde"]:
                 res.append(f)
         except OSError:
             continue
-    return sorted(res, key=lambda f: f.stat().st_mtime)
-
-
-def anteriores(cfg: Configuracion, datos: dict) -> int:
-    return sum(1 for f in cfg.descargas.glob(cfg.patron_descargas) if f.stat().st_mtime < datos["desde"])
+    return res
