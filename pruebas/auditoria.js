@@ -1060,6 +1060,42 @@ const dice = (bien, etiqueta, detalle='') => {
        JSON.stringify(anchoTabla));
 
   // ------------------------------------------------------------------
+  // Un no conforme reclamado al comercial queda en «Reclamado» hasta que el
+  // comercial da el visto bueno y se cierra a mano; al reabrirlo vuelve ahí.
+  console.log('\n=== 5r · Estado «Reclamado» para los no conformes reclamados ===');
+  const reclamado = await pagina.evaluate(() => {
+    window.cambiarVista('cargos');
+    window.E.memoria.cargos = {rc: {
+      cliente:'PENINSULACO, S.L.', asignacion:'CP-0000001', importe:-10, fecha:'2026-08-05', ndoc:'',
+      moneda:'EUR', clave:'I', abono:'1519000001', fechaAbono:'2026-08-06', conforme:false,
+      marcadoEnSap:false, compensado:false, reclamado:false, fechaReclamacion:'', nota:'',
+      clasificado:'precio', calculo:null, enListado:true, pdfGuardado:false, cerrado:false,
+      marca:'MDF', fechaPedido:'', pedidoCliente:'', estado:'pendiente'
+    }};
+    const c = window.E.memoria.cargos.rc, pasos = {};
+    window.__pintarCola();
+    pasos.antes = window.recalcularEstado(c);
+    window.__alternarCasilla('rc', 'reclamado');
+    pasos.trasReclamar = c.estado;
+    pasos.filtro = (document.querySelector('#fEstado').value = 'reclamado',
+                    window.cargosFiltrados().map(x => x.id));
+    document.querySelector('#fEstado').value = '';
+    window.__alternarCasilla('rc', 'cerrado');
+    pasos.trasCerrar = c.estado;
+    window.__alternarCasilla('rc', 'cerrado');
+    pasos.trasReabrir = c.estado;
+    pasos.contador = [...document.querySelectorAll('#contadores .dato')]
+      .find(d => /Reclamados/.test(d.textContent))?.querySelector('.vl').textContent;
+    return pasos;
+  });
+  dice(reclamado.antes === 'abonado' && reclamado.trasReclamar === 'reclamado',
+       'al marcarlo como reclamado al comercial pasa solo a «Reclamado»', JSON.stringify(reclamado));
+  dice(reclamado.filtro.includes('rc'), 'el filtro de estado encuentra los reclamados');
+  dice(reclamado.trasCerrar === 'cerrado' && reclamado.trasReabrir === 'reclamado',
+       'se cierra a mano, y al reabrirlo vuelve a «Reclamado»', JSON.stringify(reclamado));
+  dice(reclamado.contador === '1', 'el contador de reclamados lo cuenta', reclamado.contador);
+
+  // ------------------------------------------------------------------
   console.log('\n=== 6 · Texto del cliente con caracteres especiales ===');
   const escapado = await pagina.evaluate(() => {
     window.E.memoria.cargos = {'x': {

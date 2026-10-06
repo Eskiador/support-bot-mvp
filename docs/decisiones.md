@@ -1457,3 +1457,23 @@ otra letra sí — «LVF280» encuentra LVF, «ALVF» no. Como el texto pasa
 siempre por `norm()` antes (mayúsculas, sin acentos, solo A-Z/0-9/espacios),
 esta comprobación cubre todos los casos reales sin volverse más permisiva
 de lo necesario.
+
+## Estado «Reclamado»: el no conforme que espera al comercial
+
+Un cargo no conforme pasaba de «abonado» a «cerrado» sin nada en medio, y el
+tiempo que de verdad cuenta —el que pasa desde que se reclama al comercial
+hasta que da el visto bueno— no se veía en ningún sitio: solo una casilla
+«recl.» entre otras catorce. Ahora es un estado propio, **Reclamado**, entre
+«abonado» y «cerrado».
+
+Igual que el resto, se deduce solo: `recalcularEstado()` lo pone en cuanto un
+cargo es NO conforme y está marcado como reclamado al comercial, se marque
+desde la casilla de la cola, desde la ficha o en bloque. Va por delante de
+«abonado» porque, una vez reclamado, lo que importa de ese cargo ya no es el
+abono sino la respuesta que falta. El cierre sigue siendo a mano —cuando el
+comercial da luz verde— con un clic en la propia casilla de estado, y al
+reabrirlo vuelve a «Reclamado», no a «abonado».
+
+Tiene su opción en el filtro de estado y su contador arriba. El de «Abonados
+sin compensar» pasa a contar por el abono y no por el estado, para que un
+reclamado con su abono por compensar no desaparezca de esa cuenta.
