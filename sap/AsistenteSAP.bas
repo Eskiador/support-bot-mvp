@@ -78,6 +78,7 @@ Private Const C_PRUEBA As String = "C7"
 Private Const C_ESPERA As String = "C8"
 Private Const C_FILAS As String = "C9"
 Private Const C_CALIB As String = "F3"
+Private Const C_PAUSA_CAMPO As String = "F5"   ' pausa extra al cambiar de casilla (Tab / Intro)
 
 ' Calibracion: columna AA oculta. Todo relativo a la esquina de la ventana.
 Private Const COL_CAL As String = "AA"
@@ -115,6 +116,7 @@ Private mVentana As LongPtr
 Private mRect As RECTANGULO
 Private mShell As Object
 Private mPausa As Long
+Private mPausaCampo As Long
 Private mRequisitos As String
 Private mSep As String
 Private mUltimoRaton As PUNTO
@@ -165,7 +167,7 @@ Public Sub PrepararHoja()
     End With
 
     ws.Range("B3").Value = "Pausa entre teclas (ms)"
-    ws.Range(C_PAUSA).Value = 40
+    ws.Range(C_PAUSA).Value = 80
     ws.Range("B4").Value = "Separador decimal en SAP"
     ws.Range(C_SEP).NumberFormat = "@"
     ws.Range(C_SEP).Value = ","
@@ -185,6 +187,9 @@ Public Sub PrepararHoja()
 
     ws.Range("E3").Value = "Calibracion:"
     ws.Range("E3").Font.Bold = True
+    ws.Range("E5").Value = "Pausa en Tab/Intro (ms)"
+    ws.Range(C_PAUSA_CAMPO).Value = 400
+    ws.Range(C_PAUSA_CAMPO).Interior.Color = RGB(255, 242, 204)
 
     ws.Range("A10").Value = "Pega en B12 lo que copia la Calculadora con 'Copiar para el asistente SAP'. Una fila vacia marca el final."
     ws.Range("A10").Font.Color = RGB(110, 110, 110)
@@ -656,7 +661,15 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     mSep = CStr(ws.Range(C_SEP).Value)
     If Len(mSep) = 0 Then mSep = ","
     mPausa = Val(ws.Range(C_PAUSA).Value)
-    If mPausa < 20 Then mPausa = 20
+    If mPausa < 80 Then mPausa = 80
+    ' SAP pierde teclas si se cambia de casilla demasiado rapido (el
+    ' desplegable del historial se come el Tab): pausa larga antes y despues.
+    If Len(CStr(ws.Range(C_PAUSA_CAMPO).Value)) = 0 Then
+        mPausaCampo = 400
+    Else
+        mPausaCampo = Val(ws.Range(C_PAUSA_CAMPO).Value)
+    End If
+    If mPausaCampo < 150 Then mPausaCampo = 150
     Set mShell = Nothing
     On Error Resume Next
     Set mShell = CreateObject("WScript.Shell")
@@ -831,13 +844,16 @@ End Sub
 
 ' Una tecla, solo si SAP sigue delante con la ventana correcta.
 Private Function Pulsar(ByVal tecla As String) As Boolean
+    Dim cambiaCampo As Boolean
+    cambiaCampo = (tecla = "{TAB}" Or tecla = "{ENTER}" Or tecla = "^{END}" Or tecla = "^{HOME}")
+    If cambiaCampo Then Sleep mPausaCampo
     If Not Seguir() Then Exit Function
     If mShell Is Nothing Then
         SendKeys tecla, True
     Else
         mShell.SendKeys tecla      ' WScript.Shell: no apaga el Bloq Num
     End If
-    Sleep mPausa
+    Sleep IIf(cambiaCampo, mPausaCampo, mPausa)
     Pulsar = True
 End Function
 

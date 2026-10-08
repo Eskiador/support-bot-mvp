@@ -1560,3 +1560,12 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 - «Probar lectura» dice si se ha parado y por qué, o cuántas casillas no ha podido copiar. También enseña el título, la posición y el tamaño de la ventana de SAP.
 - Antes de cada lectura con el ratón espera a que se suelten Control, Mayús y Alt.
 - Los errores de VBA salen con su mensaje en lugar de cortar la macro.
+
+## Asistente v3: SAP perdía teclas al cambiar de casilla
+
+**Problema.** En la primera prueba real, la fila ZNET se quedó con el Importe vacío y con 100 en la casilla Moneda («La moneda 100 no existe»). Tecleando la misma secuencia a mano funciona, así que el orden de los Tab es correcto: lo que falla es la velocidad. Lo más probable es que el desplegable del historial de entradas se coma un Tab y lo escrito justo antes. La macro se paró, como debía, porque el Neto no cambió.
+
+**Decisión.**
+- La pausa entre teclas sube a 80 ms como mínimo.
+- Antes y después de cada Tab, Intro, Ctrl+Fin y Ctrl+Inicio hay una pausa de 400 ms. Se puede cambiar en la celda F5 y su mínimo es 150 ms.
+- Si F5 está vacía (hoja preparada con la versión anterior) se usan 400 ms, así que no hace falta volver a preparar la hoja.
