@@ -1085,6 +1085,29 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(lineasAsis.every(l => l.length === 3), 'cada línea son tres columnas (un tabulador en la descripción no las descuadra)');
 
   // ------------------------------------------------------------------
+  // Una subcarpeta de OneDrive que no contesta o que falla no puede dejar la
+  // conexión de la carpeta colgada: se salta, se avisa y el resto se indexa.
+  console.log('\n=== 5s · La carpeta de cargos no se cuelga con una subcarpeta rota ===');
+  const indice = await pagina.evaluate(async () => {
+    const archivo = n => ({kind:'file', name:n});
+    const carpeta = (name, hijos, modo) => ({kind:'directory', name, entries(){
+      if(modo === 'falla') throw new Error('acceso denegado');
+      let i = 0;
+      return {next(){ if(modo === 'cuelga') return new Promise(()=>{});
+        return Promise.resolve(i < hijos.length ? {done:false, value:[hijos[i].name, hijos[i++]]} : {done:true}); }};
+    }});
+    const raiz = carpeta('Cargos', [archivo('A_1.pdf'),
+      carpeta('Bien', [archivo('B_2.pdf'), archivo('nota.txt')]),
+      carpeta('Colgada', [], 'cuelga'), carpeta('Rota', [], 'falla')]);
+    const t0 = Date.now();
+    const r = await window.__indexarCarpeta(raiz, 300);
+    return {rutas: r.rutas.sort(), saltadas: r.saltadas.sort(), ms: Date.now() - t0};
+  });
+  dice(JSON.stringify(indice.rutas) === '["A_1.pdf","Bien/B_2.pdf"]', 'se indexan las carpetas sanas', JSON.stringify(indice.rutas));
+  dice(JSON.stringify(indice.saltadas) === '["Colgada","Rota"]', 'la colgada y la rota se saltan y se apuntan', JSON.stringify(indice.saltadas));
+  dice(indice.ms < 5000, 'termina en vez de quedarse pillado', indice.ms + ' ms');
+
+  // ------------------------------------------------------------------
   // Un no conforme reclamado al comercial queda en «Reclamado» hasta que el
   // comercial da el visto bueno y se cierra a mano; al reabrirlo vuelve ahí.
   console.log('\n=== 5r · Estado «Reclamado» para los no conformes reclamados ===');

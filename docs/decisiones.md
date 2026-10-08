@@ -1508,3 +1508,18 @@ ZNET; ahora las deja vacías.
 
 El .bas no se ha podido probar en un Excel ni en SAP desde aquí: lo primero
 es probarlo con un abono sin grabar.
+
+## La carpeta de cargos se quedaba pillada al conectar
+
+**Problema.** Al conectar la carpeta de cargos (en OneDrive), la herramienta se quedaba en «Leyendo…» y no salía de ahí. Se leían todas las subcarpetas a la vez y sin límite. Si una carpeta no contestaba (un archivo de OneDrive sin descargar, un acceso directo) o daba un error, el índice entero se quedaba esperando o fallaba sin decir nada. Además, el contador solo se movía cada 500 archivos.
+
+**Decisión.**
+- Se leen como mucho 6 carpetas a la vez.
+- Una carpeta que tarda más de 20 s en contestar se salta.
+- Una carpeta que da un error también se salta.
+- Al terminar, un aviso dice qué carpetas se han saltado.
+- El contador se actualiza en cada carpeta e indica en cuál va.
+- Si la lectura falla del todo, sale un mensaje y un botón para reintentar.
+- El arranque y el botón «Dar permiso» ya no ocultan los errores: dicen qué hacer.
+
+**Prueba.** Auditoría 5s: una carpeta falsa con una subcarpeta que no contesta y otra que da error. El índice termina, recoge las carpetas sanas y apunta las dos rotas.

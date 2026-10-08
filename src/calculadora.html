@@ -2506,15 +2506,19 @@ window.addEventListener('pdfjs-listo', async ()=>{
           <div class="barra" style="justify-content:center">
             <button class="primario" id="btnPermiso">Dar permiso</button></div>`;
         $('#btnPermiso').onclick = async ()=>{
-          const r = await dir.requestPermission({mode:'read'});
-          if(r !== 'granted'){ avisar('Sin permiso no puedo abrir los PDF.'); return; }
-          E.carpeta = dir;
-          if(cargarIndiceGuardado()){ pintarCarpeta(); pintarCola(); avisar('Carpeta lista.'); }
-          else await releerCarpeta();
+          try{
+            const r = await dir.requestPermission({mode:'read'});
+            if(r !== 'granted'){ avisar('Sin permiso no puedo abrir los PDF.'); return; }
+            E.carpeta = dir;
+            if(cargarIndiceGuardado()){ pintarCarpeta(); pintarCola(); avisar('Carpeta lista.'); }
+            else await releerCarpeta();
+          }catch(e){
+            avisar('No he podido abrir la carpeta guardada ('+(e.message||e)+'). Pulsa «Conectar carpeta» y elígela otra vez.', 12000);
+          }
         };
       }
     }
-  }catch(e){}
+  }catch(e){ avisar('No he podido recuperar la carpeta de cargos. Pulsa «Conectar carpeta» y elígela otra vez.', 12000); }
 });
 
 /* ==================================================================
@@ -2746,25 +2750,68 @@ const clavePdf = s => (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,
 // Recorre la carpeta y devuelve solo RUTAS (texto). No se guardan los handles:
 // con 25.000 archivos ocupan memoria y además no sobreviven a cerrar el
 // navegador. El archivo concreto se resuelve al abrirlo, que es instantáneo.
-// Las subcarpetas se recorren en paralelo: ahí es donde se va el tiempo.
-async function indexarCarpeta(dir, ruta = '', salida = [], nivel = 0){
-  if(nivel > 4) return salida;                       // no bajar hasta el infinito
-  const subdirs = [];
-  for await (const [nombre, h] of dir.entries()){
-    if(h.kind === 'directory') subdirs.push([nombre, h]);
-    else if(RE_DOC.test(nombre)){
-      salida.push(ruta + nombre);
-      if(salida.length % 500 === 0) mostrarAvance(salida.length);
-    }
-  }
-  await Promise.all(subdirs.map(([n, h]) => indexarCarpeta(h, ruta+n+'/', salida, nivel+1)));
-  return salida;
+// Las subcarpetas se recorren en paralelo, pero de pocas en pocas: abrirlas
+// todas a la vez (antes, con Promise.all) atasca OneDrive, que es donde vive
+// la carpeta de cargos. Y cada carpeta va por su cuenta: una que no se deja
+// leer (un acceso directo de OneDrive, una sin permiso) o que Windows tarda en
+// servir se salta y se apunta, en vez de colgar o tumbar el índice entero.
+const CARPETAS_A_LA_VEZ = 6;
+let ESPERA_CARPETA_MS = 20000;    // sin respuesta en 20 s, esa carpeta se salta
+const NIVELES_CARPETA = 4;         // no bajar hasta el infinito
+
+function conLimite(promesa, ms){
+  let t;
+  return Promise.race([promesa, new Promise((_, no) => { t = setTimeout(() => no(new Error('sin respuesta')), ms); })])
+    .finally(() => clearTimeout(t));
 }
 
-function mostrarAvance(n){
+async function indexarCarpeta(raiz){
+  const rutas = [], saltadas = [];
+  const cola = [{dir: raiz, ruta: '', nivel: 0}];
+  let activas = 0, leidas = 0;
+
+  async function leer({dir, ruta, nivel}){
+    try{
+      const it = dir.entries();
+      for(;;){
+        const paso = await conLimite(it.next(), ESPERA_CARPETA_MS);
+        if(paso.done) break;
+        const [nombre, h] = paso.value;
+        if(h.kind === 'directory'){
+          if(nivel < NIVELES_CARPETA) cola.push({dir: h, ruta: ruta + nombre + '/', nivel: nivel + 1});
+        } else if(RE_DOC.test(nombre)) rutas.push(ruta + nombre);
+      }
+    }catch(e){
+      saltadas.push(ruta.replace(/\/$/, '') || dir.name);
+    }
+    leidas++;
+    mostrarAvance(rutas.length, leidas, ruta);
+  }
+
+  await new Promise(fin => {
+    const lanzar = () => {
+      while(activas < CARPETAS_A_LA_VEZ && cola.length){
+        activas++;
+        leer(cola.shift()).finally(() => { activas--; lanzar(); });
+      }
+      if(!activas && !cola.length) fin();
+    };
+    lanzar();
+  });
+  return {rutas, saltadas};
+}
+
+// Se refresca por carpeta, no cada 500 archivos: con carpetas de pocos PDF el
+// contador no se movía en minutos y parecía colgado aunque estuviera leyendo.
+let ultimoAvance = 0;
+function mostrarAvance(n, carpetas, ruta){
+  const ahora = Date.now();
+  if(ahora - ultimoAvance < 250) return;
+  ultimoAvance = ahora;
   const z = $('#zonaCarpeta');
   const p = z && z.querySelector('.avance');
-  if(p) p.textContent = `${n.toLocaleString('es-ES')} archivos leídos…`;
+  if(p) p.textContent = `${n.toLocaleString('es-ES')} archivos en ${carpetas.toLocaleString('es-ES')} carpetas`+
+                        (ruta ? ` · ${ruta.replace(/\/$/, '')}` : '') + '…';
 }
 
 const entradaDeRuta = ruta => {
@@ -2936,15 +2983,28 @@ async function releerCarpeta(){
   z.innerHTML = `<h3>Leyendo la carpeta…</h3><p class="avance">empezando…</p>
     <p style="font-size:12.5px">Solo hay que hacerlo cuando añadas cargos nuevos.</p>`;
   const t0 = Date.now();
-  const rutas = await indexarCarpeta(E.carpeta);
+  let rutas, saltadas;
+  try{
+    ({rutas, saltadas} = await indexarCarpeta(E.carpeta));
+  }catch(e){
+    // Antes el error se perdía y la zona se quedaba en «Leyendo…» para siempre.
+    z.innerHTML = `<h3>No he podido leer la carpeta</h3><p>${esc(e.message || e)}</p>
+      <div class="barra" style="justify-content:center"><button class="primario" id="btnReintentarCarpeta">Reintentar</button></div>`;
+    $('#btnReintentarCarpeta').onclick = () => releerCarpeta();
+    return;
+  }
   E.indice = rutas.map(entradaDeRuta);
   E.mapaDocs = null;
   E.memoria.pdfIndice = {carpeta: E.carpeta.name, fecha: new Date().toISOString(), rutas};
   await guardarDatos();
   pintarCarpeta();
   pintarCola();
-  avisar(`${rutas.length.toLocaleString('es-ES')} archivos indexados en ${Math.round((Date.now()-t0)/1000)} s. `+
-         `Queda guardado: la próxima vez es instantáneo.`);
+  const seg = Math.round((Date.now()-t0)/1000);
+  avisar(`${rutas.length.toLocaleString('es-ES')} archivos indexados en ${seg} s. `+
+         (saltadas.length
+           ? `${saltadas.length} carpeta(s) no se dejaron leer y se han saltado: `+
+             `${saltadas.slice(0, 3).join(', ')}${saltadas.length > 3 ? '…' : ''}.`
+           : `Queda guardado: la próxima vez es instantáneo.`), saltadas.length ? 12000 : 3200);
 }
 
 // Carga el índice guardado sin tocar el disco.
@@ -4106,6 +4166,7 @@ window.__contarDocs = contarDocs;
 window.__pintarCarpeta = pintarCarpeta;
 window.__nombrePdf = nombrePdf;
 window.__pintarCola = pintarCola;
+window.__indexarCarpeta = (raiz, ms) => { if(ms) ESPERA_CARPETA_MS = ms; return indexarCarpeta(raiz); };
 window.__resolverArchivo = resolverArchivo;
 window.__descargarExcel = descargarExcel;
 window.__archivoTieneContenido = archivoTieneContenido;
