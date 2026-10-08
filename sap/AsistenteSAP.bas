@@ -78,6 +78,9 @@ Private Const C_PRUEBA As String = "C7"
 Private Const C_ESPERA As String = "C8"
 Private Const C_FILAS As String = "C9"
 Private Const C_CALIB As String = "F3"
+' Tp > (Tab) Descripcion > (Tab) Importe > (Tab) Moneda > (Tab) por
+Private Const SECUENCIA_ZNET As String = "ZNET{TAB}{TAB}{PRUEBA}{TAB}{TAB}100"
+Private Const SECUENCIA_V3_MALA As String = "ZNET{TAB}{PRUEBA}{TAB}{TAB}100"
 Private Const C_PAUSA_CAMPO As String = "F5"   ' pausa extra al cambiar de casilla (Tab / Intro)
 
 ' Calibracion: columna AA oculta. Todo relativo a la esquina de la ventana.
@@ -176,7 +179,7 @@ Public Sub PrepararHoja()
     ws.Range(C_TITULO).Value = "Sol.abono;Datos de pos"
     ws.Range("B6").Value = "Teclas del ZNET de prueba"
     ws.Range(C_SECUENCIA).NumberFormat = "@"
-    ws.Range(C_SECUENCIA).Value = "ZNET{TAB}{PRUEBA}{TAB}{TAB}100"
+    ws.Range(C_SECUENCIA).Value = SECUENCIA_ZNET
     ws.Range("B7").Value = "Valor de prueba"
     ws.Range(C_PRUEBA).Value = 10
     ws.Range("B8").Value = "Espera maxima a SAP (s)"
@@ -188,7 +191,7 @@ Public Sub PrepararHoja()
     ws.Range("E3").Value = "Calibracion:"
     ws.Range("E3").Font.Bold = True
     ws.Range("E5").Value = "Pausa en Tab/Intro (ms)"
-    ws.Range(C_PAUSA_CAMPO).Value = 400
+    ws.Range(C_PAUSA_CAMPO).Value = 200
     ws.Range(C_PAUSA_CAMPO).Interior.Color = RGB(255, 242, 204)
 
     ws.Range("A10").Value = "Pega en B12 lo que copia la Calculadora con 'Copiar para el asistente SAP'. Una fila vacia marca el final."
@@ -665,11 +668,16 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     ' SAP pierde teclas si se cambia de casilla demasiado rapido (el
     ' desplegable del historial se come el Tab): pausa larga antes y despues.
     If Len(CStr(ws.Range(C_PAUSA_CAMPO).Value)) = 0 Then
-        mPausaCampo = 400
+        mPausaCampo = 200
     Else
         mPausaCampo = Val(ws.Range(C_PAUSA_CAMPO).Value)
     End If
-    If mPausaCampo < 150 Then mPausaCampo = 150
+    If mPausaCampo < 50 Then mPausaCampo = 50
+    ' La hoja de la primera v3 traia una secuencia con un Tab de menos (el
+    ' 10 caia en Descripcion y el 100 en Moneda): se corrige sola.
+    If StrComp(Trim$(CStr(ws.Range(C_SECUENCIA).Value)), SECUENCIA_V3_MALA, vbTextCompare) = 0 Then
+        ws.Range(C_SECUENCIA).Value = SECUENCIA_ZNET
+    End If
     Set mShell = Nothing
     On Error Resume Next
     Set mShell = CreateObject("WScript.Shell")

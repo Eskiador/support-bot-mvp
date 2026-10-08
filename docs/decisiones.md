@@ -1569,3 +1569,12 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 - La pausa entre teclas sube a 80 ms como mínimo.
 - Antes y después de cada Tab, Intro, Ctrl+Fin y Ctrl+Inicio hay una pausa de 400 ms. Se puede cambiar en la celda F5 y su mínimo es 150 ms.
 - Si F5 está vacía (hoja preparada con la versión anterior) se usan 400 ms, así que no hace falta volver a preparar la hoja.
+
+## Asistente v3: faltaba un Tab en la secuencia del ZNET
+
+**Problema.** Con las pausas largas siguió fallando igual. Con la captura nueva se vio la causa: en la fila en blanco, el primer Tab desde Tp va a **Descripción**, no a Importe. El 10 se escribía en Descripción y el 100, dos Tab después, caía en Moneda.
+
+**Decisión.**
+- La secuencia pasa a ser `ZNET{TAB}{TAB}{PRUEBA}{TAB}{TAB}100`: Tp → Descripción → Importe → Moneda → por.
+- Si la hoja tiene la secuencia antigua de la v3, la macro la corrige sola.
+- Pablo pidió que vaya más rápido de casilla en casilla. La pausa en cada Tab e Intro baja a 200 ms y se puede cambiar en F5 (mínimo 50 ms).
