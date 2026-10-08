@@ -1477,3 +1477,34 @@ reabrirlo vuelve a «Reclamado», no a «abonado».
 Tiene su opción en el filtro de estado y su contador arriba. El de «Abonados
 sin compensar» pasa a contar por el abono y no por el estado, para que un
 reclamado con su abono por compensar no desaparezca de esa cuenta.
+
+## Asistente SAP para el ZNET (sap/AsistenteSAP.bas)
+
+El ZNET no se mete en una tabla: en VA01 (ZG2) hay que entrar en cada
+posición, pestaña Condiciones, y escribirlo en la línea en blanco de abajo
+del todo, cuya fila cambia según los descuentos de cada cliente. El asistente
+que traía Pablo escribía una lista de valores bajando por una columna, y eso
+no encaja. Se rehace con dos pasadas por posición:
+
+1. **ZNET de prueba**: con el cursor en «Tp.» de la línea en blanco, teclea
+   la secuencia de la celda C6 (`ZNET{TAB}10{TAB}{TAB}100`). Pablo pulsa Intro y la
+   flecha de siguiente posición, que deja la pestaña Condiciones abierta.
+2. **ZNET definitivo**: con el cursor en el Importe de la línea ZNET, borra
+   el 10 (Fin, Mayús+Inicio) y escribe el valor que da la Calculadora.
+
+Entre una y otra, los netos de prueba se leen del Resumen de SAP. El asistente
+nunca pulsa Intro, Grabar ni la flecha. Solo escribe si el título de la ventana
+contiene «Sol.abono» y «Datos de pos». Comprueba el foco antes de cada tecla:
+el anterior lo comprobaba antes de cada valor, y un popup a mitad se llevaba
+el resto. Pide confirmar la posición antes de escribir (se quita en C7). El
+importe va con 2 decimales y sin miles; con más decimales da error en vez de
+redondear.
+
+En la Calculadora, «Copiar para el asistente SAP» deja Pos. · ZNET ·
+Descripción para pegar en B11. Solo lleva ZNET la línea medida contra SAP:
+la estimación por cantidad no se le da al asistente para teclearla sin
+revisar. De paso, «Copiar solo los ZNET» dejaba «NaN» en las líneas sin
+ZNET; ahora las deja vacías.
+
+El .bas no se ha podido probar en un Excel ni en SAP desde aquí: lo primero
+es probarlo con un abono sin grabar.

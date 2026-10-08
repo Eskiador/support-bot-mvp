@@ -1060,6 +1060,31 @@ const dice = (bien, etiqueta, detalle='') => {
        JSON.stringify(anchoTabla));
 
   // ------------------------------------------------------------------
+  // Lo que se pega en la hoja «Asistente SAP» del Excel: Pos. · ZNET ·
+  // Descripción. Solo lleva ZNET la línea medida contra SAP: la estimación
+  // por cantidad no se le pasa al asistente para que la teclee.
+  console.log('\n=== 5q-bis · «Copiar para el asistente SAP» ===');
+  const asistente = await pagina.evaluate(() => {
+    window.E.filas = [
+      {fac:{pos:10, material:'1', desc:'LVF MERM FRESA 8x263ML', cantidad:24, um:'UC', udsCaja:null, precio:1},
+       cargoIdx:-1, afectada:true, modo:'importe', manual:'5,00', objetivoForzado:null, base:null,
+       netoPrueba:'2,00', precioSap:null},
+      {fac:{pos:20, material:'2', desc:'LVC MERM ARAND\t8x263ML', cantidad:16, um:'UC', udsCaja:null, precio:1},
+       cargoIdx:-1, afectada:true, modo:'importe', manual:'3,00', objetivoForzado:null, base:null,
+       netoPrueba:null, precioSap:null}
+    ];
+    document.querySelector('#fZnetPrueba').value = '10';
+    window.__calcular();
+    return window.__textoAsistente(window.E.ultimaSalida.salida);
+  });
+  const lineasAsis = asistente.texto.split('\r\n').map(l => l.split('\t'));
+  dice(lineasAsis[0][0] === '10' && lineasAsis[0][1] === '25,00',
+       'la línea medida va con su ZNET, en formato SAP', JSON.stringify(lineasAsis[0]));
+  dice(lineasAsis[1][1] === '' && asistente.sinMedir === 1,
+       'la línea sin medir va sin ZNET, para que no se teclee una estimación', JSON.stringify(lineasAsis[1]));
+  dice(lineasAsis.every(l => l.length === 3), 'cada línea son tres columnas (un tabulador en la descripción no las descuadra)');
+
+  // ------------------------------------------------------------------
   // Un no conforme reclamado al comercial queda en «Reclamado» hasta que el
   // comercial da el visto bueno y se cierra a mano; al reabrirlo vuelve ahí.
   console.log('\n=== 5r · Estado «Reclamado» para los no conformes reclamados ===');

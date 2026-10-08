@@ -548,6 +548,7 @@ try{
         <button id="btnBaseAuto">Ajustar la base para que el ZNET sea manejable</button>
         <button class="primario" id="btnCopiar">Copiar tabla para SAP</button>
         <button id="btnCopiarZnet">Copiar solo los ZNET</button>
+        <button id="btnCopiarAsistente" title="Posición, ZNET definitivo y descripción, para pegar en la celda B11 de la hoja «Asistente SAP» del Excel">Copiar para el asistente SAP</button>
         <button id="btnCopiarGamas" class="oculto">Copiar resumen de gamas</button>
         <button class="primario" id="btnRegistrar">Registrar en el archivo de cargos</button>
         <button id="btnGuardar">Guardar en el archivo de datos</button>
@@ -2103,6 +2104,23 @@ function recordarCliente(){
 /* ==================================================================
    8 · SALIDA / COPIAR
    ================================================================== */
+/* Para la hoja «Asistente SAP» del Excel: Pos. · ZNET · Descripción, una
+   línea por posición, en el orden de SAP. Solo lleva ZNET la línea que ya
+   está medida contra SAP (con el ZNET de prueba de la 1ª pasada): la
+   estimación por cantidad puede no ser lo que SAP aplica, y el asistente
+   la escribiría sin que nadie la revise. Sin separador de miles, que el
+   campo de SAP no lo necesita. */
+function textoAsistente(salida){
+  let sinMedir = 0;
+  const filas = salida.map(s => {
+    const vale = s.medido && isFinite(s.znet);
+    if(!vale) sinMedir++;
+    return [s.fila.fac.pos, vale ? s.znet.toFixed(2).replace('.', ',') : '',
+            String(s.fila.fac.desc || '').replace(/[\t\r\n]+/g, ' ')].join('\t');
+  });
+  return {texto: filas.join('\r\n'), filas: filas.length, sinMedir};
+}
+
 function tsvSalida(){
   const u = E.ultimaSalida; if(!u) return '';
   const cab = ['Pos.','Material','Descripción','Cantidad','ZNET','por','Importe SAP','Objetivo'];
@@ -2396,7 +2414,14 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnBaseAuto').onclick = ajustarBases;
   $('#btnCopiar').onclick = ()=>copiar(tsvSalida(),'Tabla copiada');
   $('#btnCopiarZnet').onclick = ()=>copiar(
-    (E.ultimaSalida?.salida||[]).map(s=>nf.format(s.znet)).join('\n'), 'ZNET copiados');
+    (E.ultimaSalida?.salida||[]).map(s=>isFinite(s.znet) ? nf.format(s.znet) : '').join('\n'), 'ZNET copiados');
+  $('#btnCopiarAsistente').onclick = ()=>{
+    const r = textoAsistente(E.ultimaSalida?.salida || []);
+    if(!r.filas) return avisar('No hay líneas calculadas que pasar al asistente.');
+    copiar(r.texto, r.sinMedir
+      ? `Copiado. ${r.sinMedir} línea(s) sin medir van sin ZNET: haz primero la 1ª pasada.`
+      : 'Copiado: pégalo en la celda B11 de la hoja Asistente SAP');
+  };
   $('#btnGuardar').onclick = async ()=>{ recordarCliente();
     if(!await guardarDatos()) descargarDatos(); };
   window.abrirManual = (que)=>{
@@ -4095,6 +4120,7 @@ window.__alternarCasilla = alternarCasilla;
 window.__importarListado = importarListado;
 window.__emparejar = emparejar;
 window.__calcular = calcular;
+window.__textoAsistente = textoAsistente;
 window.__pintarCabecera = pintarCabecera;
 window.__hojasDelLibro = hojasDelLibro;
 window.__leerXlsx = leerXlsx;
