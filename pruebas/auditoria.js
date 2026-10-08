@@ -1060,9 +1060,9 @@ const dice = (bien, etiqueta, detalle='') => {
        JSON.stringify(anchoTabla));
 
   // ------------------------------------------------------------------
-  // Lo que se pega en la hoja «Asistente SAP» del Excel: Pos. · ZNET ·
-  // Descripción. Solo lleva ZNET la línea medida contra SAP: la estimación
-  // por cantidad no se le pasa al asistente para que la teclee.
+  // Lo que se pega en la hoja «Asistente SAP» del Excel: Pos. · Objetivo ·
+  // Descripción. El asistente mide el neto en SAP él solo, así que lo que
+  // necesita de cada línea es el importe a abonar, se haya medido o no.
   console.log('\n=== 5q-bis · «Copiar para el asistente SAP» ===');
   const asistente = await pagina.evaluate(() => {
     window.E.filas = [
@@ -1078,10 +1078,10 @@ const dice = (bien, etiqueta, detalle='') => {
     return window.__textoAsistente(window.E.ultimaSalida.salida);
   });
   const lineasAsis = asistente.texto.split('\r\n').map(l => l.split('\t'));
-  dice(lineasAsis[0][0] === '10' && lineasAsis[0][1] === '25,00',
-       'la línea medida va con su ZNET, en formato SAP', JSON.stringify(lineasAsis[0]));
-  dice(lineasAsis[1][1] === '' && asistente.sinMedir === 1,
-       'la línea sin medir va sin ZNET, para que no se teclee una estimación', JSON.stringify(lineasAsis[1]));
+  dice(lineasAsis[0][0] === '10' && lineasAsis[0][1] === '5,00',
+       'cada línea va con el importe que tiene que dar en SAP, en formato SAP', JSON.stringify(lineasAsis[0]));
+  dice(lineasAsis[1][0] === '20' && lineasAsis[1][1] === '3,00' && asistente.sinObjetivo === 0,
+       'también la línea sin medir: el asistente la mide en SAP', JSON.stringify(lineasAsis[1]));
   dice(lineasAsis.every(l => l.length === 3), 'cada línea son tres columnas (un tabulador en la descripción no las descuadra)');
 
   // ------------------------------------------------------------------

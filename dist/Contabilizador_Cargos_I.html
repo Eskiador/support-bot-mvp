@@ -548,7 +548,7 @@ try{
         <button id="btnBaseAuto">Ajustar la base para que el ZNET sea manejable</button>
         <button class="primario" id="btnCopiar">Copiar tabla para SAP</button>
         <button id="btnCopiarZnet">Copiar solo los ZNET</button>
-        <button id="btnCopiarAsistente" title="Posición, ZNET definitivo y descripción, para pegar en la celda B11 de la hoja «Asistente SAP» del Excel">Copiar para el asistente SAP</button>
+        <button id="btnCopiarAsistente" title="Posición, importe a abonar y descripción de cada línea, para pegar en la celda B12 de la hoja «Asistente SAP» del Excel">Copiar para el asistente SAP</button>
         <button id="btnCopiarGamas" class="oculto">Copiar resumen de gamas</button>
         <button class="primario" id="btnRegistrar">Registrar en el archivo de cargos</button>
         <button id="btnGuardar">Guardar en el archivo de datos</button>
@@ -91049,15 +91049,18 @@ function recordarCliente(){
    estimación por cantidad puede no ser lo que SAP aplica, y el asistente
    la escribiría sin que nadie la revise. Sin separador de miles, que el
    campo de SAP no lo necesita. */
+// Lo que se pega en la hoja «Asistente SAP»: Pos. · Objetivo · Descripción.
+// El asistente mide él mismo el neto de cada posición en SAP (ZNET de prueba),
+// así que no se le pasa un ZNET sino el importe que tiene que dar esa línea.
 function textoAsistente(salida){
-  let sinMedir = 0;
-  const filas = salida.map(s => {
-    const vale = s.medido && isFinite(s.znet);
-    if(!vale) sinMedir++;
-    return [s.fila.fac.pos, vale ? s.znet.toFixed(2).replace('.', ',') : '',
-            String(s.fila.fac.desc || '').replace(/[\t\r\n]+/g, ' ')].join('\t');
-  });
-  return {texto: filas.join('\r\n'), filas: filas.length, sinMedir};
+  let sinObjetivo = 0;
+  const filas = [];
+  for(const s of salida){
+    if(!isFinite(s.objetivo) || Math.abs(s.objetivo) < 0.005){ sinObjetivo++; continue; }
+    filas.push([s.fila.fac.pos, s.objetivo.toFixed(2).replace('.', ','),
+                String(s.fila.fac.desc || '').replace(/[\t\r\n]+/g, ' ')].join('\t'));
+  }
+  return {texto: filas.join('\r\n'), filas: filas.length, sinObjetivo};
 }
 
 function tsvSalida(){
@@ -91357,9 +91360,9 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnCopiarAsistente').onclick = ()=>{
     const r = textoAsistente(E.ultimaSalida?.salida || []);
     if(!r.filas) return avisar('No hay líneas calculadas que pasar al asistente.');
-    copiar(r.texto, r.sinMedir
-      ? `Copiado. ${r.sinMedir} línea(s) sin medir van sin ZNET: haz primero la 1ª pasada.`
-      : 'Copiado: pégalo en la celda B11 de la hoja Asistente SAP');
+    copiar(r.texto, r.sinObjetivo
+      ? `Copiado. ${r.sinObjetivo} línea(s) sin importe se han dejado fuera.`
+      : 'Copiado: pégalo en la celda B12 de la hoja Asistente SAP');
   };
   $('#btnGuardar').onclick = async ()=>{ recordarCliente();
     if(!await guardarDatos()) descargarDatos(); };

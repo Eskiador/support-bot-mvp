@@ -2,37 +2,47 @@ Attribute VB_Name = "AsistenteSAP"
 Option Explicit
 
 ' ==================================================================
-'  ASISTENTE SAP PARA EL ZNET DE LOS ABONOS  (version 2)
+'  ASISTENTE SAP PARA EL ZNET DE LOS ABONOS  (version 3)
 '  VA01 > ZG2 Sol.abono GAC > Datos de posicion > Condiciones
 '
-'  1a pasada: en cada posicion escribe el ZNET de prueba (ZNET, 10
-'             por 100) en la linea en blanco de abajo del todo.
-'  2a pasada: en cada posicion sustituye ese 10 por el ZNET
-'             definitivo que calcula la Calculadora de Cargos.
+'  Hace TODAS las posiciones de un tiron, una sola visita a cada una:
+'   1. Lee el numero de posicion. Si no esta en la lista, la salta.
+'   2. Ctrl+Fin (fila en blanco) y escribe ZNET de prueba (10 por 100).
+'   3. Intro y lee el Neto de arriba.
+'   4. Calcula el ZNET definitivo = importe x 10 / neto leido.
+'   5. Busca en la tabla la casilla Importe que dice "10,00" (la del
+'      ZNET recien puesto) y lo sustituye por el definitivo.
+'   6. Intro y vuelve a leer el Neto: tiene que dar el importe. Si no
+'      lo da, corrige una vez; si sigue sin darlo, se para ahi.
+'   7. Mayus+F7 a la siguiente posicion.
+'  Lo que no cuadre por los 2 decimales del ZNET se arrastra a la
+'  linea siguiente; lo que sobre al final es el ZAJU de cabecera.
+'
+'  SAP no deja copiar con el teclado: las casillas se leen
+'  seleccionandolas con el raton y Ctrl+C. Por eso hay que CALIBRAR
+'  una vez donde estan (boton "Calibrar"), con la ventana de SAP
+'  siempre del mismo tamano.
 '
 '  Lo que NO hace nunca:
-'   - Pulsar Intro, Grabar ni la flecha de siguiente posicion. Eso
-'     lo haces tu: es lo que aplica el valor y lo que decide.
+'   - Grabar. Al acabar te dice el total y el ZAJU, y grabas tu.
 '   - Escribir si la ventana activa no es la de Datos de posicion
-'     del Sol.abono.
-'   - Seguir escribiendo si SAP pierde el foco a mitad (un popup, un
-'     clic en otra ventana): se para en esa misma tecla y te avisa.
+'     del Sol.abono, o si sale un aviso (otra ventana delante).
+'   - Escribir el definitivo en una casilla que no diga "10,00".
 '
-'  Cambios respecto a la version anterior:
-'   - Flujo de dos pasadas por posicion, en vez de una lista de
-'     valores bajando por una columna (no servia: el ZNET se mete
-'     dentro de cada posicion, no en una tabla).
-'   - Comprueba el titulo de la ventana de SAP antes de escribir.
-'   - Comprueba el foco antes de CADA tecla, no solo antes de cada
-'     valor: un popup a mitad ya no se lleva el resto del valor.
-'   - Antes de escribir el ZNET definitivo, borra lo que haya en el
-'     campo (el 10 de la prueba). Antes se anadia detras.
-'   - El importe sale siempre con 2 decimales y sin separador de
-'     miles; si trae mas de 2 decimales no se redondea a escondidas:
-'     se marca como error.
-'   - Pide confirmar la posicion antes de escribir (se puede quitar
-'     en la celda C7 cuando ya te fies).
+'  Para pararlo: mueve el raton con fuerza o pulsa la tecla Pausa.
 ' ==================================================================
+
+Private Type PUNTO
+    x As Long
+    y As Long
+End Type
+
+Private Type RECTANGULO
+    Izq As Long
+    Arr As Long
+    Der As Long
+    Aba As Long
+End Type
 
 Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
 Private Declare PtrSafe Function SetForegroundWindow Lib "user32" (ByVal hWnd As LongPtr) As Long
@@ -40,35 +50,82 @@ Private Declare PtrSafe Function GetForegroundWindow Lib "user32" () As LongPtr
 Private Declare PtrSafe Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hWnd As LongPtr, ByVal lpString As String, ByVal cch As Long) As Long
 Private Declare PtrSafe Function IsIconic Lib "user32" (ByVal hWnd As LongPtr) As Long
 Private Declare PtrSafe Function ShowWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal nCmdShow As Long) As Long
+Private Declare PtrSafe Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, lpRect As RECTANGULO) As Long
+Private Declare PtrSafe Function GetCursorPos Lib "user32" (lpPoint As PUNTO) As Long
+Private Declare PtrSafe Function SetCursorPos Lib "user32" (ByVal x As Long, ByVal y As Long) As Long
+Private Declare PtrSafe Sub mouse_event Lib "user32" (ByVal dwFlags As Long, ByVal dx As Long, ByVal dy As Long, ByVal cButtons As Long, ByVal dwExtraInfo As LongPtr)
+Private Declare PtrSafe Function GetAsyncKeyState Lib "user32" (ByVal vKey As Long) As Integer
+Private Declare PtrSafe Function OpenClipboard Lib "user32" (ByVal hWnd As LongPtr) As Long
+Private Declare PtrSafe Function CloseClipboard Lib "user32" () As Long
+Private Declare PtrSafe Function EmptyClipboard Lib "user32" () As Long
+Private Declare PtrSafe Function GetClipboardData Lib "user32" (ByVal wFormat As Long) As LongPtr
+Private Declare PtrSafe Function GlobalLock Lib "kernel32" (ByVal hMem As LongPtr) As LongPtr
+Private Declare PtrSafe Function GlobalUnlock Lib "kernel32" (ByVal hMem As LongPtr) As Long
+Private Declare PtrSafe Function lstrlenW Lib "kernel32" (ByVal lpString As LongPtr) As Long
+Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (ByVal Destino As LongPtr, ByVal Origen As LongPtr, ByVal Bytes As LongPtr)
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
 Private Const HOJA As String = "Asistente SAP"
 Private Const TITULO_MSG As String = "Asistente SAP"
 Private Const SAP_CLASE As String = "SAP_FRONTEND_SESSION"
 
-' Ajustes (columna C, filas 3 a 8)
+' Configuracion (celdas amarillas)
 Private Const C_PAUSA As String = "C3"
 Private Const C_SEP As String = "C4"
 Private Const C_TITULO As String = "C5"
 Private Const C_SECUENCIA As String = "C6"
-Private Const C_CONFIRMAR As String = "C7"
-Private Const C_VENTANA As String = "C8"
+Private Const C_PRUEBA As String = "C7"
+Private Const C_ESPERA As String = "C8"
+Private Const C_FILAS As String = "C9"
+Private Const C_CALIB As String = "F3"
+
+' Calibracion: columna AA oculta. Todo relativo a la esquina de la ventana.
+Private Const COL_CAL As String = "AA"
+Private Const CAL_ANCHO As Long = 1
+Private Const CAL_ALTO As Long = 2
+Private Const CAL_POS_I As Long = 3
+Private Const CAL_POS_D As Long = 4
+Private Const CAL_NETO_I As Long = 5
+Private Const CAL_NETO_D As Long = 6
+Private Const CAL_IMP_I As Long = 7
+Private Const CAL_IMP_D As Long = 8
+Private Const CAL_IMP_2 As Long = 9
+Private Const CAL_N As Long = 9
 
 ' Tabla de posiciones
-Private Const FILA_CAB As Long = 10
-Private Const FILA_INI As Long = 11
+Private Const FILA_CAB As Long = 11
+Private Const FILA_INI As Long = 12
 Private Const NUM_FILAS As Long = 200
-Private Const COL_POS As Long = 2      ' B  Pos.
-Private Const COL_ZNET As Long = 3     ' C  ZNET definitivo
-Private Const COL_DESC As Long = 4     ' D  Descripcion
-Private Const COL_P1 As Long = 5       ' E  1a pasada (ZNET de prueba)
-Private Const COL_P2 As Long = 6       ' F  2a pasada (ZNET definitivo)
+Private Const COL_POS As Long = 2       ' B  Pos.
+Private Const COL_OBJ As Long = 3       ' C  Importe a abonar (neto que tiene que dar)
+Private Const COL_DESC As Long = 4      ' D  Descripcion
+Private Const COL_NPRUEBA As Long = 5   ' E  Neto con el ZNET de prueba
+Private Const COL_ZNET As Long = 6      ' F  ZNET definitivo escrito
+Private Const COL_NFINAL As Long = 7    ' G  Neto final leido en SAP
+Private Const COL_ESTADO As Long = 8    ' H  Estado
+
+Private Const VK_CONTROL As Long = &H11
+Private Const VK_PAUSA As Long = &H13
+Private Const RATON_ABAJO As Long = &H2
+Private Const RATON_ARRIBA As Long = &H4
+Private Const CF_UNICODETEXT As Long = 13
+
+' Estado de una ejecucion
+Private mVentana As LongPtr
+Private mRect As RECTANGULO
+Private mShell As Object
+Private mPausa As Long
+Private mRequisitos As String
+Private mSep As String
+Private mUltimoRaton As PUNTO
+Private mMotivo As String
+
 
 ' ------------------------------------------------------------------
 '  PREPARAR LA HOJA (una sola vez, con Alt+F8)
 ' ------------------------------------------------------------------
 Public Sub PrepararHoja()
-    Dim ws As Worksheet, i As Long, x As Double
+    Dim ws As Worksheet, i As Long, x As Double, cal(1 To CAL_N) As Variant
 
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets(HOJA)
@@ -77,9 +134,14 @@ Public Sub PrepararHoja()
         Set ws = ThisWorkbook.Worksheets.Add(Before:=ThisWorkbook.Worksheets(1))
         ws.Name = HOJA
     ElseIf MsgBox("La hoja '" & HOJA & "' ya existe y se va a rehacer desde cero." & vbCrLf & _
-                  "Se pierde lo que tenga. Continuar?", vbOKCancel + vbExclamation, TITULO_MSG) <> vbOK Then
+                  "Se pierden las posiciones pegadas (la calibracion se conserva). Continuar?", _
+                  vbOKCancel + vbExclamation, TITULO_MSG) <> vbOK Then
         Exit Sub
     End If
+
+    For i = 1 To CAL_N
+        cal(i) = ws.Range(COL_CAL & i).Value
+    Next i
 
     ws.Cells.Clear
     ws.Cells.Validation.Delete
@@ -97,7 +159,7 @@ Public Sub PrepararHoja()
         .Font.Color = RGB(10, 110, 209)
     End With
     With ws.Range("A2")
-        .Value = "Nunca pulsa Intro, Grabar ni la flecha de siguiente posicion. Se para si SAP pierde el foco."
+        .Value = "Hace todas las posiciones de un tiron. No graba nunca. Para pararlo: mueve el raton o pulsa Pausa."
         .Font.Italic = True
         .Font.Color = RGB(110, 110, 110)
     End With
@@ -110,29 +172,26 @@ Public Sub PrepararHoja()
     ws.Range("B5").Value = "La ventana de SAP debe contener"
     ws.Range(C_TITULO).NumberFormat = "@"
     ws.Range(C_TITULO).Value = "Sol.abono;Datos de pos"
-    ws.Range("B6").Value = "Teclas de la 1a pasada"
+    ws.Range("B6").Value = "Teclas del ZNET de prueba"
     ws.Range(C_SECUENCIA).NumberFormat = "@"
-    ws.Range(C_SECUENCIA).Value = "ZNET{TAB}10{TAB}{TAB}100"
-    ws.Range("B7").Value = "Confirmar la posicion antes de escribir"
-    ws.Range(C_CONFIRMAR).Value = "SI"
-    ws.Range("B8").Value = "Ultima ventana SAP usada"
-    ws.Range(C_VENTANA).Font.Color = RGB(110, 110, 110)
-    ws.Range("C3:C7").Interior.Color = RGB(255, 242, 204)
+    ws.Range(C_SECUENCIA).Value = "ZNET{TAB}{PRUEBA}{TAB}{TAB}100"
+    ws.Range("B7").Value = "Valor de prueba"
+    ws.Range(C_PRUEBA).Value = 10
+    ws.Range("B8").Value = "Espera maxima a SAP (s)"
+    ws.Range(C_ESPERA).Value = 8
+    ws.Range("B9").Value = "Filas de la tabla donde buscar el ZNET"
+    ws.Range(C_FILAS).Value = 15
+    ws.Range("C3:C9").Interior.Color = RGB(255, 242, 204)
 
-    ' Opciones SI/NO en celdas ocultas (evita lios con el separador de listas)
-    ws.Range("Z1:Z2").Value = Application.WorksheetFunction.Transpose(Array("SI", "NO"))
-    ws.Columns("Z").Hidden = True
-    With ws.Range(C_CONFIRMAR).Validation
-        .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=$Z$1:$Z$2"
-    End With
+    ws.Range("E3").Value = "Calibracion:"
+    ws.Range("E3").Font.Bold = True
 
-    ws.Range("A9").Value = "Pega en B11 lo que copia la Calculadora con 'Copiar para el asistente SAP'. Una fila vacia marca el final."
-    ws.Range("A9").Font.Color = RGB(110, 110, 110)
+    ws.Range("A10").Value = "Pega en B12 lo que copia la Calculadora con 'Copiar para el asistente SAP'. Una fila vacia marca el final."
+    ws.Range("A10").Font.Color = RGB(110, 110, 110)
 
-    ws.Range(ws.Cells(FILA_CAB, 1), ws.Cells(FILA_CAB, COL_P2)).Value = _
-        Array("N", "Pos.", "ZNET definitivo", "Descripcion", "1a pasada (ZNET de prueba)", "2a pasada (ZNET definitivo)")
-    With ws.Range(ws.Cells(FILA_CAB, 1), ws.Cells(FILA_CAB, COL_P2))
+    ws.Range(ws.Cells(FILA_CAB, 1), ws.Cells(FILA_CAB, COL_ESTADO)).Value = _
+        Array("N", "Pos.", "Importe a abonar", "Descripcion", "Neto de prueba", "ZNET escrito", "Neto final", "Estado")
+    With ws.Range(ws.Cells(FILA_CAB, 1), ws.Cells(FILA_CAB, COL_ESTADO))
         .Font.Bold = True
         .Font.Color = RGB(255, 255, 255)
         .Interior.Color = RGB(53, 74, 95)
@@ -143,33 +202,40 @@ Public Sub PrepararHoja()
         .Font.Color = RGB(150, 150, 150)
         .HorizontalAlignment = xlCenter
     End With
-    ws.Range(ws.Cells(FILA_INI, COL_ZNET), ws.Cells(FILA_INI + NUM_FILAS - 1, COL_ZNET)).NumberFormat = "0.00"
+    ws.Range(ws.Cells(FILA_INI, COL_OBJ), ws.Cells(FILA_INI + NUM_FILAS - 1, COL_NFINAL)).NumberFormat = "#,##0.00"
     ws.Range(ws.Cells(FILA_INI, COL_POS), ws.Cells(FILA_INI + NUM_FILAS - 1, COL_DESC)).Interior.Color = RGB(255, 242, 204)
 
     ws.Columns("A").ColumnWidth = 5
-    ws.Columns("B").ColumnWidth = 30
-    ws.Columns("C").ColumnWidth = 28
+    ws.Columns("B").ColumnWidth = 34
+    ws.Columns("C").ColumnWidth = 30
     ws.Columns("D").ColumnWidth = 34
-    ws.Columns("E").ColumnWidth = 30
-    ws.Columns("F").ColumnWidth = 30
+    ws.Columns("E").ColumnWidth = 14
+    ws.Columns("F").ColumnWidth = 14
+    ws.Columns("G").ColumnWidth = 14
+    ws.Columns("H").ColumnWidth = 44
 
-    x = ws.Columns("H").Left
-    CrearBoton ws, "1a pasada: ZNET de prueba", "PasadaPrueba", ws.Range("H2").Top, x, RGB(10, 110, 209)
-    CrearBoton ws, "2a pasada: ZNET definitivo", "PasadaDefinitiva", ws.Range("H4").Top, x, RGB(16, 126, 62)
-    CrearBoton ws, "Reiniciar estados", "ReiniciarEstados", ws.Range("H6").Top, x, RGB(110, 110, 110)
-    CrearBoton ws, "Limpiar todo", "LimpiarTodo", ws.Range("H8").Top, x, RGB(187, 0, 0)
+    For i = 1 To CAL_N
+        ws.Range(COL_CAL & i).Value = cal(i)
+    Next i
+    ws.Columns(COL_CAL).Hidden = True
+    PintarCalibracion ws
 
-    ws.Range("H11").Value = "Como se usa"
-    ws.Range("H11").Font.Bold = True
-    ws.Range("H12").Value = "1. Calculadora: 'Copiar para el asistente SAP' y pegar en B11."
-    ws.Range("H13").Value = "2. SAP: entra en la posicion, Condiciones, clic en Tp. de la linea en blanco."
-    ws.Range("H14").Value = "   Aqui: '1a pasada'. En SAP: Intro y flecha a la siguiente posicion. Repite."
-    ws.Range("H15").Value = "3. Copia el Resumen de SAP y pegalo en la Calculadora (netos de prueba)."
-    ws.Range("H16").Value = "4. Calculadora: 'Copiar para el asistente SAP' otra vez y pegar en B11."
-    ws.Range("H17").Value = "5. SAP: en cada posicion, clic en el Importe de la linea ZNET."
-    ws.Range("H18").Value = "   Aqui: '2a pasada'. En SAP: Intro y flecha a la siguiente posicion."
-    ws.Range("H19").Value = "6. Revisa el valor neto total en SAP y graba tu."
-    ws.Range("H12:H19").Font.Color = RGB(80, 80, 80)
+    x = ws.Columns("J").Left
+    CrearBoton ws, "1. Calibrar (una vez)", "Calibrar", ws.Range("A2").Top, x, RGB(110, 110, 110)
+    CrearBoton ws, "2. Probar lectura", "ProbarLectura", ws.Range("A4").Top, x, RGB(10, 110, 209)
+    CrearBoton ws, "3. Hacer todas las posiciones", "HacerTodas", ws.Range("A6").Top, x, RGB(16, 126, 62)
+    CrearBoton ws, "Reiniciar estados", "ReiniciarEstados", ws.Range("A8").Top, x, RGB(110, 110, 110)
+    CrearBoton ws, "Limpiar todo", "LimpiarTodo", ws.Range("A10").Top, x, RGB(187, 0, 0)
+
+    ws.Range("J13").Value = "Como se usa"
+    ws.Range("J13").Font.Bold = True
+    ws.Range("J14").Value = "Una vez: con un abono en SAP en Condiciones, pulsa 'Calibrar' y sigue los pasos."
+    ws.Range("J15").Value = "1. Calculadora: 'Copiar para el asistente SAP' y pegar en B12."
+    ws.Range("J16").Value = "2. SAP: abono creado con referencia, solo con las lineas del cargo,"
+    ws.Range("J17").Value = "   dentro de una posicion, pestana Condiciones."
+    ws.Range("J18").Value = "3. Aqui: 'Hacer todas las posiciones'. No toques nada mientras trabaja."
+    ws.Range("J19").Value = "4. Al acabar: pon el ZAJU que te diga (si hay), revisa y graba tu."
+    ws.Range("J14:J19").Font.Color = RGB(80, 80, 80)
 
     ws.Activate
     ActiveWindow.FreezePanes = False
@@ -181,7 +247,7 @@ End Sub
 Private Sub CrearBoton(ws As Worksheet, ByVal texto As String, ByVal nombreMacro As String, _
                        ByVal arriba As Double, ByVal izquierda As Double, ByVal color As Long)
     Dim b As Shape
-    Set b = ws.Shapes.AddShape(msoShapeRoundedRectangle, izquierda, arriba, 210, 28)
+    Set b = ws.Shapes.AddShape(msoShapeRoundedRectangle, izquierda, arriba, 230, 26)
     b.Fill.ForeColor.RGB = color
     b.Line.Visible = msoFalse
     With b.TextFrame2
@@ -195,60 +261,308 @@ Private Sub CrearBoton(ws As Worksheet, ByVal texto As String, ByVal nombreMacro
     b.OnAction = nombreMacro
 End Sub
 
+
 ' ------------------------------------------------------------------
-'  1a PASADA: ZNET de prueba en la siguiente posicion pendiente
-'  Cursor en SAP: columna Tp. de la linea en blanco de abajo del todo
+'  1. CALIBRAR: donde estan las casillas dentro de la ventana de SAP
 ' ------------------------------------------------------------------
-Public Sub PasadaPrueba()
-    Dim ws As Worksheet, f As Long, teclas As Collection, fallo As String
+Public Sub Calibrar()
+    Dim ws As Worksheet, p(1 To CAL_N) As PUNTO, i As Long, alto As Long
+    Dim que As Variant
 
     Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
-    f = SiguienteFila(ws, COL_P1)
-    If f = 0 Then MsgBox "No quedan posiciones pendientes en la 1a pasada.", vbInformation, TITULO_MSG: Exit Sub
+    If Not Preparar(ws, False) Then Exit Sub
 
-    Set teclas = New Collection
-    fallo = TeclasDeSecuencia(CStr(ws.Range(C_SECUENCIA).Value), teclas)
-    If Len(fallo) > 0 Then
-        MsgBox fallo & vbCrLf & "Revisa la celda " & C_SECUENCIA & ". No se ha escrito nada.", vbExclamation, TITULO_MSG
-        Exit Sub
-    End If
+    If MsgBox("Antes de empezar, en SAP:" & vbCrLf & _
+              "  - Ventana en su sitio y con su tamano de siempre." & vbCrLf & _
+              "  - Dentro de una posicion del abono, pestana Condiciones." & vbCrLf & _
+              "  - Tabla subida arriba del todo (Ctrl+Inicio), con ZTAR en la 1a fila." & vbCrLf & vbCrLf & _
+              "Te ire pidiendo 7 puntos. Para cada uno: pon el raton encima en SAP" & vbCrLf & _
+              "(sin hacer clic) y pulsa la tecla Control.", _
+              vbOKCancel + vbInformation, TITULO_MSG) <> vbOK Then Exit Sub
 
-    If Not Confirmar(ws, f, "el ZNET de prueba (" & ws.Range(C_SECUENCIA).Value & ")", _
-                     "la columna Tp. de la linea en blanco de abajo del todo") Then Exit Sub
-    EscribirEnSAP ws, f, COL_P1, teclas
-End Sub
+    que = Array("", _
+        "la casilla POSICION (la del 90): su borde IZQUIERDO, por dentro", _
+        "la casilla POSICION: su borde DERECHO, por dentro", _
+        "la casilla NETO de arriba (la del 5,02): su borde IZQUIERDO, por dentro", _
+        "la casilla NETO: su borde DERECHO, por dentro (antes de 'EUR')", _
+        "la columna IMPORTE de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro", _
+        "la columna IMPORTE de la 1a fila: borde DERECHO, por dentro", _
+        "la columna IMPORTE de la 2a fila (ZDC1): en el centro")
 
-' ------------------------------------------------------------------
-'  2a PASADA: ZNET definitivo en la siguiente posicion pendiente
-'  Cursor en SAP: campo Importe de la linea ZNET (donde esta el 10)
-' ------------------------------------------------------------------
-Public Sub PasadaDefinitiva()
-    Dim ws As Worksheet, f As Long, teclas As Collection, valor As String, fallo As String, i As Long
+    For i = CAL_POS_I To CAL_IMP_2
+        If Not CapturarPunto("Punto " & (i - 2) & " de 7:" & vbCrLf & vbCrLf & _
+                             "Pon el raton sobre " & que(i - 2) & " y pulsa Control.", p(i)) Then
+            MsgBox "Calibracion cancelada. No se ha guardado nada.", vbExclamation, TITULO_MSG
+            Exit Sub
+        End If
+    Next i
 
-    Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
-    f = SiguienteFila(ws, COL_P2)
-    If f = 0 Then MsgBox "No quedan posiciones pendientes en la 2a pasada.", vbInformation, TITULO_MSG: Exit Sub
-
-    valor = ImporteSAP(ws.Cells(f, COL_ZNET).Value, CStr(ws.Range(C_SEP).Value), fallo)
-    If Len(fallo) > 0 Then
-        MarcarFila ws, f, COL_P2, "No escrito: " & fallo, False
-        MsgBox "Posicion " & ws.Cells(f, COL_POS).Value & ": " & fallo & vbCrLf & "No se ha escrito nada.", _
+    ' Comprobaciones de sentido comun
+    alto = p(CAL_IMP_2).y - p(CAL_IMP_I).y
+    If p(CAL_POS_D).x - p(CAL_POS_I).x < 10 Or p(CAL_NETO_D).x - p(CAL_NETO_I).x < 10 Or _
+       p(CAL_IMP_D).x - p(CAL_IMP_I).x < 10 Then
+        MsgBox "Algun borde derecho ha quedado a la izquierda del izquierdo. Repite la calibracion.", _
                vbExclamation, TITULO_MSG
         Exit Sub
     End If
+    If alto < 8 Or alto > 60 Then
+        MsgBox "La 2a fila de la tabla no ha quedado justo debajo de la 1a (" & alto & " px). " & _
+               "Repite la calibracion.", vbExclamation, TITULO_MSG
+        Exit Sub
+    End If
 
-    ' Fin, Mayus+Inicio: selecciona lo que haya en el campo (el 10 de la
-    ' prueba) para que el valor nuevo lo sustituya en vez de ir detras.
-    Set teclas = New Collection
-    teclas.Add "{END}"
-    teclas.Add "+{HOME}"
-    For i = 1 To Len(valor)
-        teclas.Add Mid$(valor, i, 1)
+    ws.Range(COL_CAL & CAL_ANCHO).Value = mRect.Der - mRect.Izq
+    ws.Range(COL_CAL & CAL_ALTO).Value = mRect.Aba - mRect.Arr
+    For i = CAL_POS_I To CAL_IMP_2
+        ws.Range(COL_CAL & i).Value = (p(i).x - mRect.Izq) & ";" & (p(i).y - mRect.Arr)
     Next i
-
-    If Not Confirmar(ws, f, "ZNET " & valor, "el campo Importe de la linea ZNET") Then Exit Sub
-    EscribirEnSAP ws, f, COL_P2, teclas
+    PintarCalibracion ws
+    ProbarLectura
 End Sub
+
+Private Function CapturarPunto(ByVal texto As String, ByRef p As PUNTO) As Boolean
+    Dim t As Single
+    If MsgBox(texto, vbOKCancel + vbQuestion + vbSystemModal, TITULO_MSG) <> vbOK Then Exit Function
+    ' Esperar a que se suelte Control (por si estaba pulsada) y luego a que se pulse.
+    t = Timer
+    Do While (GetAsyncKeyState(VK_CONTROL) And &H8000) <> 0
+        DoEvents: Sleep 20
+        If Timer - t > 10 Then Exit Function
+    Loop
+    t = Timer
+    Do
+        DoEvents: Sleep 20
+        If (GetAsyncKeyState(VK_CONTROL) And &H8000) <> 0 Then Exit Do
+        If Timer - t > 60 Or Timer < t Then Exit Function
+    Loop
+    GetCursorPos p
+    Beep
+    CapturarPunto = True
+End Function
+
+Private Sub PintarCalibracion(ws As Worksheet)
+    If Len(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value)) = 0 Then
+        ws.Range(C_CALIB).Value = "SIN CALIBRAR: pulsa 'Calibrar'"
+        ws.Range(C_CALIB).Font.Color = RGB(187, 0, 0)
+    Else
+        ws.Range(C_CALIB).Value = "hecha, ventana de " & ws.Range(COL_CAL & CAL_ANCHO).Value & " x " & _
+                                  ws.Range(COL_CAL & CAL_ALTO).Value & " px"
+        ws.Range(C_CALIB).Font.Color = RGB(16, 126, 62)
+    End If
+End Sub
+
+
+' ------------------------------------------------------------------
+'  2. PROBAR LECTURA: lee Posicion, Neto y las 3 primeras filas
+' ------------------------------------------------------------------
+Public Sub ProbarLectura()
+    Dim ws As Worksheet, txt As String, r As Long
+    Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
+    If Not Preparar(ws, True) Then Exit Sub
+    If Not ActivarSAP(mVentana) Then MsgBox "No he podido traer SAP al frente.", vbExclamation, TITULO_MSG: Exit Sub
+    Sleep 200
+
+    txt = "Posicion: [" & LeerCasilla(CAL_POS_I, CAL_POS_D, 0) & "]" & vbCrLf & _
+          "Neto: [" & LeerCasilla(CAL_NETO_I, CAL_NETO_D, 0) & "]" & vbCrLf
+    For r = 1 To 3
+        txt = txt & "Importe fila " & r & ": [" & LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1) & "]" & vbCrLf
+    Next r
+    MsgBox "Esto es lo que leo en SAP:" & vbCrLf & vbCrLf & txt & vbCrLf & _
+           "Si coincide con la pantalla, la calibracion vale." & vbCrLf & _
+           "Si sale vacio o raro, repite 'Calibrar'.", vbInformation + vbSystemModal, TITULO_MSG
+End Sub
+
+
+' ------------------------------------------------------------------
+'  3. HACER TODAS LAS POSICIONES
+' ------------------------------------------------------------------
+Public Sub HacerTodas()
+    Dim ws As Worksheet, f As Long, n As Long, total As Double, fallo As String
+    Dim prueba As Double, secPrueba As Collection, espera As Long, maxFilas As Long
+    Dim pos As String, posAnterior As String, arrastre As Double
+    Dim vueltas As Long, hechas As Long, saltadas As String, pendientes As String
+
+    Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
+    If Not Preparar(ws, True) Then Exit Sub
+
+    ' --- Comprobar la lista
+    For f = FILA_INI To FILA_INI + NUM_FILAS - 1
+        If CeldaVacia(ws.Cells(f, COL_POS)) Then Exit For
+        If Not IsNumeric(ws.Cells(f, COL_OBJ).Value) Or CeldaVacia(ws.Cells(f, COL_OBJ)) Then
+            MsgBox "La fila " & f & " (posicion " & ws.Cells(f, COL_POS).Value & ") no tiene importe a abonar.", _
+                   vbExclamation, TITULO_MSG
+            Exit Sub
+        End If
+        If CDbl(ws.Cells(f, COL_OBJ).Value) <= 0 Then
+            MsgBox "La posicion " & ws.Cells(f, COL_POS).Value & " tiene un importe negativo o cero. " & _
+                   "Eso no lo hace el asistente.", vbExclamation, TITULO_MSG
+            Exit Sub
+        End If
+        If Left$(CStr(ws.Cells(f, COL_ESTADO).Value), 2) <> "OK" Then
+            n = n + 1
+            total = total + CDbl(ws.Cells(f, COL_OBJ).Value)
+        Else
+            ' Si se retoma tras una parada, lo que quedo sin cuadrar sigue contando
+            arrastre = arrastre + CDbl(ws.Cells(f, COL_OBJ).Value) - Val(ws.Cells(f, COL_NFINAL).Value)
+        End If
+    Next f
+    If n = 0 Then MsgBox "No hay posiciones pendientes. Pega la lista en B12.", vbInformation, TITULO_MSG: Exit Sub
+
+    prueba = Val(Replace(CStr(ws.Range(C_PRUEBA).Value), ",", "."))
+    If prueba <= 0 Then MsgBox "El valor de prueba (" & C_PRUEBA & ") tiene que ser mayor que cero.", vbExclamation, TITULO_MSG: Exit Sub
+    Set secPrueba = New Collection
+    fallo = TeclasDeSecuencia(CStr(ws.Range(C_SECUENCIA).Value), ImporteTexto(prueba), secPrueba)
+    If Len(fallo) > 0 Then MsgBox fallo & vbCrLf & "Revisa la celda " & C_SECUENCIA & ".", vbExclamation, TITULO_MSG: Exit Sub
+    espera = Val(ws.Range(C_ESPERA).Value) * 1000
+    If espera < 2000 Then espera = 2000
+    maxFilas = Val(ws.Range(C_FILAS).Value)
+    If maxFilas < 5 Then maxFilas = 5
+
+    If MsgBox(n & " posiciones, " & Format(total, "#,##0.00") & " EUR en total." & vbCrLf & vbCrLf & _
+              "En SAP tienes que estar dentro de una posicion del abono, pestana Condiciones." & vbCrLf & _
+              "Empiezo por la primera posicion (Mayus+F5) y voy una a una." & vbCrLf & vbCrLf & _
+              "No toques el raton ni el teclado mientras trabaja." & vbCrLf & _
+              "Para pararlo: mueve el raton o pulsa Pausa." & vbCrLf & _
+              "No graba: al final grabas tu.", vbOKCancel + vbInformation, TITULO_MSG) <> vbOK Then Exit Sub
+
+    If Not ActivarSAP(mVentana) Then MsgBox "No he podido traer SAP al frente.", vbExclamation, TITULO_MSG: Exit Sub
+    Sleep 300
+    Application.StatusBar = "Asistente SAP trabajando... mueve el raton para pararlo."
+    arrastre = Round(arrastre, 2)
+
+    ' --- A la primera posicion
+    If Not Pulsar("+{F5}") Then GoTo Parado
+    Sleep 600
+    pos = EsperarPosicionDistinta("", espera)
+    If Len(pos) = 0 Then mMotivo = "no consigo leer el numero de posicion": GoTo Parado
+
+    Do
+        vueltas = vueltas + 1
+        If vueltas > 400 Then mMotivo = "demasiadas vueltas": GoTo Parado
+
+        f = FilaDePosicion(ws, pos)
+        If f = 0 Then
+            If Len(saltadas) < 200 Then saltadas = saltadas & " " & pos
+        ElseIf Left$(CStr(ws.Cells(f, COL_ESTADO).Value), 2) <> "OK" Then
+            If Not HacerPosicion(ws, f, secPrueba, prueba, maxFilas, espera, arrastre) Then GoTo Parado
+            hechas = hechas + 1
+        End If
+
+        ' Siguiente posicion. Si no cambia, era la ultima.
+        posAnterior = pos
+        If Not Pulsar("+{F7}") Then GoTo Parado
+        Sleep 400
+        pos = EsperarPosicionDistinta(posAnterior, espera)
+        If Len(mMotivo) > 0 Then GoTo Parado
+    Loop While Len(pos) > 0
+
+    ' --- Resumen
+    Application.StatusBar = False
+    For f = FILA_INI To FILA_INI + NUM_FILAS - 1
+        If CeldaVacia(ws.Cells(f, COL_POS)) Then Exit For
+        If Left$(CStr(ws.Cells(f, COL_ESTADO).Value), 2) <> "OK" Then
+            pendientes = pendientes & " " & ws.Cells(f, COL_POS).Value
+            MarcarFila ws, f, "NO ENCONTRADA en el abono", False
+        End If
+    Next f
+    ws.Activate
+    MsgBox "Hecho: " & hechas & " posiciones en esta vuelta." & vbCrLf & vbCrLf & _
+           IIf(Len(pendientes) > 0, "OJO, no estaban en el abono:" & pendientes & vbCrLf & vbCrLf, "") & _
+           IIf(Len(saltadas) > 0, "Posiciones del abono que no estaban en la lista (no tocadas):" & saltadas & vbCrLf & vbCrLf, "") & _
+           "Lo que falta por cuadrar (ZAJU de cabecera): " & Format(arrastre, "#,##0.00") & " EUR" & vbCrLf & vbCrLf & _
+           "Revisa el neto total en SAP y graba tu.", _
+           IIf(Len(pendientes) > 0, vbExclamation, vbInformation) + vbSystemModal, TITULO_MSG
+    Exit Sub
+
+Parado:
+    Application.StatusBar = False
+    ws.Activate
+    MsgBox "PARADO: " & mMotivo & vbCrLf & vbCrLf & _
+           "Revisa en SAP la posicion " & pos & " antes de seguir." & vbCrLf & _
+           "Las posiciones con estado OK ya estan hechas: si vuelves a pulsar " & _
+           "'Hacer todas las posiciones', solo hace las que faltan." & vbCrLf & _
+           "Lo arrastrado hasta aqui por los decimales: " & Format(arrastre, "#,##0.00") & " EUR.", _
+           vbExclamation + vbSystemModal, TITULO_MSG
+End Sub
+
+' Una posicion completa, en una sola visita. Devuelve False si hay que parar.
+Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Collection, ByVal prueba As Double, _
+                               ByVal maxFilas As Long, ByVal espera As Long, ByRef arrastre As Double) As Boolean
+    Dim objetivo As Double, n0 As Double, nPrueba As Double, nFinal As Double, ok As Boolean
+    Dim znet As Double, fila As Long, paso As Double, intento As Long, t As Variant, actual As Double
+
+    objetivo = Round(CDbl(ws.Cells(f, COL_OBJ).Value) + arrastre, 2)
+    ws.Cells(f, COL_NPRUEBA).ClearContents
+    ws.Cells(f, COL_ZNET).ClearContents
+    ws.Cells(f, COL_NFINAL).ClearContents
+
+    ' 1. Neto antes de tocar nada
+    n0 = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)
+    If Not ok Then mMotivo = "no consigo leer el Neto de la posicion": GoTo Mal
+
+    ' 2. ZNET de prueba en la fila en blanco
+    If Not EnfocarTabla() Then GoTo Mal
+    If Not Pulsar("^{END}") Then GoTo Mal
+    Sleep 300
+    For Each t In secPrueba
+        If Not Pulsar(CStr(t)) Then GoTo Mal
+    Next t
+    If Not Pulsar("{ENTER}") Then GoTo Mal
+
+    ' 3. Neto con la prueba
+    nPrueba = EsperarNetoDistinto(n0, espera, ok)
+    If Not ok Then
+        If Len(mMotivo) = 0 Then mMotivo = "el Neto no ha cambiado al poner el ZNET de prueba " & _
+            "(ya tenia ZNET? ha salido un aviso?)"
+        GoTo Mal
+    End If
+    If nPrueba <= 0 Then mMotivo = "el Neto con el ZNET de prueba es " & nPrueba: GoTo Mal
+    ws.Cells(f, COL_NPRUEBA).Value = nPrueba
+
+    ' 4. ZNET definitivo; si al leerlo no da, una correccion con la nueva medida
+    znet = Round(objetivo * prueba / nPrueba, 2)
+    nFinal = nPrueba
+    actual = prueba                         ' lo que pone ahora en la casilla del ZNET
+    For intento = 1 To 2
+        If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
+        fila = BuscarFilaImporte(actual, maxFilas)
+        If fila = 0 Then
+            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila del ZNET en la tabla (con " & _
+                ImporteTexto(actual) & ")"
+            GoTo Mal
+        End If
+        If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
+        ws.Cells(f, COL_ZNET).Value = znet
+        actual = znet
+
+        nFinal = EsperarNetoDistinto(nFinal, espera, ok)
+        If Not ok Then
+            If Len(mMotivo) > 0 Then GoTo Mal
+            nFinal = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)   ' puede que no cambie
+            If Not ok Then mMotivo = "no consigo leer el Neto final": GoTo Mal
+        End If
+        ws.Cells(f, COL_NFINAL).Value = nFinal
+
+        paso = nPrueba / prueba * 0.01      ' lo que mueve un centimo de ZNET
+        If Abs(nFinal - objetivo) <= paso / 2 + 0.015 Then Exit For
+        If intento = 2 Then
+            mMotivo = "el Neto final (" & Format(nFinal, "0.00") & ") no da el importe (" & _
+                      Format(objetivo, "0.00") & ") ni corrigiendo"
+            GoTo Mal
+        End If
+        znet = Round(objetivo * znet / nFinal, 2)
+    Next intento
+
+    arrastre = Round(objetivo - nFinal, 2)
+    MarcarFila ws, f, "OK " & Format(Now, "hh:mm:ss") & _
+               IIf(Abs(arrastre) >= 0.005, "  (pasa " & Format(arrastre, "0.00") & " a la siguiente)", ""), True
+    HacerPosicion = True
+    Exit Function
+
+Mal:
+    MarcarFila ws, f, "PARADO: " & mMotivo, False
+End Function
+
 
 ' ------------------------------------------------------------------
 '  UTILIDADES DE LA HOJA
@@ -256,7 +570,7 @@ End Sub
 Public Sub ReiniciarEstados()
     Dim ws As Worksheet
     Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
-    With ws.Range(ws.Cells(FILA_INI, COL_P1), ws.Cells(FILA_INI + NUM_FILAS - 1, COL_P2))
+    With ws.Range(ws.Cells(FILA_INI, COL_NPRUEBA), ws.Cells(FILA_INI + NUM_FILAS - 1, COL_ESTADO))
         .ClearContents
         .Interior.Pattern = xlNone
     End With
@@ -265,89 +579,331 @@ End Sub
 Public Sub LimpiarTodo()
     Dim ws As Worksheet
     Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
-    If MsgBox("Se borraran las posiciones, los ZNET y los estados. Continuar?", _
+    If MsgBox("Se borraran las posiciones y los estados (la calibracion no). Continuar?", _
               vbOKCancel + vbExclamation, TITULO_MSG) <> vbOK Then Exit Sub
     ws.Range(ws.Cells(FILA_INI, COL_POS), ws.Cells(FILA_INI + NUM_FILAS - 1, COL_DESC)).ClearContents
     ReiniciarEstados
 End Sub
 
-' ------------------------------------------------------------------
-'  FUNCIONES INTERNAS
-' ------------------------------------------------------------------
-Private Sub EscribirEnSAP(ws As Worksheet, ByVal f As Long, ByVal col As Long, teclas As Collection)
-    Dim h As LongPtr, titulo As String, sh As Object, pausa As Long, t As Variant, n As Long
 
-    h = VentanaSAP()
-    If h = 0 Then
-        MsgBox "No encuentro ninguna ventana de SAP abierta. No se ha escrito nada.", vbExclamation, TITULO_MSG
-        Exit Sub
-    End If
-    titulo = TituloVentana(h)
-    ws.Range(C_VENTANA).Value = titulo
+' ------------------------------------------------------------------
+'  SAP: ventana, teclas y raton
+' ------------------------------------------------------------------
 
-    If Not TituloValido(titulo, CStr(ws.Range(C_TITULO).Value)) Then
+' Busca SAP, comprueba el titulo y (si hace falta) la calibracion.
+Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As Boolean
+    Dim titulo As String, anchoCal As Long, altoCal As Long
+
+    mMotivo = ""
+    mUltimoRaton.x = 0
+    mUltimoRaton.y = 0
+    mVentana = FindWindow(SAP_CLASE, vbNullString)
+    If mVentana = 0 Then MsgBox "No encuentro ninguna ventana de SAP abierta.", vbExclamation, TITULO_MSG: Exit Function
+    titulo = TituloVentana(mVentana)
+    mRequisitos = CStr(ws.Range(C_TITULO).Value)
+    If Not TituloValido(titulo, mRequisitos) Then
         MsgBox "La ventana de SAP es:" & vbCrLf & "   " & titulo & vbCrLf & vbCrLf & _
-               "y tiene que contener: " & ws.Range(C_TITULO).Value & vbCrLf & _
-               "Entra en la pantalla de Datos de posicion del abono. No se ha escrito nada.", _
-               vbExclamation + vbSystemModal, TITULO_MSG
-        Exit Sub
+               "y tiene que contener: " & mRequisitos & vbCrLf & _
+               "Entra en una posicion del abono (Datos de posicion, pestana Condiciones).", _
+               vbExclamation, TITULO_MSG
+        Exit Function
     End If
+    GetWindowRect mVentana, mRect
 
-    If Not ActivarSAP(h) Then
-        MsgBox "No he podido traer SAP al frente. No se ha escrito nada.", vbExclamation + vbSystemModal, TITULO_MSG
-        Exit Sub
-    End If
-    Sleep 200
+    mSep = CStr(ws.Range(C_SEP).Value)
+    If Len(mSep) = 0 Then mSep = ","
+    mPausa = Val(ws.Range(C_PAUSA).Value)
+    If mPausa < 20 Then mPausa = 20
+    Set mShell = Nothing
+    On Error Resume Next
+    Set mShell = CreateObject("WScript.Shell")
+    On Error GoTo 0
 
-    pausa = Val(ws.Range(C_PAUSA).Value)
-    If pausa < 20 Then pausa = 20
-    Set sh = CrearShell()
-
-    For Each t In teclas
-        ' Antes de CADA tecla: si SAP ya no es la ventana activa (popup,
-        ' clic en otra ventana), se para aqui mismo.
-        If GetForegroundWindow() <> h Then
-            If n = 0 Then
-                MarcarFila ws, f, col, "No escrito: SAP no estaba activa", False
-            Else
-                MarcarFila ws, f, col, "A MEDIAS (" & n & " teclas): revisa ese campo en SAP", False
-            End If
-            MsgBox "Parado: SAP ha dejado de ser la ventana activa." & vbCrLf & _
-                   IIf(n > 0, "Ha escrito " & n & " teclas: revisa el campo en SAP antes de seguir.", _
-                   "No se ha escrito nada."), vbExclamation + vbSystemModal, TITULO_MSG
-            Exit Sub
+    If conCalibracion Then
+        If Len(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value)) = 0 Then
+            MsgBox "Falta calibrar: pulsa 'Calibrar' con SAP en la pantalla de Condiciones.", vbExclamation, TITULO_MSG
+            Exit Function
         End If
-        Teclear CStr(t), sh
-        n = n + 1
-        Sleep pausa
-    Next t
-
-    Sleep 150
-    If GetForegroundWindow() <> h Then
-        MarcarFila ws, f, col, "Revisar: SAP perdio el foco justo al acabar", False
-        MsgBox "Escrito, pero SAP perdio el foco justo al acabar: revisa el campo.", _
-               vbExclamation + vbSystemModal, TITULO_MSG
-        Exit Sub
+        anchoCal = Val(ws.Range(COL_CAL & CAL_ANCHO).Value)
+        altoCal = Val(ws.Range(COL_CAL & CAL_ALTO).Value)
+        If Abs((mRect.Der - mRect.Izq) - anchoCal) > 4 Or Abs((mRect.Aba - mRect.Arr) - altoCal) > 4 Then
+            MsgBox "La ventana de SAP ha cambiado de tamano desde la calibracion" & vbCrLf & _
+                   "(ahora " & (mRect.Der - mRect.Izq) & " x " & (mRect.Aba - mRect.Arr) & ", calibrada en " & _
+                   anchoCal & " x " & altoCal & ")." & vbCrLf & vbCrLf & _
+                   "Dejala como estaba o vuelve a calibrar.", vbExclamation, TITULO_MSG
+            Exit Function
+        End If
     End If
-    MarcarFila ws, f, col, "Escrito " & Format(Now, "hh:mm:ss"), True
-End Sub
-
-Private Function Confirmar(ws As Worksheet, ByVal f As Long, ByVal que As String, ByVal dondeCursor As String) As Boolean
-    If UCase$(Left$(Trim$(CStr(ws.Range(C_CONFIRMAR).Value)), 1)) = "N" Then Confirmar = True: Exit Function
-    Confirmar = (MsgBox("Posicion " & ws.Cells(f, COL_POS).Value & "  -  " & ws.Cells(f, COL_DESC).Value & vbCrLf & vbCrLf & _
-                        "Se va a escribir: " & que & vbCrLf & vbCrLf & _
-                        "Comprueba que en SAP estas en la posicion " & ws.Cells(f, COL_POS).Value & _
-                        " y con el cursor en " & dondeCursor & ".", _
-                        vbOKCancel + vbQuestion + vbSystemModal, TITULO_MSG) = vbOK)
+    Preparar = True
 End Function
 
-' Traduce la secuencia de la celda C6 a teclas sueltas. Solo admite
-' letras, cifras, coma, punto y {TAB}: nada de Intro (~, {ENTER}) ni
-' combinaciones (+ ^ %), que podrian validar o navegar por su cuenta.
-Private Function TeclasDeSecuencia(ByVal sec As String, teclas As Collection) As String
+' Punto calibrado n, en coordenadas de pantalla, bajando "filas" filas de la tabla
+Private Function PuntoCal(ByVal n As Long, ByVal filas As Long) As PUNTO
+    Dim partes() As String, ws As Worksheet, alto As Long
+    Set ws = ThisWorkbook.Worksheets(HOJA)
+    partes = Split(CStr(ws.Range(COL_CAL & n).Value), ";")
+    PuntoCal.x = mRect.Izq + Val(partes(0))
+    PuntoCal.y = mRect.Arr + Val(partes(1))
+    If filas > 0 Then
+        alto = Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value), ";")(1)) - _
+               Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_I).Value), ";")(1))
+        PuntoCal.y = PuntoCal.y + filas * alto
+    End If
+End Function
+
+' Selecciona con el raton de izquierda a derecha y copia. Devuelve el texto.
+Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas As Long) As String
+    Dim a As PUNTO, b As PUNTO, i As Long, x As Long, s As String, intento As Long
+    a = PuntoCal(nIzq, filas)
+    b = PuntoCal(nDer, filas)
+    b.y = a.y
+    For intento = 1 To 3
+        If Not Seguir() Then Exit Function
+        VaciarPortapapeles
+        MoverRaton a.x, a.y
+        Sleep 40
+        mouse_event RATON_ABAJO, 0, 0, 0, 0
+        For i = 1 To 6
+            x = a.x + (b.x - a.x) * i \ 6
+            MoverRaton x, a.y
+            Sleep 15
+        Next i
+        mouse_event RATON_ARRIBA, 0, 0, 0, 0
+        Sleep 60
+        If Not Pulsar("^c") Then Exit Function
+        For i = 1 To 15
+            Sleep 40
+            s = LeerPortapapeles()
+            If Len(s) > 0 Then Exit For
+        Next i
+        s = Trim$(Replace(Replace(Replace(s, vbCr, ""), vbLf, ""), vbTab, " "))
+        If Len(s) > 0 Then Exit For
+    Next intento
+    LeerCasilla = s
+End Function
+
+Private Function LeerImporte(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas As Long, ByRef ok As Boolean) As Double
+    LeerImporte = NumeroSAP(LeerCasilla(nIzq, nDer, filas), ok)
+End Function
+
+' Espera a que el Neto de arriba cambie (SAP ha recalculado) y lo devuelve.
+Private Function EsperarNetoDistinto(ByVal antes As Double, ByVal espera As Long, ByRef ok As Boolean) As Double
+    Dim t As Single, v As Double, leido As Boolean, anterior As Double, iguales As Long
+    t = Timer
+    ok = False
+    Do
+        If Not SapListo() Then Exit Function
+        v = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, leido)
+        If Len(mMotivo) > 0 Then Exit Function
+        If leido And Abs(v - antes) > 0.001 Then
+            ' Dos lecturas iguales seguidas: ya ha terminado de recalcular
+            If iguales > 0 And Abs(v - anterior) < 0.001 Then ok = True: EsperarNetoDistinto = v: Exit Function
+            iguales = iguales + 1
+            anterior = v
+        End If
+        Sleep 250
+    Loop While (Timer - t) * 1000 < espera And Timer >= t
+End Function
+
+' Lee la posicion hasta que sea un numero distinto de "antes". "" si no cambia.
+Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As Long) As String
+    Dim t As Single, s As String
+    t = Timer
+    Do
+        If Not SapListo() Then Exit Function
+        s = LeerCasilla(CAL_POS_I, CAL_POS_D, 0)
+        If Len(mMotivo) > 0 Then Exit Function
+        If Len(s) > 0 And IsNumeric(s) And s <> antes Then EsperarPosicionDistinta = s: Exit Function
+        Sleep 250
+    Loop While (Timer - t) * 1000 < espera And Timer >= t
+End Function
+
+' Sube la tabla y busca, fila a fila, la casilla Importe que dice exactamente el valor.
+Private Function BuscarFilaImporte(ByVal valor As Double, ByVal maxFilas As Long) As Long
+    Dim r As Long, buscado As String, s As String
+    buscado = ImporteTexto(valor)
+    If Not EnfocarTabla() Then Exit Function
+    If Not Pulsar("^{HOME}") Then Exit Function
+    Sleep 400
+    For r = 1 To maxFilas
+        s = Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", "")
+        If Len(mMotivo) > 0 Then Exit Function
+        If s = buscado Then BuscarFilaImporte = r: Exit Function
+    Next r
+End Function
+
+' Clic en la casilla Importe de esa fila, selecciona lo que hay y escribe encima.
+Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Boolean
+    Dim a As PUNTO, b As PUNTO, i As Long
+    a = PuntoCal(CAL_IMP_I, fila - 1)
+    b = PuntoCal(CAL_IMP_D, fila - 1)
+    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
+    Sleep 150
+    If Not Pulsar("{END}") Then Exit Function
+    If Not Pulsar("+{HOME}") Then Exit Function
+    For i = 1 To Len(valor)
+        If Not Pulsar(Mid$(valor, i, 1)) Then Exit Function
+    Next i
+    EscribirEnFila = Pulsar("{ENTER}")
+End Function
+
+' Clic en la 1a fila de la tabla para que el cursor este en ella (no escribe nada).
+Private Function EnfocarTabla() As Boolean
+    Dim a As PUNTO, b As PUNTO
+    a = PuntoCal(CAL_IMP_I, 0)
+    b = PuntoCal(CAL_IMP_D, 0)
+    EnfocarTabla = Clic((a.x + b.x) \ 2, a.y)
+    Sleep 150
+End Function
+
+Private Function Clic(ByVal x As Long, ByVal y As Long) As Boolean
+    If Not Seguir() Then Exit Function
+    MoverRaton x, y
+    Sleep 40
+    mouse_event RATON_ABAJO, 0, 0, 0, 0
+    Sleep 30
+    mouse_event RATON_ARRIBA, 0, 0, 0, 0
+    Clic = True
+End Function
+
+Private Sub MoverRaton(ByVal x As Long, ByVal y As Long)
+    SetCursorPos x, y
+    mUltimoRaton.x = x
+    mUltimoRaton.y = y
+End Sub
+
+' Una tecla, solo si SAP sigue delante con la ventana correcta.
+Private Function Pulsar(ByVal tecla As String) As Boolean
+    If Not Seguir() Then Exit Function
+    If mShell Is Nothing Then
+        SendKeys tecla, True
+    Else
+        mShell.SendKeys tecla      ' WScript.Shell: no apaga el Bloq Num
+    End If
+    Sleep mPausa
+    Pulsar = True
+End Function
+
+' Se puede seguir: nadie ha movido el raton, ni Pausa, y SAP esta delante.
+Private Function Seguir() As Boolean
+    Dim p As PUNTO
+    If Len(mMotivo) > 0 Then Exit Function
+    If (GetAsyncKeyState(VK_PAUSA) And &H8000) <> 0 Then mMotivo = "has pulsado Pausa": Exit Function
+    If mUltimoRaton.x <> 0 Or mUltimoRaton.y <> 0 Then
+        GetCursorPos p
+        If Abs(p.x - mUltimoRaton.x) > 40 Or Abs(p.y - mUltimoRaton.y) > 40 Then
+            mMotivo = "has movido el raton"
+            Exit Function
+        End If
+    End If
+    Seguir = SapListo()
+End Function
+
+' SAP delante y con el titulo de Datos de posicion (si sale un aviso, el
+' aviso es otra ventana y esto da False).
+Private Function SapListo() As Boolean
+    Dim h As LongPtr, t As Single
+    t = Timer
+    Do
+        h = GetForegroundWindow()
+        If h = mVentana Then
+            If TituloValido(TituloVentana(h), mRequisitos) Then SapListo = True: Exit Function
+        End If
+        Sleep 100
+        DoEvents
+    Loop While Timer - t < 1.5 And Timer >= t
+    If Len(mMotivo) = 0 Then
+        If h <> mVentana Then
+            mMotivo = "SAP ha dejado de ser la ventana activa (ha salido un aviso?): '" & TituloVentana(h) & "'"
+        Else
+            mMotivo = "la ventana de SAP ya no es la de Datos de posicion: '" & TituloVentana(h) & "'"
+        End If
+    End If
+End Function
+
+
+' ------------------------------------------------------------------
+'  Portapapeles (API: mas fiable que el DataObject de Office)
+' ------------------------------------------------------------------
+Private Sub VaciarPortapapeles()
+    Dim i As Long
+    For i = 1 To 10
+        If OpenClipboard(0) <> 0 Then
+            EmptyClipboard
+            CloseClipboard
+            Exit Sub
+        End If
+        Sleep 20
+    Next i
+End Sub
+
+Private Function LeerPortapapeles() As String
+    Dim h As LongPtr, p As LongPtr, n As Long, s As String, i As Long
+    For i = 1 To 10
+        If OpenClipboard(0) <> 0 Then Exit For
+        Sleep 20
+    Next i
+    If i > 10 Then Exit Function
+    h = GetClipboardData(CF_UNICODETEXT)
+    If h <> 0 Then
+        p = GlobalLock(h)
+        If p <> 0 Then
+            n = lstrlenW(p)
+            If n > 0 And n < 4000 Then
+                s = String$(n, vbNullChar)
+                CopyMemory StrPtr(s), p, n * 2
+            End If
+            GlobalUnlock h
+        End If
+    End If
+    CloseClipboard
+    LeerPortapapeles = s
+End Function
+
+
+' ------------------------------------------------------------------
+'  Numeros
+' ------------------------------------------------------------------
+
+' "1.234,56" / "5,02" / "47,780-" / "5,02 EUR" -> numero. ok=False si no lo es.
+Private Function NumeroSAP(ByVal s As String, ByRef ok As Boolean) As Double
+    Dim negativo As Boolean, i As Long, c As String, limpio As String
+    ok = False
+    s = Trim$(Replace(UCase$(s), "EUR", ""))
+    s = Replace(s, " ", "")
+    If Len(s) = 0 Then Exit Function
+    If Right$(s, 1) = "-" Then negativo = True: s = Left$(s, Len(s) - 1)
+    If Left$(s, 1) = "-" Then negativo = True: s = Mid$(s, 2)
+    If mSep = "," Then
+        s = Replace(s, ".", "")
+        s = Replace(s, ",", ".")
+    Else
+        s = Replace(s, ",", "")
+    End If
+    For i = 1 To Len(s)
+        c = Mid$(s, i, 1)
+        If Not (c Like "[0-9.]") Then Exit Function
+    Next i
+    If Len(s) - Len(Replace(s, ".", "")) > 1 Then Exit Function
+    NumeroSAP = Val(s)
+    If negativo Then NumeroSAP = -NumeroSAP
+    ok = True
+End Function
+
+' Importe para escribir en SAP: 2 decimales, separador de SAP, sin miles.
+Private Function ImporteTexto(ByVal d As Double) As String
+    Dim s As String
+    s = Replace(Format(Round(d, 2), "0.00"), Mid$(Format(1.5, "0.0"), 2, 1), "|")
+    If Len(mSep) = 0 Then mSep = ","
+    ImporteTexto = Replace(s, "|", mSep)
+End Function
+
+' Traduce la secuencia de la celda C6. Solo letras, cifras, coma, punto,
+' {TAB} y {PRUEBA}; nada de Intro ni combinaciones.
+Private Function TeclasDeSecuencia(ByVal sec As String, ByVal valorPrueba As String, teclas As Collection) As String
     Dim i As Long, c As String
-    sec = Trim$(sec)
-    If Len(sec) = 0 Then TeclasDeSecuencia = "La secuencia de la 1a pasada esta vacia.": Exit Function
+    sec = Replace(Trim$(sec), "{PRUEBA}", valorPrueba, , , vbTextCompare)
+    If Len(sec) = 0 Then TeclasDeSecuencia = "La secuencia del ZNET de prueba esta vacia.": Exit Function
     i = 1
     Do While i <= Len(sec)
         If UCase$(Mid$(sec, i, 5)) = "{TAB}" Then
@@ -356,7 +912,7 @@ Private Function TeclasDeSecuencia(ByVal sec As String, teclas As Collection) As
         Else
             c = Mid$(sec, i, 1)
             If Not (c Like "[A-Za-z0-9,.]") Then
-                TeclasDeSecuencia = "La secuencia solo puede llevar letras, cifras, coma, punto y {TAB} " & _
+                TeclasDeSecuencia = "La secuencia solo puede llevar letras, cifras, coma, punto, {TAB} y {PRUEBA} " & _
                                     "(encontrado '" & c & "')."
                 Exit Function
             End If
@@ -366,44 +922,16 @@ Private Function TeclasDeSecuencia(ByVal sec As String, teclas As Collection) As
     Loop
 End Function
 
-' Importe para SAP: 2 decimales, separador de SAP, sin miles. Si trae mas
-' de 2 decimales es que algo no cuadra: se avisa en vez de redondear.
-Private Function ImporteSAP(ByVal v As Variant, ByVal sepSAP As String, ByRef fallo As String) As String
-    Dim d As Double, s As String, c As String, sepFmt As String, i As Long, comas As Long
 
-    If IsError(v) Then fallo = "la celda del ZNET tiene un error": Exit Function
-    If IsEmpty(v) Then fallo = "falta el ZNET definitivo (haz la 1a pasada y vuelve a copiar de la Calculadora)": Exit Function
-
-    If VarType(v) = vbString Then
-        s = Replace(Trim$(v), ".", ",")
-        If Len(s) = 0 Then fallo = "falta el ZNET definitivo (haz la 1a pasada y vuelve a copiar de la Calculadora)": Exit Function
-        For i = 1 To Len(s)
-            c = Mid$(s, i, 1)
-            If c = "," Then
-                comas = comas + 1
-            ElseIf Not (c Like "[0-9]") Then
-                fallo = "el ZNET no es un numero (" & v & ")"
-                Exit Function
-            End If
-        Next i
-        If comas > 1 Then fallo = "el ZNET no es un numero (" & v & ")": Exit Function
-        d = Val(Replace(s, ",", "."))
-    ElseIf IsNumeric(v) Then
-        d = CDbl(v)
-    Else
-        fallo = "el ZNET no es un numero": Exit Function
-    End If
-
-    If d <= 0 Then fallo = "el ZNET tiene que ser mayor que cero": Exit Function
-    If Abs(d * 100 - Round(d * 100)) > 0.000001 Then
-        fallo = "el ZNET tiene mas de 2 decimales y SAP solo admite 2": Exit Function
-    End If
-
-    sepFmt = Mid$(Format(1.5, "0.0"), 2, 1)
-    s = Format(d, "0.00")
-    If Len(sepSAP) = 0 Then sepSAP = ","
-    If sepFmt <> sepSAP Then s = Replace(s, sepFmt, sepSAP)
-    ImporteSAP = s
+' ------------------------------------------------------------------
+'  Varios
+' ------------------------------------------------------------------
+Private Function FilaDePosicion(ws As Worksheet, ByVal pos As String) As Long
+    Dim f As Long
+    For f = FILA_INI To FILA_INI + NUM_FILAS - 1
+        If CeldaVacia(ws.Cells(f, COL_POS)) Then Exit Function
+        If Val(ws.Cells(f, COL_POS).Value) = Val(pos) Then FilaDePosicion = f: Exit Function
+    Next f
 End Function
 
 Private Function TituloValido(ByVal titulo As String, ByVal requisitos As String) As Boolean
@@ -418,22 +946,8 @@ Private Function TituloValido(ByVal titulo As String, ByVal requisitos As String
     Next i
 End Function
 
-Private Sub Teclear(ByVal tecla As String, sh As Object)
-    ' WScript.Shell y no el SendKeys de VBA, que apaga el Bloq Num.
-    If sh Is Nothing Then
-        SendKeys tecla, True
-    Else
-        sh.SendKeys tecla
-    End If
-End Sub
-
-Private Function CrearShell() As Object
-    On Error Resume Next
-    Set CrearShell = CreateObject("WScript.Shell")
-End Function
-
-Private Sub MarcarFila(ws As Worksheet, ByVal f As Long, ByVal col As Long, ByVal estado As String, ByVal bien As Boolean)
-    With ws.Cells(f, col)
+Private Sub MarcarFila(ws As Worksheet, ByVal f As Long, ByVal estado As String, ByVal bien As Boolean)
+    With ws.Cells(f, COL_ESTADO)
         .Value = estado
         If bien Then
             .Interior.Color = RGB(198, 239, 206)
@@ -442,19 +956,6 @@ Private Sub MarcarFila(ws As Worksheet, ByVal f As Long, ByVal col As Long, ByVa
         End If
     End With
 End Sub
-
-' Primera fila con posicion cuya columna de estado no diga "Escrito".
-' Una fila sin posicion marca el final de la lista.
-Private Function SiguienteFila(ws As Worksheet, ByVal col As Long) As Long
-    Dim f As Long
-    For f = FILA_INI To FILA_INI + NUM_FILAS - 1
-        If CeldaVacia(ws.Cells(f, COL_POS)) Then Exit Function
-        If Left$(CStr(ws.Cells(f, col).Value), 7) <> "Escrito" Then
-            SiguienteFila = f
-            Exit Function
-        End If
-    Next f
-End Function
 
 Private Function CeldaVacia(c As Range) As Boolean
     If IsError(c.Value) Then Exit Function
@@ -469,11 +970,6 @@ Private Function HojaAsistente() As Worksheet
         MsgBox "No encuentro la hoja '" & HOJA & "'. Ejecuta primero la macro PrepararHoja (Alt+F8).", _
                vbExclamation, TITULO_MSG
     End If
-End Function
-
-Private Function VentanaSAP() As LongPtr
-    ' La ventana de SAP usada mas recientemente (la primera en el orden Z)
-    VentanaSAP = FindWindow(SAP_CLASE, vbNullString)
 End Function
 
 Private Function TituloVentana(ByVal h As LongPtr) As String
@@ -492,7 +988,6 @@ Private Function ActivarSAP(ByVal h As LongPtr) As Boolean
         DoEvents
         If GetForegroundWindow() = h Then ActivarSAP = True: Exit Function
     Next i
-    ' Segundo intento por titulo
     On Error Resume Next
     AppActivate TituloVentana(h)
     On Error GoTo 0

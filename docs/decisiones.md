@@ -1523,3 +1523,28 @@ es probarlo con un abono sin grabar.
 - El arranque y el botón «Dar permiso» ya no ocultan los errores: dicen qué hacer.
 
 **Prueba.** Auditoría 5s: una carpeta falsa con una subcarpeta que no contesta y otra que da error. El índice termina, recoge las carpetas sanas y apunta las dos rotas.
+
+## Asistente SAP v3: todas las posiciones de un tirón
+
+**Problema.** Con la versión de dos pasadas, Pablo tenía que entrar en cada posición del abono dos veces: una para el ZNET de prueba y otra para el definitivo. Entre medias tenía que copiar los netos en la Calculadora y los ZNET en el Excel. En un abono de 10 líneas eran unas 20 entradas.
+
+**Lo que se comprobó en su SAP.**
+- El scripting de SAP GUI está activado en su PC, pero bloqueado en el servidor (PRO). Para activarlo hay que pedirlo a sistemas. Mientras tanto se sigue con teclas y ratón.
+- El neto es lineal en el ZNET: el ZNET entra en «Precio Neto» y después solo se aplican la promoción y el atípico. Con ZNET 10 por 100 UC en 60 UC sale 5,02, que es lo que da la fórmula.
+- Ctrl+Fin lleva a la fila en blanco. Ctrl+Inicio sube la tabla arriba del todo. Mayús+F5 va a la primera posición y Mayús+F7 a la siguiente.
+- Las filas que hay por encima de ZNET cambian según el cliente, así que no se puede bajar un número fijo de filas.
+- Para copiar una casilla hay que seleccionarla con el ratón: Inicio + Mayús+Fin + Ctrl+C no copia nada.
+
+**Decisión.** El asistente hace cada posición en una sola visita:
+1. Pone el ZNET de prueba en la fila en blanco y pulsa Intro.
+2. Lee el Neto de arriba, seleccionándolo con el ratón y copiándolo.
+3. Busca en la tabla la casilla Importe que dice exactamente «10,00» y escribe encima el ZNET definitivo.
+4. Vuelve a leer el Neto para comprobarlo. Si no cuadra, corrige una vez. Si sigue sin cuadrar, se para.
+
+Los céntimos que no se pueden alcanzar por los 2 decimales del ZNET pasan a la línea siguiente. Lo que queda al final es el ZAJU.
+
+Dónde están las casillas se calibra una vez con 7 puntos, relativos a la ventana de SAP. Si la ventana cambia de tamaño, el asistente se niega a trabajar.
+
+No graba nunca. Se para si alguien mueve el ratón, si se pulsa Pausa, si sale un aviso o si cambia el título de la ventana.
+
+La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada línea, porque el asistente mide él mismo el neto.
