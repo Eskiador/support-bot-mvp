@@ -244,3 +244,54 @@ def test_tipo_de_documento_nuevo_con_estructura_conocida(cfg):
     ]
     ruta = escribir_pdf(cfg.descargas / "report.pdf", [pag])
     error(cfg, ruta, "Página 1", "ninguno de los títulos conocidos", "tipo de documento nuevo")
+
+
+def _mercadona(num, contador, pedido):
+    pag = pagina_mercadona(num, contador)
+    pag[-1] = f"Nº. albarán 80396236 Nº. pedido {pedido}"
+    return pag
+
+
+def test_mismo_numero_otro_dia_con_otro_contenido_se_guarda_con_aviso(cfg):
+    assert procesar(escribir_pdf(cfg.descargas / "report.pdf", [_mercadona("111", 1, "0001")]), cfg).estado == "ok"
+    res = procesar(escribir_pdf(cfg.descargas / "report (1).pdf", [_mercadona("111", 1, "0002")]), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert any("ya existía" in a and "otro contenido" in a for a in res.avisos)
+    assert contenido(cfg.destino) == [
+        "Confirmación Recepción_MERCADONA RIBARROJA SECOS 2.pdf",
+        "Confirmación Recepción_MERCADONA RIBARROJA SECOS.pdf",
+    ]
+    # El mismo contenido que el primer día: ya procesado
+    ruta = escribir_pdf(cfg.descargas / "report (2).pdf", [_mercadona("111", 1, "0001")])
+    res = procesar(ruta, cfg)
+    assert res.estado == "error" and "ya procesados" in res.mensaje
+    assert ruta.exists()
+
+
+def test_registro_antiguo_sin_huella(cfg):
+    """Un registro creado con la versión anterior (sin columna de huella):
+    se sigue leyendo, el Nº ya registrado se considera procesado y la columna
+    nueva se añade al escribir."""
+    from openpyxl import Workbook, load_workbook
+
+    from divisor.registro import COLUMNA_HUELLA, COLUMNAS
+
+    cfg.registro.mkdir()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Registro"
+    ws.append(COLUMNAS)
+    ws.append(["2026-10-05 10:00:00", "Confirmación Recepción_MERCADONA RIBARROJA SECOS.pdf", "111", "X",
+               "8480000009609", "t", "02/10/2026", "", 1, "1", "r.pdf", "d"])
+    wb.save(cfg.registro / "registro_confirmaciones.xlsx")
+
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [_mercadona("111", 1, "0009")])
+    res = procesar(ruta, cfg)
+    assert res.estado == "error" and "ya procesados" in res.mensaje
+
+    res = procesar(escribir_pdf(cfg.descargas / "report (1).pdf", [_mercadona("222", 1, "0009")]), cfg)
+    assert res.estado == "ok", res.mensaje
+    filas = list(load_workbook(cfg.registro / "registro_confirmaciones.xlsx").active.iter_rows(values_only=True))
+    assert filas[0][len(COLUMNAS)] == COLUMNA_HUELLA
+    assert filas[1][len(COLUMNAS)] is None and len(filas[2][len(COLUMNAS)]) == 64
+    assert filas[2][1] == "Confirmación Recepción_MERCADONA RIBARROJA SECOS 2.pdf"

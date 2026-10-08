@@ -25,6 +25,8 @@ COLUMNAS = [
     "Combinado original",
     "Carpeta destino",
 ]
+# Columna añadida después: los registros antiguos no la tienen (se añade sola).
+COLUMNA_HUELLA = "Huella contenido"
 
 
 class ErrorRegistro(Exception):
@@ -37,6 +39,7 @@ class FilaPrevia:
     archivo: str
     num_doc: str
     gln: str
+    huella: str = ""  # vacío en filas antiguas (sin huella)
 
 
 class Registro:
@@ -76,6 +79,7 @@ class Registro:
             if cab[: len(COLUMNAS)] != COLUMNAS:
                 raise ErrorRegistro(f"El registro '{self.ruta}' no tiene las columnas esperadas.")
             i = {c: cab.index(c) for c in COLUMNAS}
+            ih = cab.index(COLUMNA_HUELLA) if COLUMNA_HUELLA in cab else None
             res = []
             for f in filas:
                 if f is None or all(v is None for v in f):
@@ -86,6 +90,7 @@ class Registro:
                         archivo=str(f[i["Archivo generado"]] or ""),
                         num_doc=str(f[i["Nº documento"]] or ""),
                         gln=str(f[i["GLN emisor"]] or ""),
+                        huella=str(f[ih] or "") if ih is not None and ih < len(f) else "",
                     )
                 )
             return res
@@ -99,12 +104,14 @@ class Registro:
         if self.ruta.exists():
             wb = load_workbook(self.ruta)
             ws = wb[HOJA]
+            if ws.cell(1, len(COLUMNAS) + 1).value != COLUMNA_HUELLA:  # registro antiguo
+                ws.cell(1, len(COLUMNAS) + 1, COLUMNA_HUELLA)
         else:
             wb = Workbook()
             ws = wb.active
             ws.title = HOJA
-            ws.append(COLUMNAS)
-            for c, ancho in enumerate([19, 48, 18, 30, 15, 32, 14, 16, 8, 12, 40, 40], 1):
+            ws.append(COLUMNAS + [COLUMNA_HUELLA])
+            for c, ancho in enumerate([19, 48, 18, 30, 15, 32, 14, 16, 8, 12, 40, 40, 66], 1):
                 ws.column_dimensions[get_column_letter(c)].width = ancho
             ws.freeze_panes = "A2"
         for fila in filas:

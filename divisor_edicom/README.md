@@ -63,6 +63,11 @@ Numeración: si un cliente tiene un solo documento se guarda sin número; si hay
 varios, `1`, `2`, `3`…; si ya existen, se sigue por el siguiente. Nunca se
 sobrescribe ni se reutiliza un número.
 
+Si un cliente manda **dos documentos con el mismo Nº** pero distinto contenido
+(por ejemplo, Bon Preu: la recepción y su regularización del mismo albarán),
+salen **dos PDFs distintos**. Solo se considera "repetido" un documento con el
+mismo Nº **y el mismo contenido**.
+
 
 ## 4. Si da error
 
@@ -73,6 +78,8 @@ combinado sigue en Descargas: corrige la causa y vuelve a ejecutar `Procesar.bat
 |---|---|
 | "cliente desconocido… GLN 84…" | Añade ese GLN a `clientes.ini` (ver punto 5) |
 | "ya procesados anteriormente" | Ese documento ya se guardó otro día (el mensaje dice con qué nombre). Borra el combinado de Descargas |
+| "aparece dos veces, idéntico, en el PDF" | El combinado trae el mismo documento repetido. Revisa la selección en ediwin y descarga de nuevo |
+| AVISO "ya existía… pero con otro contenido" | No es un error: el cliente ha mandado otro documento con el mismo Nº (como Bon Preu con una regularización). Se guarda como un PDF más |
 | "¿Está abierto en Excel?" | Cierra el registro Excel y repite |
 | "No se puede acceder a la carpeta destino… red/VPN" | Comprueba la conexión a la red y repite |
 | "El Total de ediwin (X) no coincide" | Revisa la selección en ediwin y descarga de nuevo |

@@ -77,17 +77,23 @@ def _procesar(archivo, cfg, simular, pedir_total, salida) -> Resultado:
         registro.comprobar_escribible()
     previas = registro.leer()
 
-    ya = {(p.gln, p.num_doc): p for p in previas}
-    repetidos = [
-        f"Nº {d.num_doc} ({d.nombre_cliente}): ya se guardó como '{ya[(d.gln, d.num_doc)].archivo}' "
-        f"el {ya[(d.gln, d.num_doc)].fecha_proceso}"
-        for d in docs
-        if (d.gln, d.num_doc) in ya
-    ]
+    # ¿Ya procesado otro día? Mismo cliente y Nº, y mismo contenido (huella).
+    # Las filas antiguas del registro no tienen huella: con ellas basta el Nº.
+    repetidos, avisos = [], []
+    for d in docs:
+        anteriores = [p for p in previas if (p.gln, p.num_doc) == (d.gln, d.num_doc)]
+        iguales = [p for p in anteriores if p.huella in ("", d.huella)]
+        if iguales:
+            p = iguales[0]
+            repetidos.append(f"Nº {d.num_doc} ({d.nombre_cliente}): ya se guardó como '{p.archivo}' el {p.fecha_proceso}")
+        elif anteriores:
+            avisos.append(
+                f"El Nº {d.num_doc} ({d.nombre_cliente}) ya existía ('{anteriores[0].archivo}') pero con otro "
+                "contenido: se guarda como documento distinto."
+            )
     if repetidos:
         raise ErrorDivision("Documentos ya procesados anteriormente:\n  - " + "\n  - ".join(repetidos))
 
-    avisos = []
     try:
         en_destino = os.listdir(cfg.destino)
     except OSError as e:
@@ -110,6 +116,7 @@ def _procesar(archivo, cfg, simular, pedir_total, salida) -> Resultado:
             pedido=d.pedido or "",
             paginas=len(d.paginas),
             rango=_rango(d.paginas),
+            huella=d.huella,
         )
         for d, n in zip(docs, nombres, strict=True)
     ]
@@ -146,6 +153,7 @@ def _procesar(archivo, cfg, simular, pedir_total, salida) -> Resultado:
                         f["rango"],
                         archivo.name,
                         str(cfg.destino),
+                        f["huella"],
                     ]
                     for f in filas
                 ]

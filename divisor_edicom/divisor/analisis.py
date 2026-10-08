@@ -10,6 +10,7 @@ Reglas (ver plantillas/*.toml):
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,6 +45,7 @@ class Documento:
     plantilla: Plantilla
     num_doc: str
     tipo: str = ""  # texto de la columna Tipo (según el título)
+    huella: str = ""  # SHA256 del texto del documento sin cabeceras (igual en cualquier combinado)
     paginas: list[int] = field(default_factory=list)  # números de página (1, 2...)
     gln: str = ""
     nombre_cliente: str = ""  # lo que va en el nombre del archivo
@@ -273,14 +275,21 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
 
     for doc in documentos:
         _datos_documento(doc, paginas, cfg)
+        # Las cabeceras ("Página N", hora de generación) cambian de un combinado
+        # a otro; el resto del texto identifica el documento.
+        lineas = [l for n in doc.paginas for l in paginas[n - 1].lineas if not doc.plantilla.cabecera.fullmatch(l)]
+        doc.huella = hashlib.sha256("\n".join(lineas).encode("utf-8")).hexdigest()
 
     # Validaciones globales
-    vistos: dict[tuple[str, str], Documento] = {}
+    # Un cliente puede mandar dos documentos con el mismo Nº (p. ej. Bon Preu,
+    # recepción y regularización del mismo albarán): si el contenido es distinto
+    # son documentos distintos. Si es idéntico, es el mismo repetido: error.
+    vistos: dict[tuple[str, str, str], Documento] = {}
     for doc in documentos:
-        clave = (doc.gln, doc.num_doc)
+        clave = (doc.gln, doc.num_doc, doc.huella)
         if clave in vistos:
             raise ErrorDivision(
-                f"El documento Nº {doc.num_doc} de {doc.nombre_cliente} aparece dos veces en el PDF "
+                f"El documento Nº {doc.num_doc} de {doc.nombre_cliente} aparece dos veces, idéntico, en el PDF "
                 f"(páginas {vistos[clave].paginas} y {doc.paginas})."
             )
         vistos[clave] = doc

@@ -212,3 +212,58 @@ def test_lote3_tras_lote2_detecta_los_mercadona_repetidos(cfg, descargar):
     for num in ("15046", "20310", "14209"):
         assert f"Nº {num}" in res.mensaje
     assert ruta.exists()
+
+
+# Lote 4 (08/10/2026): Bon Preu manda DOS documentos con el mismo Nº 201704717
+# (mismo albarán, distinto aviso de expedición; el segundo con cantidades
+# negativas). Son documentos distintos y deben salir en PDFs distintos.
+COMBINADO_4 = EJEMPLOS / "lote4" / "report.pdf"
+ESPERADO_LOTE4 = [
+    ("21029", [1], P + "MERCADONA CIEMPOZUELOS SECOS 1.pdf"),
+    ("21345", [2], P + "MERCADONA CIEMPOZUELOS SECOS 2.pdf"),
+    ("15362", [3], P + "MERCADONA 1153 1.pdf"),
+    ("15359", [4], P + "MERCADONA 1153 2.pdf"),
+    ("23059", [5], P + "MERCADONA ANTEQUERA SECOS 1.pdf"),
+    ("23058", [6], P + "MERCADONA ANTEQUERA SECOS 2.pdf"),
+    ("29954", [7], P + "MERCADONA RIBARROJA SECOS.pdf"),
+    ("201705893", [8, 9], P + "BON PREU 1.pdf"),
+    ("201705876", [10], P + "BON PREU 2.pdf"),
+    ("201704717", [11, 12], P + "BON PREU 3.pdf"),
+    ("201704717", [13], P + "BON PREU 4.pdf"),
+    ("1045177", [14], P + "DESARROLLO DE MARCAS 1.pdf"),
+    ("1044284", [15], P + "DESARROLLO DE MARCAS 2.pdf"),
+    ("0690266519", [16, 17], P + "PGC VALDEMORO.pdf"),
+    ("20265076687573", [18], P + "CARREFOUR.pdf"),
+]
+
+
+def test_lote4_mismo_numero_dos_documentos_distintos(cfg, descargar):
+    a = analizar(COMBINADO_4, cfg)
+    assert [(d.num_doc, d.paginas) for d in a.documentos] == [(e[0], e[1]) for e in ESPERADO_LOTE4]
+    bon = [d for d in a.documentos if d.num_doc == "201704717"]
+    assert len(bon) == 2 and bon[0].huella != bon[1].huella
+    res = procesar(descargar(COMBINADO_4), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert [f["archivo"] for f in res.filas] == [e[2] for e in ESPERADO_LOTE4]
+    assert len(PdfReader(cfg.destino / (P + "BON PREU 3.pdf")).pages) == 2
+    assert len(PdfReader(cfg.destino / (P + "BON PREU 4.pdf")).pages) == 1
+    # Volver a procesar el mismo combinado: los dos Bon Preu están ya procesados
+    ruta = descargar(COMBINADO_4, "report (1).pdf")
+    res = procesar(ruta, cfg)
+    assert res.estado == "error" and res.mensaje.count("Nº 201704717") == 2
+    assert ruta.exists()
+
+
+def test_la_huella_es_la_misma_en_cualquier_combinado(cfg):
+    """El mismo documento descargado en combinados distintos (o suelto) da la
+    misma huella: así se detecta que ya se procesó otro día."""
+    def huellas(pdf):
+        return {d.num_doc: d.huella for d in analizar(pdf, cfg).documentos}
+
+    h2, h3 = huellas(COMBINADO_2), huellas(COMBINADO_3)
+    for num in ("15046", "20310", "14209"):
+        assert h2[num] == h3[num]
+    h1 = huellas(COMBINADO_1)
+    for f in (EJEMPLOS / "lote1" / "individuales").glob("*.pdf"):
+        for num, h in huellas(f).items():
+            assert h1[num] == h
