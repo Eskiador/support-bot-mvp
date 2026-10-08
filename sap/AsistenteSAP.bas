@@ -124,6 +124,7 @@ Private mRequisitos As String
 Private mSep As String
 Private mUltimoRaton As PUNTO
 Private mMotivo As String
+Private mFilaZnet As Long        ' fila de la tabla donde aparecio el ZNET la ultima vez
 
 
 ' ------------------------------------------------------------------
@@ -424,7 +425,7 @@ End Sub
 Public Sub HacerTodas()
     Dim ws As Worksheet, f As Long, n As Long, total As Double, fallo As String
     Dim prueba As Double, secPrueba As Collection, espera As Long, maxFilas As Long
-    Dim pos As String, posAnterior As String, arrastre As Double
+    Dim pos As String, posAnterior As String, ultima As String, arrastre As Double
     Dim vueltas As Long, hechas As Long, saltadas As String, pendientes As String
 
     On Error GoTo ErrorVBA
@@ -476,11 +477,20 @@ Public Sub HacerTodas()
     Application.StatusBar = "Asistente SAP trabajando... mueve el raton para pararlo."
     arrastre = Round(arrastre, 2)
 
-    ' --- A la primera posicion
-    If Not Pulsar("+{F5}") Then GoTo Parado
-    Sleep 600
+    ' --- Primero se mira cual es la ultima posicion (Mayus+F8), para no
+    ' tener que esperar al final a ver si Mayus+F7 ya no avanza.
     pos = EsperarPosicionDistinta("", espera)
     If Len(pos) = 0 Then mMotivo = "no consigo leer el numero de posicion": GoTo Parado
+    If Not Pulsar("+{F8}") Then GoTo Parado
+    ultima = EsperarPosicionDistinta(pos, 2500)
+    If Len(mMotivo) > 0 Then GoTo Parado
+    If Len(ultima) = 0 Then ultima = pos            ' no se ha movido: ya estaba en la ultima
+
+    ' --- A la primera posicion
+    If Not Pulsar("+{F5}") Then GoTo Parado
+    pos = EsperarPosicionDistinta(ultima, 2500)
+    If Len(mMotivo) > 0 Then GoTo Parado
+    If Len(pos) = 0 Then pos = ultima               ' el abono solo tiene una posicion
 
     Do
         vueltas = vueltas + 1
@@ -494,10 +504,10 @@ Public Sub HacerTodas()
             hechas = hechas + 1
         End If
 
-        ' Siguiente posicion. Si no cambia, era la ultima.
+        ' Siguiente posicion. En la ultima se acaba sin esperar a nada.
+        If Val(pos) = Val(ultima) Then Exit Do
         posAnterior = pos
         If Not Pulsar("+{F7}") Then GoTo Parado
-        Sleep 400
         pos = EsperarPosicionDistinta(posAnterior, espera)
         If Len(mMotivo) > 0 Then GoTo Parado
     Loop While Len(pos) > 0
@@ -646,6 +656,7 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     Dim titulo As String, anchoCal As Long, altoCal As Long
 
     mMotivo = ""
+    mFilaZnet = 0
     mUltimoRaton.x = 0
     mUltimoRaton.y = 0
     mVentana = FindWindow(SAP_CLASE, vbNullString)
@@ -722,22 +733,22 @@ Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas
     b = PuntoCal(nDer, filas)
     b.y = a.y
     SoltarTeclas
-    For intento = 1 To 3
+    For intento = 1 To 2
         If Not Seguir() Then Exit Function
         VaciarPortapapeles
         MoverRaton a.x, a.y
-        Sleep 40
+        Sleep 25
         mouse_event RATON_ABAJO, 0, 0, 0, 0
-        For i = 1 To 6
-            x = a.x + (b.x - a.x) * i \ 6
+        For i = 1 To 3
+            x = a.x + (b.x - a.x) * i \ 3
             MoverRaton x, a.y
-            Sleep 15
+            Sleep 10
         Next i
         mouse_event RATON_ARRIBA, 0, 0, 0, 0
-        Sleep 60
+        Sleep 40
         If Not Pulsar("^c") Then Exit Function
-        For i = 1 To 15
-            Sleep 40
+        For i = 1 To 12
+            Sleep 25
             s = LeerPortapapeles()
             If Len(s) > 0 Then Exit For
         Next i
@@ -753,20 +764,17 @@ End Function
 
 ' Espera a que el Neto de arriba cambie (SAP ha recalculado) y lo devuelve.
 Private Function EsperarNetoDistinto(ByVal antes As Double, ByVal espera As Long, ByRef ok As Boolean) As Double
-    Dim t As Single, v As Double, leido As Boolean, anterior As Double, iguales As Long
+    Dim t As Single, v As Double, leido As Boolean
     t = Timer
     ok = False
     Do
         If Not SapListo() Then Exit Function
         v = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, leido)
         If Len(mMotivo) > 0 Then Exit Function
-        If leido And Abs(v - antes) > 0.001 Then
-            ' Dos lecturas iguales seguidas: ya ha terminado de recalcular
-            If iguales > 0 And Abs(v - anterior) < 0.001 Then ok = True: EsperarNetoDistinto = v: Exit Function
-            iguales = iguales + 1
-            anterior = v
-        End If
-        Sleep 250
+        ' SAP repinta la pantalla entera de una vez: el primer valor
+        ' distinto ya es el recalculado.
+        If leido And Abs(v - antes) > 0.001 Then ok = True: EsperarNetoDistinto = v: Exit Function
+        Sleep 100
     Loop While (Timer - t) * 1000 < espera And Timer >= t
 End Function
 
@@ -779,22 +787,32 @@ Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As 
         s = LeerCasilla(CAL_POS_I, CAL_POS_D, 0)
         If Len(mMotivo) > 0 Then Exit Function
         If Len(s) > 0 And IsNumeric(s) And s <> antes Then EsperarPosicionDistinta = s: Exit Function
-        Sleep 250
+        Sleep 100
     Loop While (Timer - t) * 1000 < espera And Timer >= t
 End Function
 
 ' Sube la tabla y busca, fila a fila, la casilla Importe que dice exactamente el valor.
 Private Function BuscarFilaImporte(ByVal valor As Double, ByVal maxFilas As Long) As Long
-    Dim r As Long, buscado As String, s As String
+    Dim r As Long, buscado As String
     buscado = ImporteTexto(valor)
     If Not EnfocarTabla() Then Exit Function
     If Not Pulsar("^{HOME}") Then Exit Function
-    Sleep 400
-    For r = 1 To maxFilas
-        s = Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", "")
+    ' Primero la fila donde estaba el ZNET en la posicion anterior: dentro de
+    ' un mismo abono suele ser la misma, y asi no hay que leer fila a fila.
+    If mFilaZnet > 0 And mFilaZnet <= maxFilas Then
+        If FilaDice(mFilaZnet, buscado) Then BuscarFilaImporte = mFilaZnet: Exit Function
         If Len(mMotivo) > 0 Then Exit Function
-        If s = buscado Then BuscarFilaImporte = r: Exit Function
+    End If
+    For r = 1 To maxFilas
+        If r <> mFilaZnet Then
+            If FilaDice(r, buscado) Then mFilaZnet = r: BuscarFilaImporte = r: Exit Function
+            If Len(mMotivo) > 0 Then Exit Function
+        End If
     Next r
+End Function
+
+Private Function FilaDice(ByVal r As Long, ByVal buscado As String) As Boolean
+    FilaDice = (Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", "") = buscado)
 End Function
 
 ' Clic en la casilla Importe de esa fila, selecciona lo que hay y escribe encima.
@@ -841,7 +859,7 @@ Private Sub SoltarTeclas()
         DoEvents: Sleep 30
         If Timer - t > 3 Or Timer < t Then Exit Do
     Loop
-    Sleep 100
+    Sleep 20
 End Sub
 
 Private Sub MoverRaton(ByVal x As Long, ByVal y As Long)

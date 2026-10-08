@@ -1578,3 +1578,14 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 - La secuencia pasa a ser `ZNET{TAB}{TAB}{PRUEBA}{TAB}{TAB}100`: Tp → Descripción → Importe → Moneda → por.
 - Si la hoja tiene la secuencia antigua de la v3, la macro la corrige sola.
 - Pablo pidió que vaya más rápido de casilla en casilla. La pausa en cada Tab e Intro baja a 200 ms y se puede cambiar en F5 (mínimo 50 ms).
+
+## Asistente v3: más rápido entre posiciones y al final
+
+**Problema.** La primera vuelta completa funcionó. Pero al acabar cada posición, y sobre todo al final, la macro se quedaba leyendo la casilla Posición una y otra vez. Para saber si estaba en la última, pulsaba Mayús+F7 y esperaba hasta 8 s a ver si cambiaba. Además, cada lectura vacía (con SAP aún ocupado) costaba unos 2 s.
+
+**Decisión.**
+- Al empezar, la macro va a la última posición con Mayús+F8 y apunta su número. Al llegar a ella acaba sin esperar.
+- El Neto se da por recalculado en cuanto cambia una vez. Antes se esperaban dos lecturas iguales, pero SAP repinta la pantalla entera de una vez.
+- Las esperas entre lecturas bajan a 100 ms.
+- Cada lectura con el ratón es más corta: 2 intentos en vez de 3, arrastre en 3 pasos y como mucho 300 ms de espera al portapapeles.
+- La fila del ZNET se busca primero donde estaba en la posición anterior, que en un mismo abono suele ser la misma. Solo si no está ahí se recorre la tabla fila a fila.
