@@ -267,8 +267,9 @@ End Sub
 ' ------------------------------------------------------------------
 Public Sub Calibrar()
     Dim ws As Worksheet, p(1 To CAL_N) As PUNTO, i As Long, alto As Long
-    Dim que As Variant
+    Dim que As Variant, motivo As String
 
+    On Error GoTo ErrorVBA
     Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
     If Not Preparar(ws, False) Then Exit Sub
 
@@ -276,8 +277,10 @@ Public Sub Calibrar()
               "  - Ventana en su sitio y con su tamano de siempre." & vbCrLf & _
               "  - Dentro de una posicion del abono, pestana Condiciones." & vbCrLf & _
               "  - Tabla subida arriba del todo (Ctrl+Inicio), con ZTAR en la 1a fila." & vbCrLf & vbCrLf & _
-              "Te ire pidiendo 7 puntos. Para cada uno: pon el raton encima en SAP" & vbCrLf & _
-              "(sin hacer clic) y pulsa la tecla Control.", _
+              "Te ire pidiendo 7 puntos. Para cada uno:" & vbCrLf & _
+              "  1) pulsa Aceptar en el aviso," & vbCrLf & _
+              "  2) DESPUES pon el raton encima del sitio en SAP (sin hacer clic)," & vbCrLf & _
+              "  3) y pulsa la tecla Control. Oiras un pitido.", _
               vbOKCancel + vbInformation, TITULO_MSG) <> vbOK Then Exit Sub
 
     que = Array("", _
@@ -291,8 +294,11 @@ Public Sub Calibrar()
 
     For i = CAL_POS_I To CAL_IMP_2
         If Not CapturarPunto("Punto " & (i - 2) & " de 7:" & vbCrLf & vbCrLf & _
-                             "Pon el raton sobre " & que(i - 2) & " y pulsa Control.", p(i)) Then
-            MsgBox "Calibracion cancelada. No se ha guardado nada.", vbExclamation, TITULO_MSG
+                             "Pulsa Aceptar. Luego pon el raton sobre " & que(i - 2) & _
+                             " y pulsa Control.", p(i), motivo) Then
+            MsgBox "Calibracion cancelada en el punto " & (i - 2) & ": " & motivo & "." & vbCrLf & _
+                   "No se ha guardado nada; la calibracion anterior (si la habia) sigue valiendo.", _
+                   vbExclamation, TITULO_MSG
             Exit Sub
         End If
     Next i
@@ -317,23 +323,34 @@ Public Sub Calibrar()
         ws.Range(COL_CAL & i).Value = (p(i).x - mRect.Izq) & ";" & (p(i).y - mRect.Arr)
     Next i
     PintarCalibracion ws
+    SoltarTeclas
     ProbarLectura
+    Exit Sub
+ErrorVBA:
+    MsgBox "Error de VBA en 'Calibrar': " & Err.Description & " (" & Err.Number & ")." & vbCrLf & _
+           "Mandale una captura de este aviso a quien te hizo el asistente.", vbCritical, TITULO_MSG
 End Sub
 
-Private Function CapturarPunto(ByVal texto As String, ByRef p As PUNTO) As Boolean
+Private Function CapturarPunto(ByVal texto As String, ByRef p As PUNTO, ByRef motivo As String) As Boolean
     Dim t As Single
-    If MsgBox(texto, vbOKCancel + vbQuestion + vbSystemModal, TITULO_MSG) <> vbOK Then Exit Function
+    If MsgBox(texto, vbOKCancel + vbQuestion + vbSystemModal, TITULO_MSG) <> vbOK Then
+        motivo = "has pulsado Cancelar"
+        Exit Function
+    End If
     ' Esperar a que se suelte Control (por si estaba pulsada) y luego a que se pulse.
     t = Timer
     Do While (GetAsyncKeyState(VK_CONTROL) And &H8000) <> 0
         DoEvents: Sleep 20
-        If Timer - t > 10 Then Exit Function
+        If Timer - t > 10 Or Timer < t Then motivo = "la tecla Control se ha quedado pulsada": Exit Function
     Loop
     t = Timer
     Do
         DoEvents: Sleep 20
         If (GetAsyncKeyState(VK_CONTROL) And &H8000) <> 0 Then Exit Do
-        If Timer - t > 60 Or Timer < t Then Exit Function
+        If Timer - t > 120 Or Timer < t Then
+            motivo = "en 2 minutos no he notado la tecla Control (hay que pulsarla DESPUES de Aceptar)"
+            Exit Function
+        End If
     Loop
     GetCursorPos p
     Beep
@@ -356,20 +373,40 @@ End Sub
 '  2. PROBAR LECTURA: lee Posicion, Neto y las 3 primeras filas
 ' ------------------------------------------------------------------
 Public Sub ProbarLectura()
-    Dim ws As Worksheet, txt As String, r As Long
+    Dim ws As Worksheet, txt As String, r As Long, s As String, vacias As Long, diag As String
+    On Error GoTo ErrorVBA
     Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
     If Not Preparar(ws, True) Then Exit Sub
     If Not ActivarSAP(mVentana) Then MsgBox "No he podido traer SAP al frente.", vbExclamation, TITULO_MSG: Exit Sub
-    Sleep 200
+    Sleep 300
 
-    txt = "Posicion: [" & LeerCasilla(CAL_POS_I, CAL_POS_D, 0) & "]" & vbCrLf & _
-          "Neto: [" & LeerCasilla(CAL_NETO_I, CAL_NETO_D, 0) & "]" & vbCrLf
+    s = LeerCasilla(CAL_POS_I, CAL_POS_D, 0): If Len(s) = 0 Then vacias = vacias + 1
+    txt = "Posicion: [" & s & "]" & vbCrLf
+    s = LeerCasilla(CAL_NETO_I, CAL_NETO_D, 0): If Len(s) = 0 Then vacias = vacias + 1
+    txt = txt & "Neto: [" & s & "]" & vbCrLf
     For r = 1 To 3
-        txt = txt & "Importe fila " & r & ": [" & LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1) & "]" & vbCrLf
+        s = LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1): If Len(s) = 0 Then vacias = vacias + 1
+        txt = txt & "Importe fila " & r & ": [" & s & "]" & vbCrLf
     Next r
-    MsgBox "Esto es lo que leo en SAP:" & vbCrLf & vbCrLf & txt & vbCrLf & _
-           "Si coincide con la pantalla, la calibracion vale." & vbCrLf & _
-           "Si sale vacio o raro, repite 'Calibrar'.", vbInformation + vbSystemModal, TITULO_MSG
+
+    If Len(mMotivo) > 0 Then
+        diag = "SE HA PARADO A MITAD porque " & mMotivo & "." & vbCrLf & _
+               "No toques el raton mientras lee y vuelve a probar."
+    ElseIf vacias > 0 Then
+        diag = "SAP no ha copiado nada en " & vacias & " casilla(s)." & vbCrLf & _
+               "Comprueba que SAP esta en Condiciones, con la tabla arriba (Ctrl+Inicio)," & vbCrLf & _
+               "y que la ventana no se ha movido de pantalla. Si sigue igual, repite 'Calibrar'."
+    Else
+        diag = "Si coincide con la pantalla, la calibracion vale."
+    End If
+    ws.Activate
+    MsgBox "Esto es lo que leo en SAP:" & vbCrLf & vbCrLf & txt & vbCrLf & diag & vbCrLf & vbCrLf & _
+           "(Ventana: " & TituloVentana(mVentana) & ", en " & mRect.Izq & "," & mRect.Arr & ", " & _
+           (mRect.Der - mRect.Izq) & " x " & (mRect.Aba - mRect.Arr) & ")", _
+           IIf(Len(diag) > 60, vbExclamation, vbInformation) + vbSystemModal, TITULO_MSG
+    Exit Sub
+ErrorVBA:
+    MsgBox "Error de VBA en 'Probar lectura': " & Err.Description & " (" & Err.Number & ")", vbCritical, TITULO_MSG
 End Sub
 
 
@@ -382,6 +419,7 @@ Public Sub HacerTodas()
     Dim pos As String, posAnterior As String, arrastre As Double
     Dim vueltas As Long, hechas As Long, saltadas As String, pendientes As String
 
+    On Error GoTo ErrorVBA
     Set ws = HojaAsistente(): If ws Is Nothing Then Exit Sub
     If Not Preparar(ws, True) Then Exit Sub
 
@@ -483,6 +521,11 @@ Parado:
            "'Hacer todas las posiciones', solo hace las que faltan." & vbCrLf & _
            "Lo arrastrado hasta aqui por los decimales: " & Format(arrastre, "#,##0.00") & " EUR.", _
            vbExclamation + vbSystemModal, TITULO_MSG
+    Exit Sub
+ErrorVBA:
+    Application.StatusBar = False
+    MsgBox "Error de VBA: " & Err.Description & " (" & Err.Number & "), en la posicion " & pos & "." & vbCrLf & _
+           "Revisa esa posicion en SAP antes de seguir.", vbCritical + vbSystemModal, TITULO_MSG
 End Sub
 
 ' Una posicion completa, en una sola visita. Devuelve False si hay que parar.
@@ -657,6 +700,7 @@ Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas
     a = PuntoCal(nIzq, filas)
     b = PuntoCal(nDer, filas)
     b.y = a.y
+    SoltarTeclas
     For intento = 1 To 3
         If Not Seguir() Then Exit Function
         VaciarPortapapeles
@@ -765,6 +809,19 @@ Private Function Clic(ByVal x As Long, ByVal y As Long) As Boolean
     mouse_event RATON_ARRIBA, 0, 0, 0, 0
     Clic = True
 End Function
+
+' Espera (hasta 3 s) a que no haya Control, Mayus ni Alt pulsadas con la mano:
+' arrastrar con Control pulsada no selecciona igual en SAP.
+Private Sub SoltarTeclas()
+    Dim t As Single
+    t = Timer
+    Do While (GetAsyncKeyState(VK_CONTROL) And &H8000) <> 0 Or (GetAsyncKeyState(&H10) And &H8000) <> 0 _
+          Or (GetAsyncKeyState(&H12) And &H8000) <> 0
+        DoEvents: Sleep 30
+        If Timer - t > 3 Or Timer < t Then Exit Do
+    Loop
+    Sleep 100
+End Sub
 
 Private Sub MoverRaton(ByVal x As Long, ByVal y As Long)
     SetCursorPos x, y

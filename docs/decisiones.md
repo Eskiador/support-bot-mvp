@@ -1548,3 +1548,15 @@ Dónde están las casillas se calibra una vez con 7 puntos, relativos a la venta
 No graba nunca. Se para si alguien mueve el ratón, si se pulsa Pausa, si sale un aviso o si cambia el título de la ventana.
 
 La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada línea, porque el asistente mide él mismo el neto.
+
+## Asistente v3: la calibración decía por qué fallaba
+
+**Problema.** En la primera prueba, la calibración leyó todo bien. Después la calibración salió con «Calibración cancelada. No se ha guardado nada.» sin explicar el motivo, y «Probar lectura» devolvió las casillas vacías sin decir por qué. El fallo más probable es pulsar Control antes de Aceptar: la macro esperaba Control después de Aceptar y se cancelaba a los 60 s. Otra posibilidad es que la lectura se parara a mitad (ratón movido, aviso de SAP) sin decirlo.
+
+**Decisión.**
+- El aviso de cada punto dice el orden: primero Aceptar, luego poner el ratón y pulsar Control.
+- La espera para cada punto sube a 2 minutos.
+- Si se cancela, dice el motivo y avisa de que la calibración anterior sigue valiendo.
+- «Probar lectura» dice si se ha parado y por qué, o cuántas casillas no ha podido copiar. También enseña el título, la posición y el tamaño de la ventana de SAP.
+- Antes de cada lectura con el ratón espera a que se suelten Control, Mayús y Alt.
+- Los errores de VBA salen con su mensaje en lugar de cortar la macro.
