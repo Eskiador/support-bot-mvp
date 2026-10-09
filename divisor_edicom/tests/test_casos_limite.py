@@ -125,9 +125,17 @@ def test_cliente_desconocido(cfg):
     assert "8480015979997" in res.mensaje and "clientes.ini" in res.mensaje
 
 
-def test_mismo_documento_dos_veces_en_el_lote(cfg):
+def test_mismo_documento_dos_veces_identico_en_el_lote(cfg):
+    """Como Carrefour el 09/10: el mismo documento enviado dos veces. Se separa
+    igualmente, cada copia con su nombre, y se avisa."""
     ruta = escribir_pdf(cfg.descargas / "r.pdf", [pagina_mercadona("111", 1), pagina_mercadona("111", 2)])
-    error(cfg, ruta, "aparece dos veces")
+    res = procesar(ruta, cfg)
+    assert res.estado == "ok", res.mensaje
+    assert any("viene 2 veces idéntico" in a for a in res.avisos)
+    assert contenido(cfg.destino) == [
+        "Confirmación Recepción_MERCADONA RIBARROJA SECOS 1.pdf",
+        "Confirmación Recepción_MERCADONA RIBARROJA SECOS 2.pdf",
+    ]
 
 
 def test_gln_con_digito_de_control_erroneo(cfg):
@@ -295,3 +303,17 @@ def test_registro_antiguo_sin_huella(cfg):
     assert filas[0][len(COLUMNAS)] == COLUMNA_HUELLA
     assert filas[1][len(COLUMNAS)] is None and len(filas[2][len(COLUMNAS)]) == 64
     assert filas[2][1] == "Confirmación Recepción_MERCADONA RIBARROJA SECOS 2.pdf"
+
+
+def test_nombre_ya_usado_nunca_se_repite(cfg, monkeypatch):
+    """Comprobación final: si por lo que fuera un nombre ya estuviera usado
+    (en el destino o en el registro), se para sin escribir nada."""
+    import divisor.proceso
+
+    (cfg.destino / "Confirmación Recepción_MERCADONA RIBARROJA SECOS.pdf").write_bytes(b"de un companero")
+    monkeypatch.setattr(divisor.proceso, "asignar_nombres", lambda bases, usados: [f"{b}.pdf" for b in bases])
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [pagina_mercadona("111", 1)])
+    res = procesar(ruta, cfg)
+    assert res.estado == "error" and "ya estaba usado" in res.mensaje
+    assert contenido(cfg.destino) == ["Confirmación Recepción_MERCADONA RIBARROJA SECOS.pdf"]
+    assert ruta.exists()

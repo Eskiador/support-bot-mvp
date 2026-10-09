@@ -267,3 +267,28 @@ def test_la_huella_es_la_misma_en_cualquier_combinado(cfg):
     for f in (EJEMPLOS / "lote1" / "individuales").glob("*.pdf"):
         for num, h in huellas(f).items():
             assert h1[num] == h
+
+
+# Lote 5 (09/10/2026): Carrefour manda el MISMO documento dos veces, idéntico
+# (Nº 20265076706200, págs. 29-31 y 32-34). Se separa igualmente, con aviso.
+COMBINADO_5 = EJEMPLOS / "lote5" / "report.pdf"
+
+
+def test_lote5_documento_identico_dos_veces(cfg, descargar):
+    a = analizar(COMBINADO_5, cfg)
+    assert a.total_paginas == 37 and len(a.documentos) == 26
+    copias = [d for d in a.documentos if d.num_doc == "20265076706200"]
+    assert [d.paginas for d in copias] == [[29, 30, 31], [32, 33, 34]]
+    assert copias[0].huella == copias[1].huella
+    res = procesar(descargar(COMBINADO_5), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert any("20265076706200" in a and "2 veces idéntico" in a for a in res.avisos)
+    nombres = [f["archivo"] for f in res.filas]
+    assert len(set(nombres)) == 26  # todos distintos
+    carrefour = [f["archivo"] for f in res.filas if f["num_doc"] == "20265076706200"]
+    assert carrefour == [P + "CARREFOUR 3.pdf", P + "CARREFOUR 4.pdf"]
+    for nombre in carrefour:
+        assert len(PdfReader(cfg.destino / nombre).pages) == 3
+    # Volver a procesarlo otro día: ya procesado
+    ruta = descargar(COMBINADO_5, "report (1).pdf")
+    assert procesar(ruta, cfg).estado == "error"

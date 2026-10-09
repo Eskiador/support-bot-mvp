@@ -61,6 +61,7 @@ class Analisis:
     total_paginas: int
     documentos: list[Documento]
     textos: list[list[str]]  # texto de cada página, para validar después
+    avisos: list[str] = field(default_factory=list)  # cosas raras que no impiden dividir
 
 
 def leer_paginas(archivo: Path) -> list[list[str]]:
@@ -281,20 +282,24 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
         doc.huella = hashlib.sha256("\n".join(lineas).encode("utf-8")).hexdigest()
 
     # Validaciones globales
-    # Un cliente puede mandar dos documentos con el mismo Nº (p. ej. Bon Preu,
-    # recepción y regularización del mismo albarán): si el contenido es distinto
-    # son documentos distintos. Si es idéntico, es el mismo repetido: error.
-    vistos: dict[tuple[str, str, str], Documento] = {}
+    # Un cliente puede mandar varios documentos con el mismo Nº: con distinto
+    # contenido (Bon Preu: recepción y regularización del mismo albarán) o
+    # incluso idénticos (Carrefour enviando el mismo dos veces). Cada uno empieza
+    # con su propio título, así que el corte es seguro: cada uno va a su PDF.
+    # Los idénticos se avisan para que se sepa.
+    avisos = []
+    vistos: dict[tuple[str, str, str], list[Documento]] = {}
     for doc in documentos:
-        clave = (doc.gln, doc.num_doc, doc.huella)
-        if clave in vistos:
-            raise ErrorDivision(
-                f"El documento Nº {doc.num_doc} de {doc.nombre_cliente} aparece dos veces, idéntico, en el PDF "
-                f"(páginas {vistos[clave].paginas} y {doc.paginas})."
+        vistos.setdefault((doc.gln, doc.num_doc, doc.huella), []).append(doc)
+    for copias in vistos.values():
+        if len(copias) > 1:
+            paginas_txt = " y ".join(str(d.paginas) for d in copias)
+            avisos.append(
+                f"El Nº {copias[0].num_doc} de {copias[0].nombre_cliente} viene {len(copias)} veces idéntico "
+                f"en el PDF (páginas {paginas_txt}): cada copia se guarda en su propio PDF."
             )
-        vistos[clave] = doc
     asignadas = [n for d in documentos for n in d.paginas]
     if sorted(asignadas) != list(range(1, len(paginas) + 1)):
         raise ErrorDivision("Error interno: hay páginas sin asignar o asignadas dos veces.")
 
-    return Analisis(archivo=archivo, total_paginas=len(paginas), documentos=documentos, textos=textos)
+    return Analisis(archivo=archivo, total_paginas=len(paginas), documentos=documentos, textos=textos, avisos=avisos)

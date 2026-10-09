@@ -65,8 +65,13 @@ sobrescribe ni se reutiliza un número.
 
 Si un cliente manda **dos documentos con el mismo Nº** pero distinto contenido
 (por ejemplo, Bon Preu: la recepción y su regularización del mismo albarán),
-salen **dos PDFs distintos**. Solo se considera "repetido" un documento con el
-mismo Nº **y el mismo contenido**.
+salen **dos PDFs distintos**. Si el mismo documento viene **dos veces idéntico**
+dentro del mismo PDF, también se separa (cada copia en su PDF) y sale un aviso.
+Lo que sí se para es volver a procesar otro día un documento ya procesado
+(mismo Nº y mismo contenido).
+
+**Cada nombre es único:** antes de guardar se comprueba que ningún nombre esté
+ya en RECADV ni en el registro; si lo estuviera, se para sin escribir nada.
 
 
 ## 4. Si da error
@@ -78,7 +83,7 @@ combinado sigue en Descargas: corrige la causa y vuelve a ejecutar `Procesar.bat
 |---|---|
 | "cliente desconocido… GLN 84…" | Añade ese GLN a `clientes.ini` (ver punto 5) |
 | "ya procesados anteriormente" | Ese documento ya se guardó otro día (el mensaje dice con qué nombre). Borra el combinado de Descargas |
-| "aparece dos veces, idéntico, en el PDF" | El combinado trae el mismo documento repetido. Revisa la selección en ediwin y descarga de nuevo |
+| AVISO "viene 2 veces idéntico en el PDF" | No es un error: el cliente ha enviado el mismo documento dos veces (como Carrefour el 09/10). Cada copia se guarda en su propio PDF |
 | AVISO "ya existía… pero con otro contenido" | No es un error: el cliente ha mandado otro documento con el mismo Nº (como Bon Preu con una regularización). Se guarda como un PDF más |
 | "¿Está abierto en Excel?" | Cierra el registro Excel y repite |
 | "No se puede acceder a la carpeta destino… red/VPN" | Comprueba la conexión a la red y repite |

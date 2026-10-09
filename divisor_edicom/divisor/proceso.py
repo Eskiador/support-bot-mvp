@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -103,7 +104,15 @@ def _procesar(archivo, cfg, simular, pedir_total, salida) -> Resultado:
             ) from e
         en_destino = []
         avisos.append(f"No se puede acceder al destino '{cfg.destino}': la numeración no tiene en cuenta lo que haya allí.")
-    nombres = _nombres(analisis, cfg, en_destino + [p.archivo for p in previas])
+    usados = en_destino + [p.archivo for p in previas]
+    nombres = _nombres(analisis, cfg, usados)
+    # Comprobación final: cada nombre es único e irrepetible (ni en el lote,
+    # ni en la carpeta destino, ni en ningún proceso anterior del registro).
+    clave = lambda n: unicodedata.normalize("NFC", n).casefold()
+    ocupados = {clave(n) for n in usados}
+    if len({clave(n) for n in nombres}) != len(nombres) or any(clave(n) in ocupados for n in nombres):
+        raise ErrorDivision("Error interno: un nombre de archivo ya estaba usado. No se ha escrito nada.")
+    avisos = analisis.avisos + avisos
 
     filas = [
         dict(
