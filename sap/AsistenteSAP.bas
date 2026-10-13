@@ -592,9 +592,9 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     actual = prueba                         ' lo que pone ahora en la casilla del ZNET
     For intento = 1 To 2
         If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
-        fila = BuscarFilaZnet(maxFilas)
+        fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
         If fila = 0 Then
-            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila ZNET en la columna TpCd. He leido: " & mLeidoTpCd
+            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila con el ZNET " & ImporteTexto(actual) & ". He leido: " & mLeidoTpCd
             GoTo Mal
         End If
         If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
@@ -801,7 +801,7 @@ Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As 
 End Function
 
 ' Sube la tabla y busca, fila a fila, la casilla Importe que dice exactamente el valor.
-Private Function BuscarFilaZnet(ByVal maxFilas As Long) As Long
+Private Function BuscarFilaZnet(ByVal buscado As String, ByVal maxFilas As Long) As Long
     Dim r As Long
     mLeidoTpCd = ""
     If Not EnfocarTabla() Then Exit Function
@@ -809,25 +809,27 @@ Private Function BuscarFilaZnet(ByVal maxFilas As Long) As Long
     ' Primero la fila donde estaba en la posicion anterior: dentro de un
     ' mismo abono suele ser la misma, y asi no hay que leer fila a fila.
     If mFilaZnet > 0 And mFilaZnet <= maxFilas Then
-        If FilaEsZnet(mFilaZnet) Then BuscarFilaZnet = mFilaZnet: Exit Function
+        If FilaEsZnet(mFilaZnet, buscado) Then BuscarFilaZnet = mFilaZnet: Exit Function
         If Len(mMotivo) > 0 Then Exit Function
     End If
     For r = 1 To maxFilas
         If r <> mFilaZnet Then
-            If FilaEsZnet(r) Then mFilaZnet = r: BuscarFilaZnet = r: Exit Function
+            If FilaEsZnet(r, buscado) Then mFilaZnet = r: BuscarFilaZnet = r: Exit Function
             If Len(mMotivo) > 0 Then Exit Function
         End If
     Next r
 End Function
 
-' Se busca por la columna TpCd, que es fija: la tabla se desplaza de lado al
-' tabular (Descripcion desaparece) y la columna Importe cambia de sitio.
-Private Function FilaEsZnet(ByVal r As Long) As Boolean
+' Se selecciona en la columna TpCd, que es fija (la tabla se desplaza de lado
+' al tabular). Al hacer clic ahi SAP pone el cursor en el Importe de esa
+' fila, y Ctrl+C copia ESE importe: se compara con el valor del ZNET. El
+' primero que coincide es el ZNET (los subtotales con ese valor van debajo).
+Private Function FilaEsZnet(ByVal r As Long, ByVal buscado As String) As Boolean
     Dim s As String
     s = UCase$(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", ""))
     ' Lo leido se apunta, para poder decir que habia en cada fila si no aparece
     If Len(mLeidoTpCd) < 300 Then mLeidoTpCd = mLeidoTpCd & r & ":" & IIf(Len(s) = 0, "(vacio)", s) & " "
-    FilaEsZnet = (s = "ZNET")
+    FilaEsZnet = (s = buscado)
 End Function
 
 ' Clic en el TpCd de esa fila, Tab a su Importe, selecciona lo que hay y escribe encima.
@@ -835,9 +837,8 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
     Dim a As PUNTO, b As PUNTO, i As Long
     a = PuntoCal(CAL_IMP_I, fila - 1)
     b = PuntoCal(CAL_IMP_D, fila - 1)
-    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function   ' TpCd de la fila ZNET
+    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function   ' TpCd: SAP pone el cursor en su Importe
     Sleep 150
-    If Not Pulsar("{TAB}") Then Exit Function                ' a su Importe
     If Not Pulsar("{END}") Then Exit Function
     If Not Pulsar("+{HOME}") Then Exit Function
     For i = 1 To Len(valor)
