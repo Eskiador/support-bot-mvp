@@ -1653,3 +1653,8 @@ Después de varias vueltas sin errores de lectura ni de escritura, Pablo pidió 
 Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja ya preparada hay que bajarlas a mano.
 
 **Ampliación.** Hay cargos que traen el precio de SAP ya por unidad (1,771 frente a 1,754 del cargo). Dividirlo entre 100 daba −1.750,18 €. Ahora se elige la lectura más cercana al precio del cargo: el valor tal cual o dividido entre 100, según cuál esté más cerca en proporción. Sin dato del cargo se sigue entendiendo «por 100».
+
+**Segunda bajada.** Un abono de 7 posiciones salió sin fallos y Pablo quiere apurar hasta que falle. Cambios:
+- Las esperas fijas de la lectura con ratón, los clics y los sondeos se reducen a la mitad o menos.
+- La espera fija de 300 ms después de Ctrl+Fin pasa a ser la pausa de F5.
+- Los mínimos bajan a 5 ms (C3) y 10 ms (F5), para poder probar desde la hoja.
