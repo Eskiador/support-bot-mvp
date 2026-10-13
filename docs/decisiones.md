@@ -1642,3 +1642,12 @@ También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»)
 **Problema.** SAP da el precio neto «por 100» (204,33 por 100 UC). Pablo tenía que mover la coma a mano (2,0433) en cada línea.
 
 **Decisión.** En los modos «Precio SAP − cargo» (por unidad y por caja), lo que se teclea en «Precio / total SAP» se divide entre 100. En «Totales de línea» sigue siendo el total, sin dividir. Las pruebas pasan a teclear los precios como salen en SAP.
+
+## Asistente: más rápido
+
+Después de varias vueltas sin errores de lectura ni de escritura, Pablo pidió más velocidad. Se bajan los valores:
+- Pausa entre teclas: de 80 a 40 ms. El mínimo baja de 80 a 20 ms.
+- Pausa en cada Tab e Intro: de 200 a 100 ms. El mínimo baja de 50 a 30 ms.
+- Espera después de cada clic: de 150 a 60 ms.
+
+Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja ya preparada hay que bajarlas a mano.

@@ -176,7 +176,7 @@ Public Sub PrepararHoja()
     End With
 
     ws.Range("B3").Value = "Pausa entre teclas (ms)"
-    ws.Range(C_PAUSA).Value = 80
+    ws.Range(C_PAUSA).Value = 40
     ws.Range("B4").Value = "Separador decimal en SAP"
     ws.Range(C_SEP).NumberFormat = "@"
     ws.Range(C_SEP).Value = ","
@@ -197,7 +197,7 @@ Public Sub PrepararHoja()
     ws.Range("E3").Value = "Calibracion:"
     ws.Range("E3").Font.Bold = True
     ws.Range("E5").Value = "Pausa en Tab/Intro (ms)"
-    ws.Range(C_PAUSA_CAMPO).Value = 200
+    ws.Range(C_PAUSA_CAMPO).Value = 100
     ws.Range(C_PAUSA_CAMPO).Interior.Color = RGB(255, 242, 204)
 
     ws.Range("A10").Value = "Pega en B12 lo que copia la Calculadora con 'Copiar para el asistente SAP'. Una fila vacia marca el final."
@@ -680,15 +680,15 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     mSep = CStr(ws.Range(C_SEP).Value)
     If Len(mSep) = 0 Then mSep = ","
     mPausa = Val(ws.Range(C_PAUSA).Value)
-    If mPausa < 80 Then mPausa = 80
+    If mPausa < 20 Then mPausa = 20
     ' SAP pierde teclas si se cambia de casilla demasiado rapido (el
     ' desplegable del historial se come el Tab): pausa larga antes y despues.
     If Len(CStr(ws.Range(C_PAUSA_CAMPO).Value)) = 0 Then
-        mPausaCampo = 200
+        mPausaCampo = 100
     Else
         mPausaCampo = Val(ws.Range(C_PAUSA_CAMPO).Value)
     End If
-    If mPausaCampo < 50 Then mPausaCampo = 50
+    If mPausaCampo < 30 Then mPausaCampo = 30
     ' Una version anterior ponia un Tab de mas (el 10 caia en Moneda): se corrige sola.
     If StrComp(Trim$(CStr(ws.Range(C_SECUENCIA).Value)), SECUENCIA_V3_MALA, vbTextCompare) = 0 Then
         ws.Range(C_SECUENCIA).Value = SECUENCIA_ZNET
@@ -838,7 +838,7 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
     a = PuntoCal(CAL_IMP_I, fila - 1)
     b = PuntoCal(CAL_IMP_D, fila - 1)
     If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function   ' TpCd: SAP pone el cursor en su Importe
-    Sleep 150
+    Sleep 60
     If Not Pulsar("{END}") Then Exit Function
     If Not Pulsar("+{HOME}") Then Exit Function
     For i = 1 To Len(valor)
@@ -853,7 +853,7 @@ Private Function EnfocarTabla() As Boolean
     a = PuntoCal(CAL_IMP_I, 0)
     b = PuntoCal(CAL_IMP_D, 0)
     EnfocarTabla = Clic((a.x + b.x) \ 2, a.y)
-    Sleep 150
+    Sleep 60
 End Function
 
 Private Function Clic(ByVal x As Long, ByVal y As Long) As Boolean
