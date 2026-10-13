@@ -1080,6 +1080,12 @@ const dice = (bien, etiqueta, detalle='') => {
     window.__calcular();
     return window.__textoAsistente(window.E.ultimaSalida.salida);
   });
+  const asisTotal = await pagina.evaluate(() => {
+    const r = window.__textoAsistente(window.E.ultimaSalida.salida, 8.10);
+    return r.texto.split('\r\n').map(l => l.split('\t')[1]);
+  });
+  dice(JSON.stringify(asisTotal) === '["5,10","3,00"]',
+       'si las líneas no suman el cargo, la diferencia va a la línea mayor (cuadra al céntimo)', JSON.stringify(asisTotal));
   const lineasAsis = asistente.texto.split('\r\n').map(l => l.split('\t'));
   dice(lineasAsis[0][0] === '10' && lineasAsis[0][1] === '5,00',
        'cada línea va con el importe que tiene que dar en SAP, en formato SAP', JSON.stringify(lineasAsis[0]));

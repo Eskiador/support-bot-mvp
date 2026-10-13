@@ -2116,15 +2116,30 @@ function recordarCliente(){
 // Lo que se pega en la hoja «Asistente SAP»: Pos. · Objetivo · Descripción.
 // El asistente mide él mismo el neto de cada posición en SAP (ZNET de prueba),
 // así que no se le pasa un ZNET sino el importe que tiene que dar esa línea.
-function textoAsistente(salida){
+function textoAsistente(salida, total){
+  // Lo que tiene que dar cada línea: lo que diga el cargo, o lo fijado al
+  // cuadrar. Y si aun así no suman el importe del cargo, la diferencia va a
+  // la línea más grande: el asistente mide en SAP y acierta lo que se le
+  // pide, así que se le pide el total exacto del cargo, no una estimación.
   let sinObjetivo = 0;
-  const filas = [];
+  const lineas = [];
   for(const s of salida){
-    if(!isFinite(s.objetivo) || Math.abs(s.objetivo) < 0.005){ sinObjetivo++; continue; }
-    filas.push([s.fila.fac.pos, s.objetivo.toFixed(2).replace('.', ','),
-                String(s.fila.fac.desc || '').replace(/[\t\r\n]+/g, ' ')].join('\t'));
+    const f = s.fila || {};
+    const obj = f.objetivoForzado != null ? f.objetivoForzado : s.objetivo;
+    if(!isFinite(obj) || Math.abs(obj) < 0.005){ sinObjetivo++; continue; }
+    lineas.push({pos: f.fac.pos, obj: r2(obj), desc: String(f.fac.desc || '').replace(/[\t\r\n]+/g, ' ')});
   }
-  return {texto: filas.join('\r\n'), filas: filas.length, sinObjetivo};
+  let ajusteTotal = 0;
+  if(isFinite(total) && lineas.length){
+    const suma = r2(lineas.reduce((a, l) => a + l.obj, 0));
+    ajusteTotal = r2(Math.abs(total) - suma);
+    if(Math.abs(ajusteTotal) >= 0.005 && Math.abs(ajusteTotal) < Math.abs(suma)){
+      const mayor = lineas.reduce((m, l) => Math.abs(l.obj) > Math.abs(m.obj) ? l : m);
+      mayor.obj = r2(mayor.obj + ajusteTotal);
+    } else ajusteTotal = 0;
+  }
+  const filas = lineas.map(l => [l.pos, l.obj.toFixed(2).replace('.', ','), l.desc].join('\t'));
+  return {texto: filas.join('\r\n'), filas: filas.length, sinObjetivo, ajusteTotal};
 }
 
 function tsvSalida(){
@@ -2422,8 +2437,10 @@ window.addEventListener('pdfjs-listo', async ()=>{
   $('#btnCopiarZnet').onclick = ()=>copiar(
     (E.ultimaSalida?.salida||[]).map(s=>isFinite(s.znet) ? nf.format(s.znet) : '').join('\n'), 'ZNET copiados');
   $('#btnCopiarAsistente').onclick = ()=>{
-    const r = textoAsistente(E.ultimaSalida?.salida || []);
+    const r = textoAsistente(E.ultimaSalida?.salida || [], E.ultimaSalida?.total);
     if(!r.filas) return avisar('No hay líneas calculadas que pasar al asistente.');
+    if(Math.abs(r.ajusteTotal) >= 0.005)
+      avisar(`Las líneas no sumaban el cargo: ${nf.format(r.ajusteTotal)} € se han sumado a la línea más grande para que cuadre exacto.`, 9000);
     copiar(r.texto, r.sinObjetivo
       ? `Copiado. ${r.sinObjetivo} línea(s) sin importe se han dejado fuera.`
       : 'Copiado: pégalo en la celda B12 de la hoja Asistente SAP');

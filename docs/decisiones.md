@@ -1630,3 +1630,9 @@ También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»)
 - La fila del ZNET se vuelve a buscar por su valor (10,00, o el definitivo al corregir), seleccionando en la columna TpCd.
 - La primera fila que coincide es el ZNET, porque los subtotales con ese mismo valor van debajo.
 - Para escribir: clic en el TpCd de esa fila, sin Tab, porque el cursor ya está en su Importe.
+
+## Asistente: se le pide el total exacto del cargo
+
+**Problema.** Un cargo de 23,98 quedó en 24,04. El asistente cuadra al céntimo lo que se le pide, pero la Calculadora le pasaba la diferencia de cada línea tal como venía en el cargo. No usaba el objetivo ajustado al cuadrar, y esas diferencias no tenían por qué sumar el importe del cargo. Antes, Pablo cerraba esa diferencia midiendo el neto en SAP y volviendo a calcular a mano.
+
+**Decisión.** «Copiar para el asistente» pasa, para cada línea, el objetivo ajustado al cuadrar si lo hay. Si las líneas siguen sin sumar el importe del cargo, la diferencia se suma a la línea más grande. Así el asistente busca exactamente el total del cargo, y lo que no se pueda ajustar por los decimales del ZNET sale como ZAJU.
