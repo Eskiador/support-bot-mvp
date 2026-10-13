@@ -133,6 +133,7 @@ Private mUltimoRaton As PUNTO
 Private mMotivo As String
 Private mUltimoClic As Long       ' GetTickCount del ultimo boton pulsado
 Private mClicX As Long, mClicY As Long
+Private mAlReves As Boolean
 Private mLeidoTpCd As String
 Private mFilaZnet As Long        ' fila de la tabla donde aparecio el ZNET la ultima vez
 
@@ -749,6 +750,11 @@ Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas
     SoltarTeclas
     For intento = 1 To 2
         If Not Seguir() Then Exit Function
+        ' Cada lectura arrastra en sentido contrario a la anterior: asi el
+        ' boton nunca se pulsa dos veces seguidas en el mismo punto, que
+        ' Windows tomaria por doble clic y habria que esperar medio segundo.
+        mAlReves = Not mAlReves
+        x = a.x: a.x = b.x: b.x = x
         VaciarPortapapeles
         MoverRaton a.x, a.y
         Sleep 10

@@ -1670,3 +1670,9 @@ Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja y
 **Problema.** «1.313» escrito como precio del cargo se leía como 1.313 € (el punto se tomaba como separador de miles). Con SAP 141,02 salía −58.599 €, y con 1,4102 salía −65.579 €.
 
 **Decisión.** En los modos de precio, un número con punto y sin coma es un decimal, porque ningún precio unitario de un cargo llega a mil euros. Se aplica al dato del cargo y al precio SAP. Con 1,313 la elección automática entre «por 100» y «por unidad» acierta en los dos formatos, así que no hace falta otra opción en el desplegable.
+
+## Asistente: lecturas seguidas sin esperas de doble clic
+
+**Problema.** Al empezar, la macro tardaba mucho leyendo el nº de posición. Cada lectura empezaba el arrastre en el mismo punto que la anterior, y la protección contra el doble clic esperaba medio segundo antes de cada una.
+
+**Decisión.** Cada lectura arrastra en sentido contrario a la anterior. El botón nunca se pulsa dos veces seguidas en el mismo punto, así que no hace falta esperar.
