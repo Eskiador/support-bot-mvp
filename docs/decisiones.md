@@ -1590,8 +1590,8 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 - Cada lectura con el ratón es más corta: 2 intentos en vez de 3, arrastre en 3 pasos y como mucho 300 ms de espera al portapapeles.
 - La fila del ZNET se busca primero donde estaba en la posición anterior, que en un mismo abono suele ser la misma. Solo si no está ahí se recorre la tabla fila a fila.
 
-## LAXSANA cuenta como gama Laxante
+## «TIS» en la descripción es la gama Infusión
 
-**Problema.** En la factura, la línea «SUS TIS LAXSANA B(10x10 BOL)» es una infusión laxante, pero no lleva la palabra «LAXANTES». Como no se detectaba ninguna gama, la línea se quedaba sin gama y sin el % de descuento.
+**Problema.** La línea «SUS TIS LAXSANA B(10x10 BOL)» salía sin gama y sin %. Primero se marcó LAXSANA como gama Laxante, y estaba mal: Pablo aclaró que la gama es **Infusión** y que LAXSANA es solo la variante.
 
-**Decisión.** LAXSANA se reconoce como gama LAXANTES (Laxante). Se añade al caso de prueba de la detección de gamas.
+**Decisión.** «TIS» (la palabra suelta, no «TISANA») se reconoce como gama INFU (Infusión). Se quita lo de LAXSANA. El caso de prueba espera INFU.

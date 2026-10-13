@@ -674,8 +674,8 @@ const dice = (bien, etiqueta, detalle='') => {
       // 800G»): \b no corta ahí (una cifra es parte de la misma «palabra»),
       // así que hacía falta algo más estricto que un límite de palabra.
       ['SAL.DULC PIM. ROJ JALAP LVF280', 'LVF'],
-      // Las infusiones laxantes llevan el nombre del producto, no «LAXANTES».
-      ['SUS TIS LAXSANA B(10x10 BOL)', 'LAXANTES'],
+      // «TIS» es la gama Infusión; LAXSANA es solo la variante.
+      ['SUS TIS LAXSANA B(10x10 BOL)', 'INFU'],
       ['TISANA RELAX 20 BOLSAS', null], ['AGUA MINERAL 1,5L', null]
     ];
     const detectadas = casos.map(([d, esperado]) => [d, window.__gamaDe(d), esperado]);
