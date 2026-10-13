@@ -1636,3 +1636,9 @@ También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»)
 **Problema.** Un cargo de 23,98 quedó en 24,04. El asistente cuadra al céntimo lo que se le pide, pero la Calculadora le pasaba la diferencia de cada línea tal como venía en el cargo. No usaba el objetivo ajustado al cuadrar, y esas diferencias no tenían por qué sumar el importe del cargo. Antes, Pablo cerraba esa diferencia midiendo el neto en SAP y volviendo a calcular a mano.
 
 **Decisión.** «Copiar para el asistente» pasa, para cada línea, el objetivo ajustado al cuadrar si lo hay. Si las líneas siguen sin sumar el importe del cargo, la diferencia se suma a la línea más grande. Así el asistente busca exactamente el total del cargo, y lo que no se pueda ajustar por los decimales del ZNET sale como ZAJU.
+
+## Precio SAP tal cual sale en SAP
+
+**Problema.** SAP da el precio neto «por 100» (204,33 por 100 UC). Pablo tenía que mover la coma a mano (2,0433) en cada línea.
+
+**Decisión.** En los modos «Precio SAP − cargo» (por unidad y por caja), lo que se teclea en «Precio / total SAP» se divide entre 100. En «Totales de línea» sigue siendo el total, sin dividir. Las pruebas pasan a teclear los precios como salen en SAP.

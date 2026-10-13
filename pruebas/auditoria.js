@@ -699,9 +699,9 @@ const dice = (bien, etiqueta, detalle='') => {
     // marca después de calcular, y perder el dato mientras tanto no ayuda.
     document.querySelector('#fMarcaCalc').value = '';           // primero, sin marca
     window.__emparejar();
-    window.E.filas[0].precioSap = '2,00';
-    window.E.filas[1].precioSap = '2,20';
-    window.E.filas[2].precioSap = '1,50';
+    window.E.filas[0].precioSap = '200';     // tal cual SAP: por 100
+    window.E.filas[1].precioSap = '220';
+    window.E.filas[2].precioSap = '150';
     window.__calcular();
     const filasSinMarca = window.E.ultimaSalida.salida.map(s => ({pos:s.fila.fac.pos, gama:s.gama, pct:s.pct}));
     const sinMarcaVisible = !document.querySelector('#resumenGamas').classList.contains('oculto');
@@ -818,7 +818,7 @@ const dice = (bien, etiqueta, detalle='') => {
     document.querySelector('#fTotal').value = '20,00';
     document.querySelector('#fModo').value = 'precio_ud';
     window.__emparejar();
-    window.E.filas[0].precioSap = '2,00';
+    window.E.filas[0].precioSap = '200';
     window.__calcular();
     const original = window.prompt; window.prompt = () => '';   // sin nº de abono
     window.__registrarCalculo();
@@ -956,10 +956,10 @@ const dice = (bien, etiqueta, detalle='') => {
     window.E.filas = [
       {fac:{pos:10, material:'1', desc:'CON DATO A MANO 1', cantidad:10, um:'UC', udsCaja:null, precio:1},
        cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'1.74', objetivoForzado:null, base:null,
-       netoPrueba:null, precioSap:'2.04'},
+       netoPrueba:null, precioSap:'204'},
       {fac:{pos:20, material:'2', desc:'CON DATO A MANO 2', cantidad:20, um:'UC', udsCaja:null, precio:1},
        cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'2.16', objetivoForzado:null, base:null,
-       netoPrueba:null, precioSap:'2.27'}
+       netoPrueba:null, precioSap:'227'}
     ];
     window.pintarLineas();
     document.querySelector('#fModo').value = 'precio_ud';
@@ -977,6 +977,11 @@ const dice = (bien, etiqueta, detalle='') => {
   // campo para escribir. Ahora se escribe ahí mismo. Se usa el modo «precio
   // por unidad», que sí necesita la cantidad para la propia diferencia (a
   // diferencia de «importe», ver 5p-quater más abajo).
+  console.log('\n=== 5p-quinquies · El precio SAP se teclea tal cual (por 100) ===');
+  const porCien = await pagina.evaluate(() => window.__precioSapPorUnidad(
+    {modo:'precio_ud', precioSap:'204,33', fac:{cantidad:36, um:'UC'}}));
+  dice(Math.abs(porCien - 2.0433) < 1e-9, '204,33 de SAP se entiende como 2,0433 por unidad', porCien);
+
   console.log('\n=== 5p-ter · Unidades por caja, editable cuando la factura no las trae ===');
   const udsCaja = await pagina.evaluate(async () => {
     document.querySelector('#fTotal').value = '69,12';
@@ -984,7 +989,7 @@ const dice = (bien, etiqueta, detalle='') => {
       {fac:{pos:20, material:'2012464', desc:'WES INF COLA CABALLERO', cantidad:144, um:'CJ',
             udsCaja:null, precio:881.28},
        cargoIdx:-1, afectada:true, modo:'precio_ud', manual:'1.10', objetivoForzado:null, base:null,
-       netoPrueba:null, precioSap:'1.32'}
+       netoPrueba:null, precioSap:'132'}
     ];
     window.pintarLineas();
     const antes = window.__calcular ? (window.__calcular(), window.E.ultimaSalida.suma) : null;

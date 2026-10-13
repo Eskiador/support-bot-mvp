@@ -1234,7 +1234,7 @@ function diferenciaDe(fila){
   const cjs = enCajas(lf.um) ? lf.cantidad : (lf.udsCaja ? lf.cantidad / lf.udsCaja : NaN);
   // El precio de la factura NO sirve para restar: lleva IVA y otros impuestos.
   // El neto de verdad solo se ve en SAP, así que se teclea.
-  const pSap = num(fila.precioSap);
+  const pSap = precioSapDeModo(fila);
   switch(fila.modo){
     case 'importe':      return Math.abs(d);
     case 'dif_ud':        return Math.abs(d) * uds;
@@ -1253,8 +1253,17 @@ function diferenciaDe(fila){
 // lo que se teclea es el total de la línea entera, así que hay que dividirlo
 // entre las unidades para poder compararlo con un precio unitario (p.ej. para
 // el % de gama, que siempre se mide por unidad).
-function precioSapPorUnidad(fila){
+// En los modos de precio se teclea tal cual sale en SAP, que da el precio
+// «por 100» (204,33 por 100 UC = 2,0433 €/ud): se divide aquí entre 100
+// para no tener que mover la coma a mano. En «total_linea» es el total.
+function precioSapDeModo(fila){
   const pSap = num(fila.precioSap);
+  if(!isFinite(pSap)) return NaN;
+  return (fila.modo === 'precio_ud' || fila.modo === 'precio_cj') ? pSap / 100 : pSap;
+}
+
+function precioSapPorUnidad(fila){
+  const pSap = precioSapDeModo(fila);
   if(!isFinite(pSap)) return NaN;
   if(fila.modo !== 'total_linea') return pSap;
   const uds = unidadesReales(fila.fac);
@@ -1620,7 +1629,7 @@ function pintarLineas(){
       <td class="n" style="color:var(--muted)">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
       <td class="n"><input class="num precioSap" data-i="${i}" style="width:86px"
             value="${esc(fila.precioSap != null ? fila.precioSap : '')}"
-            title="${fila.modo==='total_linea' ? 'Total facturado en SAP para TODA la línea, no por unidad.' : 'Precio neto por unidad.'}"
+            title="${fila.modo==='total_linea' ? 'Total facturado en SAP para TODA la línea, no por unidad.' : 'Precio neto tal cual sale en SAP, por 100 (204,33 = 2,0433 € cada una). No hace falta mover la coma.'}"
             placeholder="${necesitaPrecioSap(fila.modo) ? (fila.modo==='total_linea' ? 'total línea' : 'teclea') : '—'}"
             ${necesitaPrecioSap(fila.modo) ? '' : 'disabled'}></td>
       <td><select data-i="${i}" class="selCargo" title="${esc(opciones.length>1 && fila.cargoIdx>=0
