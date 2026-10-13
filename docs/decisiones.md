@@ -1621,3 +1621,12 @@ También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»)
 - La fila se reconoce por el texto «ZNET» en esa columna.
 - Para escribir el importe: clic en el TpCd de esa fila, Tab hasta su Importe, se selecciona lo que hay y se escribe encima.
 - Una calibración antigua (hecha sobre Importe) no se acepta: la macro pide volver a calibrar.
+
+## Asistente v3: al leer TpCd, SAP copia el Importe de la fila
+
+**Qué se vio.** Con el diagnóstico activado, la lectura de la columna TpCd dio «2:47,780 … 8:10,00 …», que son los importes de cada fila y no los códigos. Hacer clic en TpCd, que no se puede editar, deja el cursor en el Importe de esa fila, y Ctrl+C copia ese importe. Así se puede leer el Importe sin depender de dónde esté la columna en pantalla.
+
+**Decisión.**
+- La fila del ZNET se vuelve a buscar por su valor (10,00, o el definitivo al corregir), seleccionando en la columna TpCd.
+- La primera fila que coincide es el ZNET, porque los subtotales con ese mismo valor van debajo.
+- Para escribir: clic en el TpCd de esa fila, sin Tab, porque el cursor ya está en su Importe.
