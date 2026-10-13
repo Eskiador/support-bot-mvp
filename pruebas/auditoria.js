@@ -664,7 +664,7 @@ const dice = (bien, etiqueta, detalle='') => {
       ['FUSION FRESA-KIWI LFF 280G', 'LFF'], ['MERMELADA DIET LVD 280G', 'LVD'],
       ['COCINA SELECTA LVC 280G', 'LVC'], ['MERMELADA LVT COMBINA CON TODO 350G', 'LVT'],
       ['INFUSION MANZANILLA INFU 20 BOLSAS', 'INFU'],
-      ['INFUSION LAXANTES 20 BOLSAS', 'LAXANTES'], ['ACEITUNA RELLENA ANCHOA FRAGATA 300G', 'FRAGATA'],
+      ['INFUSION LAXANTES 20 BOLSAS', 'INFU'], ['ACEITUNA RELLENA ANCHOA FRAGATA 300G', 'FRAGATA'],
       // «FRA» es como sale la gama de aceitunas al copiar y pegar directamente
       // de SAP (el PDF de la propia factura la escribe entera, «FRAGATA»): se
       // normaliza al mismo código para que el resumen no enseñe dos etiquetas

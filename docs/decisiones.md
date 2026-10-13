@@ -1595,3 +1595,7 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 **Problema.** La línea «SUS TIS LAXSANA B(10x10 BOL)» salía sin gama y sin %. Primero se marcó LAXSANA como gama Laxante, y estaba mal: Pablo aclaró que la gama es **Infusión** y que LAXSANA es solo la variante.
 
 **Decisión.** «TIS» (la palabra suelta, no «TISANA») se reconoce como gama INFU (Infusión). Se quita lo de LAXSANA. El caso de prueba espera INFU.
+
+## Infusiones: una sola gama
+
+Pablo aclaró que en infusiones hay **una sola gama**, igual que Fragata en aceitunas. Los sabores (LAXSANA, manzanilla…) son variantes. Se quita «Laxante» como gama aparte: «LAXANTES» y «TIS» cuentan como INFU (Infusión).

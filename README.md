@@ -119,7 +119,7 @@ parece bueno.
 Cuando un cargo de precio es no conforme, a veces hay que detallarle al
 comercial qué gama de producto lleva el descuento que no se aplicó. La
 herramienta detecta la gama (LVF, LVZ, LVN, LV0, LFF, LVD, LVC, LVT en mermeladas;
-INFU y LAXANTES en infusiones; FRAGATA en aceitunas) dentro de la descripción
+INFU en infusiones, una sola gama aunque salga como TIS o con el sabor; FRAGATA en aceitunas) dentro de la descripción
 de **nuestra factura** — el único documento con el mismo formato para todos
 los clientes — y calcula el % de descuento no aplicado de cada línea:
 `diferencia por unidad ÷ precio de SAP × 100`.
