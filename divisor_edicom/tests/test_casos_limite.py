@@ -317,3 +317,38 @@ def test_nombre_ya_usado_nunca_se_repite(cfg, monkeypatch):
     assert res.estado == "error" and "ya estaba usado" in res.mensaje
     assert contenido(cfg.destino) == ["Confirmación Recepción_MERCADONA RIBARROJA SECOS.pdf"]
     assert ruta.exists()
+
+
+def _pagina_dia(num, pag, num_cuerpo=None):
+    return [
+        f"Aviso de recepción Nº {num} 13/10/2026 06:16:04 Pág. {pag}",
+        "632",
+        f"Nº Confirmación {num_cuerpo or num} Nº Albarán 80397810",
+        "Nº Pedido 005472171 Nº Notif. envío 80397810",
+        "Fecha documento 10/10/2026 11:41 Fecha recepción mercancías 10/10/2026 11:41",
+        "Emisor Mensaje 8480017930019 DIA RETAIL ESPAÑA S.A.U. C/JACINTO BENAVENTE 2A 28232",
+    ]
+
+
+def test_dia_de_varias_paginas_avisa_para_actualizar(cfg):
+    cont = pdf_bytes([["Aviso de recepción Nº 0224304 13/10/2026 06:16:04 Pág. 2", "4 8413630021352 180,000"]])
+    inicio = pdf_bytes([_pagina_dia("0224304", 1)])
+    ruta = montar(cfg.descargas / "report.pdf", [(inicio, 0), (cont, 0)])
+    error(cfg, ruta, "Página 2", "0224304", "aún no está verificado", "Envía este PDF")
+
+
+def test_dia_con_numero_incoherente(cfg):
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [_pagina_dia("0224304", 1, num_cuerpo="9999999")])
+    error(cfg, ruta, "Página 1", "0224304")
+
+
+def test_dia_dos_documentos_sinteticos(cfg):
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [_pagina_dia("111", 1), _pagina_dia("222", 1)])
+    res = procesar(ruta, cfg)
+    assert res.estado == "ok", res.mensaje
+    assert [f["num_doc"] for f in res.filas] == ["111", "222"]
+
+
+def test_dia_empezando_por_pag_2(cfg):
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [_pagina_dia("111", 2)])
+    error(cfg, ruta, "Página 1")

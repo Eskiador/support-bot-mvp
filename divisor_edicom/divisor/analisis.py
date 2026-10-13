@@ -122,6 +122,22 @@ def _clasificar(pag: Pagina, plantillas: tuple[Plantilla, ...]) -> None:
                 f"{len(nums)} líneas con el Nº de documento (debe haber exactamente 1)."
             )
         pag.es_inicio, pag.num_doc = True, nums[0]
+    elif plantillas_con_num and plantillas_con_num[0].inicio_por_cabecera:
+        # Formato sin línea de título (DIA): la cabecera con "Pág. 1" es el inicio.
+        plantilla = plantillas_con_num[0]
+        nums = {m.group("num") for m in con_num[plantilla.id]}
+        pags = {int(m.group("pag")) for m in con_num[plantilla.id]}
+        if len(nums) != 1 or len(pags) != 1:
+            raise ErrorDivision(f"Página {n}: las cabeceras de la página no coinciden entre sí.")
+        pag.num_doc = nums.pop()
+        if pags.pop() == 1:
+            cuerpo = [m.group("num") for l in pag.lineas if (m := plantilla.numero_doc.fullmatch(l))]
+            if cuerpo != [pag.num_doc]:
+                raise ErrorDivision(
+                    f"Página {n}: es el inicio de un '{plantilla.nombre}' Nº {pag.num_doc} pero la línea "
+                    f"del Nº de documento no coincide o no es única ({cuerpo})."
+                )
+            pag.es_inicio = True
     elif plantillas_con_num:
         plantilla = plantillas_con_num[0]
         if any(plantilla.numero_doc.fullmatch(l) for l in pag.lineas):
@@ -236,8 +252,11 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
     for pag in paginas:
         n = pag.numero
         # Contador "Página N": consecutivo dentro de cada bloque de la misma
-        # plantilla; vuelve a 1 cuando cambia la plantilla.
+        # plantilla; vuelve a 1 cuando cambia la plantilla. En las plantillas
+        # con contador por documento, vuelve a 1 en cada documento.
         if anterior is None or anterior.plantilla is not pag.plantilla:
+            esperado = 1
+        elif pag.plantilla.contador == "documento" and pag.es_inicio:
             esperado = 1
         else:
             esperado = anterior.contador + 1
@@ -254,7 +273,7 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
 
         if pag.es_inicio:
             documentos.append(
-                Documento(plantilla=pag.plantilla, num_doc=pag.num_doc, paginas=[n], tipo=pag.plantilla.titulos[pag.titulo])
+                Documento(plantilla=pag.plantilla, num_doc=pag.num_doc, paginas=[n], tipo=pag.plantilla.titulos[pag.titulo] if pag.titulo else pag.plantilla.tipo_registro)
             )
         else:
             if not documentos:

@@ -27,6 +27,13 @@ class Plantilla:
     fecha_documento: re.Pattern
     pedido: re.Pattern
     archivo: str
+    # "combinado": el "Página N" cuenta páginas de todo el bloque del combinado.
+    # "documento": el contador vuelve a 1 en cada documento (formato DIA).
+    contador: str = "combinado"
+    # True: no hay línea de título propia; el documento empieza en la página
+    # cuya cabecera (con Nº) tiene contador 1. El tipo sale de "tipo_registro".
+    inicio_por_cabecera: bool = False
+    tipo_registro: str = ""
 
 
 @dataclass(frozen=True)
@@ -73,17 +80,33 @@ def cargar_plantilla(ruta: Path) -> Plantilla:
         regex[campo] = patron
     if "num" not in regex["cabecera"].groupindex or "fecha" not in regex["cabecera"].groupindex:
         raise ErrorConfiguracion(f"Plantilla {ruta.name}, campo 'cabecera': necesita los grupos num, fecha y pag")
+    contador = datos.get("contador", "combinado")
+    if contador not in ("combinado", "documento"):
+        raise ErrorConfiguracion(f"Plantilla {ruta.name}: 'contador' debe ser \"combinado\" o \"documento\"")
+    inicio_por_cabecera = bool(datos.get("inicio_por_cabecera", False))
+    tipo_registro = str(datos.get("tipo_registro", "")).strip()
     titulos = datos["titulos"]
-    if not isinstance(titulos, dict) or not titulos or not all(
+    if not isinstance(titulos, dict) or not all(
         isinstance(t, str) and t.strip() and isinstance(v, str) and v.strip() for t, v in titulos.items()
     ):
         raise ErrorConfiguracion(f"Plantilla {ruta.name}: la sección [titulos] debe tener líneas \"título\" = \"tipo\"")
+    if inicio_por_cabecera:
+        if titulos or not tipo_registro or contador != "documento":
+            raise ErrorConfiguracion(
+                f"Plantilla {ruta.name}: con inicio_por_cabecera = true, [titulos] va vacía, "
+                "hace falta 'tipo_registro' y contador = \"documento\""
+            )
+    elif not titulos:
+        raise ErrorConfiguracion(f"Plantilla {ruta.name}: la sección [titulos] está vacía")
     return Plantilla(
         id=str(datos["id"]),
         nombre=str(datos["nombre"]),
         titulos=titulos,
         permite_continuacion=bool(datos["permite_continuacion"]),
         archivo=ruta.name,
+        contador=contador,
+        inicio_por_cabecera=inicio_por_cabecera,
+        tipo_registro=tipo_registro,
         **regex,
     )
 

@@ -292,3 +292,34 @@ def test_lote5_documento_identico_dos_veces(cfg, descargar):
     # Volver a procesarlo otro día: ya procesado
     ruta = descargar(COMBINADO_5, "report (1).pdf")
     assert procesar(ruta, cfg).estado == "error"
+
+
+# Lote 6 (13/10/2026): incluye DIA, con un formato nuevo (plantilla C): la
+# cabecera hace de título y el contador "Pág. N" es de cada documento.
+COMBINADO_6 = EJEMPLOS / "lote6" / "report.pdf"
+DOCS_LOTE6 = [
+    ("22123", [1]), ("15772", [2]), ("16265", [3]), ("11503", [4]), ("23595", [5]), ("13576", [6]),
+    ("13198", [7]), ("0224304", [8]), ("0224278", [9]), ("1047285", [10]), ("1047175", [11]),
+    ("1047084", [12]), ("1046762", [13]), ("1044368", [14]), ("1044358", [15]), ("1043459", [16]),
+    ("20265076875992", [17, 18, 19]), ("20265076798045", [20, 21, 22]), ("0690268269", [23, 24]),
+    ("0690267938", [25, 26]), ("201707214", [27, 28]), ("201707170", [29]), ("201707030", [30]),
+]
+
+
+def test_lote6_con_dia(cfg, descargar):
+    a = analizar(COMBINADO_6, cfg)
+    assert [(d.num_doc, d.paginas) for d in a.documentos] == DOCS_LOTE6
+    dia = [d for d in a.documentos if d.plantilla.id == "C"]
+    assert [(d.num_doc, d.nombre_cliente, d.tipo, d.fecha_documento, d.pedido) for d in dia] == [
+        ("0224304", "DIA", "Aviso de recepción DIA", "10/10/2026", "005472171"),
+        ("0224278", "DIA", "Aviso de recepción DIA", "09/10/2026", "008970452"),
+    ]
+    res = procesar(descargar(COMBINADO_6), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert [f["archivo"] for f in res.filas if f["num_doc"] in ("0224304", "0224278")] == [
+        P + "DIA 1.pdf", P + "DIA 2.pdf",
+    ]
+    lector = PdfReader(COMBINADO_6)
+    for i, n in ((0, 8), (1, 9)):
+        r = PdfReader(cfg.destino / (P + f"DIA {i + 1}.pdf"))
+        assert [p.get_contents().get_data() for p in r.pages] == [lector.pages[n - 1].get_contents().get_data()]
