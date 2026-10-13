@@ -1611,3 +1611,13 @@ También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»)
 **Decisión.**
 - La secuencia vuelve a ser `ZNET{TAB}{PRUEBA}{TAB}{TAB}100`.
 - Si la hoja tiene la secuencia con dos Tab, la macro la corrige sola.
+
+## Asistente v3: la fila ZNET se busca por TpCd
+
+**Problema.** Después de escribir el ZNET de prueba, la macro no encontraba la fila ZNET («no encuentro la fila del ZNET (con 10,00)»), aunque el ZNET estaba bien puesto. Al tabular hasta «por», la tabla se desplaza de lado: Descripción deja de verse y la columna Importe cambia de sitio en la pantalla. La macro leía en la posición calibrada de Importe, que ya caía en otra columna.
+
+**Decisión.**
+- Los puntos 5 a 7 de la calibración pasan a ser la **columna TpCd**, que no se mueve al desplazar la tabla.
+- La fila se reconoce por el texto «ZNET» en esa columna.
+- Para escribir el importe: clic en el TpCd de esa fila, Tab hasta su Importe, se selecciona lo que hay y se escribe encima.
+- Una calibración antigua (hecha sobre Importe) no se acepta: la macro pide volver a calibrar.

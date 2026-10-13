@@ -97,7 +97,8 @@ Private Const CAL_NETO_D As Long = 6
 Private Const CAL_IMP_I As Long = 7
 Private Const CAL_IMP_D As Long = 8
 Private Const CAL_IMP_2 As Long = 9
-Private Const CAL_N As Long = 9
+Private Const CAL_N As Long = 10
+Private Const CAL_VERSION As Long = 10   ' "TPCD": los puntos 5-7 son la columna TpCd, no Importe
 
 ' Tabla de posiciones
 Private Const FILA_CAB As Long = 11
@@ -300,9 +301,9 @@ Public Sub Calibrar()
         "la casilla POSICION: su borde DERECHO, por dentro", _
         "la casilla NETO de arriba (la del 5,02): su borde IZQUIERDO, por dentro", _
         "la casilla NETO: su borde DERECHO, por dentro (antes de 'EUR')", _
-        "la columna IMPORTE de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro", _
-        "la columna IMPORTE de la 1a fila: borde DERECHO, por dentro", _
-        "la columna IMPORTE de la 2a fila (ZDC1): en el centro")
+        "la columna TpCd de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro", _
+        "la columna TpCd de la 1a fila: borde DERECHO, por dentro", _
+        "la columna TpCd de la 2a fila (ZDC1): en el centro")
 
     For i = CAL_POS_I To CAL_IMP_2
         If Not CapturarPunto("Punto " & (i - 2) & " de 7:" & vbCrLf & vbCrLf & _
@@ -334,6 +335,7 @@ Public Sub Calibrar()
     For i = CAL_POS_I To CAL_IMP_2
         ws.Range(COL_CAL & i).Value = (p(i).x - mRect.Izq) & ";" & (p(i).y - mRect.Arr)
     Next i
+    ws.Range(COL_CAL & CAL_VERSION).Value = "TPCD"
     PintarCalibracion ws
     SoltarTeclas
     ProbarLectura
@@ -398,7 +400,7 @@ Public Sub ProbarLectura()
     txt = txt & "Neto: [" & s & "]" & vbCrLf
     For r = 1 To 3
         s = LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1): If Len(s) = 0 Then vacias = vacias + 1
-        txt = txt & "Importe fila " & r & ": [" & s & "]" & vbCrLf
+        txt = txt & "TpCd fila " & r & ": [" & s & "]" & vbCrLf
     Next r
 
     If Len(mMotivo) > 0 Then
@@ -589,10 +591,9 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     actual = prueba                         ' lo que pone ahora en la casilla del ZNET
     For intento = 1 To 2
         If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
-        fila = BuscarFilaImporte(actual, maxFilas)
+        fila = BuscarFilaZnet(maxFilas)
         If fila = 0 Then
-            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila del ZNET en la tabla (con " & _
-                ImporteTexto(actual) & ")"
+            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila ZNET en la columna TpCd de la tabla"
             GoTo Mal
         End If
         If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
@@ -697,6 +698,11 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     On Error GoTo 0
 
     If conCalibracion Then
+        If CStr(ws.Range(COL_CAL & CAL_VERSION).Value) <> "TPCD" Then
+            MsgBox "Hay que volver a calibrar: ahora los puntos 5, 6 y 7 son la columna TpCd " & _
+                   "(la de ZTAR, ZNET...), no la columna Importe.", vbExclamation, TITULO_MSG
+            Exit Function
+        End If
         If Len(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value)) = 0 Then
             MsgBox "Falta calibrar: pulsa 'Calibrar' con SAP en la pantalla de Condiciones.", vbExclamation, TITULO_MSG
             Exit Function
@@ -794,36 +800,38 @@ Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As 
 End Function
 
 ' Sube la tabla y busca, fila a fila, la casilla Importe que dice exactamente el valor.
-Private Function BuscarFilaImporte(ByVal valor As Double, ByVal maxFilas As Long) As Long
-    Dim r As Long, buscado As String
-    buscado = ImporteTexto(valor)
+Private Function BuscarFilaZnet(ByVal maxFilas As Long) As Long
+    Dim r As Long
     If Not EnfocarTabla() Then Exit Function
     If Not Pulsar("^{HOME}") Then Exit Function
-    ' Primero la fila donde estaba el ZNET en la posicion anterior: dentro de
-    ' un mismo abono suele ser la misma, y asi no hay que leer fila a fila.
+    ' Primero la fila donde estaba en la posicion anterior: dentro de un
+    ' mismo abono suele ser la misma, y asi no hay que leer fila a fila.
     If mFilaZnet > 0 And mFilaZnet <= maxFilas Then
-        If FilaDice(mFilaZnet, buscado) Then BuscarFilaImporte = mFilaZnet: Exit Function
+        If FilaEsZnet(mFilaZnet) Then BuscarFilaZnet = mFilaZnet: Exit Function
         If Len(mMotivo) > 0 Then Exit Function
     End If
     For r = 1 To maxFilas
         If r <> mFilaZnet Then
-            If FilaDice(r, buscado) Then mFilaZnet = r: BuscarFilaImporte = r: Exit Function
+            If FilaEsZnet(r) Then mFilaZnet = r: BuscarFilaZnet = r: Exit Function
             If Len(mMotivo) > 0 Then Exit Function
         End If
     Next r
 End Function
 
-Private Function FilaDice(ByVal r As Long, ByVal buscado As String) As Boolean
-    FilaDice = (Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", "") = buscado)
+' Se busca por la columna TpCd, que es fija: la tabla se desplaza de lado al
+' tabular (Descripcion desaparece) y la columna Importe cambia de sitio.
+Private Function FilaEsZnet(ByVal r As Long) As Boolean
+    FilaEsZnet = (UCase$(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", "")) = "ZNET")
 End Function
 
-' Clic en la casilla Importe de esa fila, selecciona lo que hay y escribe encima.
+' Clic en el TpCd de esa fila, Tab a su Importe, selecciona lo que hay y escribe encima.
 Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Boolean
     Dim a As PUNTO, b As PUNTO, i As Long
     a = PuntoCal(CAL_IMP_I, fila - 1)
     b = PuntoCal(CAL_IMP_D, fila - 1)
-    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
+    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function   ' TpCd de la fila ZNET
     Sleep 150
+    If Not Pulsar("{TAB}") Then Exit Function                ' a su Importe
     If Not Pulsar("{END}") Then Exit Function
     If Not Pulsar("+{HOME}") Then Exit Function
     For i = 1 To Len(valor)
