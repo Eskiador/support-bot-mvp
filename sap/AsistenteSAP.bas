@@ -63,6 +63,9 @@ Private Declare PtrSafe Function GlobalLock Lib "kernel32" (ByVal hMem As LongPt
 Private Declare PtrSafe Function GlobalUnlock Lib "kernel32" (ByVal hMem As LongPtr) As Long
 Private Declare PtrSafe Function lstrlenW Lib "kernel32" (ByVal lpString As LongPtr) As Long
 Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (ByVal Destino As LongPtr, ByVal Origen As LongPtr, ByVal Bytes As LongPtr)
+Private Declare PtrSafe Function GetDoubleClickTime Lib "user32" () As Long
+Private Declare PtrSafe Function GetSystemMetrics Lib "user32" (ByVal nIndex As Long) As Long
+Private Declare PtrSafe Function GetTickCount Lib "kernel32" () As Long
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
 Private Const HOJA As String = "Asistente SAP"
@@ -128,6 +131,8 @@ Private mRequisitos As String
 Private mSep As String
 Private mUltimoRaton As PUNTO
 Private mMotivo As String
+Private mUltimoClic As Long       ' GetTickCount del ultimo boton pulsado
+Private mClicX As Long, mClicY As Long
 Private mLeidoTpCd As String
 Private mFilaZnet As Long        ' fila de la tabla donde aparecio el ZNET la ultima vez
 
@@ -747,7 +752,7 @@ Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas
         VaciarPortapapeles
         MoverRaton a.x, a.y
         Sleep 10
-        mouse_event RATON_ABAJO, 0, 0, 0, 0
+        PulsarBoton
         For i = 1 To 3
             x = a.x + (b.x - a.x) * i \ 3
             MoverRaton x, a.y
@@ -860,7 +865,7 @@ Private Function Clic(ByVal x As Long, ByVal y As Long) As Boolean
     If Not Seguir() Then Exit Function
     MoverRaton x, y
     Sleep 15
-    mouse_event RATON_ABAJO, 0, 0, 0, 0
+    PulsarBoton
     Sleep 15
     mouse_event RATON_ARRIBA, 0, 0, 0, 0
     Clic = True
@@ -877,6 +882,22 @@ Private Sub SoltarTeclas()
         If Timer - t > 3 Or Timer < t Then Exit Do
     Loop
     Sleep 20
+End Sub
+
+' Dos pulsaciones seguidas dentro del tiempo de doble clic de Windows son un
+' doble clic para SAP, y un doble clic en la tabla abre el detalle de la
+' condicion. Se espera lo justo para que nunca cuente como doble clic.
+Private Sub PulsarBoton()
+    Dim espera As Long, cerca As Boolean
+    ' Solo cuenta como doble clic si cae en la misma zona (SM_CXDOUBLECLK/CY)
+    cerca = Abs(mUltimoRaton.x - mClicX) <= GetSystemMetrics(36) + 2 And _
+            Abs(mUltimoRaton.y - mClicY) <= GetSystemMetrics(37) + 2
+    espera = GetDoubleClickTime() + 30 - (GetTickCount() - mUltimoClic)
+    If cerca And mUltimoClic <> 0 And espera > 0 And espera < 2000 Then Sleep espera
+    mouse_event RATON_ABAJO, 0, 0, 0, 0
+    mUltimoClic = GetTickCount()
+    mClicX = mUltimoRaton.x
+    mClicY = mUltimoRaton.y
 End Sub
 
 Private Sub MoverRaton(ByVal x As Long, ByVal y As Long)

@@ -1658,3 +1658,9 @@ Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja y
 - Las esperas fijas de la lectura con ratón, los clics y los sondeos se reducen a la mitad o menos.
 - La espera fija de 300 ms después de Ctrl+Fin pasa a ser la pausa de F5.
 - Los mínimos bajan a 5 ms (C3) y 10 ms (F5), para poder probar desde la hoja.
+
+## Asistente: nunca un doble clic sin querer
+
+**Problema.** Con las esperas más cortas, dos clics seguidos en el mismo sitio de la tabla llegaron a contar como doble clic. SAP abrió el detalle de la condición («Posición, condiciones, detalle»). La macro se paró bien, porque cambió el título de la ventana.
+
+**Decisión.** Antes de cada clic se comprueba si cae en la misma zona que el anterior y dentro del tiempo de doble clic de Windows. Si es así, se espera lo justo para que no cuente como doble clic. Los clics en sitios distintos no esperan nada.
