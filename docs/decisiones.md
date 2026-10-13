@@ -1664,3 +1664,9 @@ Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja y
 **Problema.** Con las esperas más cortas, dos clics seguidos en el mismo sitio de la tabla llegaron a contar como doble clic. SAP abrió el detalle de la condición («Posición, condiciones, detalle»). La macro se paró bien, porque cambió el título de la ventana.
 
 **Decisión.** Antes de cada clic se comprueba si cae en la misma zona que el anterior y dentro del tiempo de doble clic de Windows. Si es así, se espera lo justo para que no cuente como doble clic. Los clics en sitios distintos no esperan nada.
+
+## Precio del cargo escrito con punto
+
+**Problema.** «1.313» escrito como precio del cargo se leía como 1.313 € (el punto se tomaba como separador de miles). Con SAP 141,02 salía −58.599 €, y con 1,4102 salía −65.579 €.
+
+**Decisión.** En los modos de precio, un número con punto y sin coma es un decimal, porque ningún precio unitario de un cargo llega a mil euros. Se aplica al dato del cargo y al precio SAP. Con 1,313 la elección automática entre «por 100» y «por unidad» acierta en los dos formatos, así que no hace falta otra opción en el desplegable.

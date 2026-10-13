@@ -90120,8 +90120,18 @@ function unidadesReales(lf){
 }
 
 // dato que aporta el cargo para esa línea, según el modo
+const esModoPrecio = m => m === 'precio_ud' || m === 'precio_cj';
+// Un precio tecleado con punto y sin coma («1.313») es un decimal, no miles:
+// ningún precio unitario de un cargo llega a mil euros.
+function numPrecio(txt){
+  const t = String(txt == null ? '' : txt).trim();
+  if(/^-?\d+\.\d+$/.test(t)) return parseFloat(t);
+  return num(t);
+}
+
 function datoCargo(fila){
-  if(fila.manual != null && fila.manual !== '') return num(fila.manual);
+  if(fila.manual != null && fila.manual !== '')
+    return esModoPrecio(fila.modo) ? numPrecio(fila.manual) : num(fila.manual);
   const lc = fila.cargoIdx >= 0 ? E.cargo.lineas[fila.cargoIdx] : null;
   if(!lc) return NaN;
   switch(fila.modo){
@@ -90196,7 +90206,7 @@ function diferenciaDe(fila){
 // «por 100» (204,33 por 100 UC = 2,0433 €/ud): se divide aquí entre 100
 // para no tener que mover la coma a mano. En «total_linea» es el total.
 function precioSapDeModo(fila){
-  const pSap = num(fila.precioSap);
+  const pSap = esModoPrecio(fila.modo) ? numPrecio(fila.precioSap) : num(fila.precioSap);
   if(!isFinite(pSap)) return NaN;
   if(fila.modo !== 'precio_ud' && fila.modo !== 'precio_cj') return pSap;
   // A veces el precio de SAP viene ya por unidad (el propio cargo lo trae,

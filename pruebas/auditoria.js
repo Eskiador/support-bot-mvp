@@ -983,6 +983,9 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(Math.abs(porCien - 2.0433) < 1e-9, '204,33 de SAP se entiende como 2,0433 por unidad', porCien);
   const porUnidad = await pagina.evaluate(() => window.__diferenciaDe({modo:'precio_ud', precioSap:'1,771',
     manual:'1,754', cargoIdx:-1, fac:{cantidad:1008, um:'UC', udsCaja:null}}));
+  const conPunto = await pagina.evaluate(() => [ '141,02', '1,4102' ].map(p => window.__diferenciaDe({modo:'precio_ud',
+    precioSap:p, manual:'1.313', cargoIdx:-1, fac:{cantidad:50, um:'UC', udsCaja:null}})));
+  dice(conPunto.every(v => Math.abs(v - 4.86) < 0.01), 'precio del cargo «1.313» con punto es 1,313; SAP 141,02 o 1,4102 dan lo mismo', JSON.stringify(conPunto));
   dice(Math.abs(porUnidad - 17.14) < 0.01, 'si el cargo ya trae el precio SAP por unidad (1,771 − 1,754) × 1.008 uds', porUnidad);
 
   console.log('\n=== 5p-ter · Unidades por caja, editable cuando la factura no las trae ===');
