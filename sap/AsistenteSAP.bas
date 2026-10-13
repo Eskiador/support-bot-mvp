@@ -128,6 +128,7 @@ Private mRequisitos As String
 Private mSep As String
 Private mUltimoRaton As PUNTO
 Private mMotivo As String
+Private mLeidoTpCd As String
 Private mFilaZnet As Long        ' fila de la tabla donde aparecio el ZNET la ultima vez
 
 
@@ -593,7 +594,7 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
         If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
         fila = BuscarFilaZnet(maxFilas)
         If fila = 0 Then
-            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila ZNET en la columna TpCd de la tabla"
+            If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila ZNET en la columna TpCd. He leido: " & mLeidoTpCd
             GoTo Mal
         End If
         If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
@@ -802,6 +803,7 @@ End Function
 ' Sube la tabla y busca, fila a fila, la casilla Importe que dice exactamente el valor.
 Private Function BuscarFilaZnet(ByVal maxFilas As Long) As Long
     Dim r As Long
+    mLeidoTpCd = ""
     If Not EnfocarTabla() Then Exit Function
     If Not Pulsar("^{HOME}") Then Exit Function
     ' Primero la fila donde estaba en la posicion anterior: dentro de un
@@ -821,7 +823,11 @@ End Function
 ' Se busca por la columna TpCd, que es fija: la tabla se desplaza de lado al
 ' tabular (Descripcion desaparece) y la columna Importe cambia de sitio.
 Private Function FilaEsZnet(ByVal r As Long) As Boolean
-    FilaEsZnet = (UCase$(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", "")) = "ZNET")
+    Dim s As String
+    s = UCase$(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", ""))
+    ' Lo leido se apunta, para poder decir que habia en cada fila si no aparece
+    If Len(mLeidoTpCd) < 300 Then mLeidoTpCd = mLeidoTpCd & r & ":" & IIf(Len(s) = 0, "(vacio)", s) & " "
+    FilaEsZnet = (s = "ZNET")
 End Function
 
 ' Clic en el TpCd de esa fila, Tab a su Importe, selecciona lo que hay y escribe encima.
