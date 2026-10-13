@@ -437,7 +437,7 @@ End Sub
 Public Sub HacerTodas()
     Dim ws As Worksheet, f As Long, n As Long, total As Double, fallo As String
     Dim prueba As Double, secPrueba As Collection, espera As Long, maxFilas As Long
-    Dim pos As String, posAnterior As String, ultima As String, arrastre As Double
+    Dim pos As String, posAnterior As String, arrastre As Double
     Dim vueltas As Long, hechas As Long, saltadas As String, pendientes As String
 
     On Error GoTo ErrorVBA
@@ -489,20 +489,12 @@ Public Sub HacerTodas()
     Application.StatusBar = "Asistente SAP trabajando... mueve el raton para pararlo."
     arrastre = Round(arrastre, 2)
 
-    ' --- Primero se mira cual es la ultima posicion (Mayus+F8), para no
-    ' tener que esperar al final a ver si Mayus+F7 ya no avanza.
-    pos = EsperarPosicionDistinta("", espera)
-    If Len(pos) = 0 Then mMotivo = "no consigo leer el numero de posicion": GoTo Parado
-    If Not Pulsar("+{F8}") Then GoTo Parado
-    ultima = EsperarPosicionDistinta(pos, 2500)
-    If Len(mMotivo) > 0 Then GoTo Parado
-    If Len(ultima) = 0 Then ultima = pos            ' no se ha movido: ya estaba en la ultima
-
-    ' --- A la primera posicion
+    ' --- A la primera posicion. Se espera a que SAP termine y se lee hasta
+    ' que dos lecturas seguidas coinciden (puede que ya estuviera en ella).
     If Not Pulsar("+{F5}") Then GoTo Parado
-    pos = EsperarPosicionDistinta(ultima, 2500)
+    pos = LeerPosicionEstable(espera)
     If Len(mMotivo) > 0 Then GoTo Parado
-    If Len(pos) = 0 Then pos = ultima               ' el abono solo tiene una posicion
+    If Len(pos) = 0 Then mMotivo = "no consigo leer el numero de posicion": GoTo Parado
 
     Do
         vueltas = vueltas + 1
@@ -516,10 +508,11 @@ Public Sub HacerTodas()
             hechas = hechas + 1
         End If
 
-        ' Siguiente posicion. En la ultima se acaba sin esperar a nada.
-        If Val(pos) = Val(ultima) Then Exit Do
+        ' Hechas todas las de la lista: se acaba sin ir mas alla.
+        If PendientesEnLista(ws) = 0 Then Exit Do
         posAnterior = pos
         If Not Pulsar("+{F7}") Then GoTo Parado
+        Sleep 350                     ' que SAP cambie de posicion antes de leer
         pos = EsperarPosicionDistinta(posAnterior, espera)
         If Len(mMotivo) > 0 Then GoTo Parado
     Loop While Len(pos) > 0
@@ -576,7 +569,7 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     ' 2. ZNET de prueba en la fila en blanco
     If Not EnfocarTabla() Then GoTo Mal
     If Not Pulsar("^{END}") Then GoTo Mal
-    Sleep mPausaCampo
+    Sleep 400 + mPausaCampo         ' SAP baja la tabla; si se teclea antes, se come la Z o la ZN
     For Each t In secPrueba
         If Not Pulsar(CStr(t)) Then GoTo Mal
     Next t
@@ -799,6 +792,30 @@ Private Function EsperarNetoDistinto(ByVal antes As Double, ByVal espera As Long
 End Function
 
 ' Lee la posicion hasta que sea un numero distinto de "antes". "" si no cambia.
+Private Function LeerPosicionEstable(ByVal espera As Long) As String
+    Dim t As Single, s As String, anterior As String
+    Sleep 500
+    t = Timer
+    Do
+        If Not SapListo() Then Exit Function
+        s = LeerCasilla(CAL_POS_I, CAL_POS_D, 0)
+        If Len(mMotivo) > 0 Then Exit Function
+        If Len(s) > 0 And IsNumeric(s) Then
+            If s = anterior Then LeerPosicionEstable = s: Exit Function
+            anterior = s
+        End If
+        Sleep 150
+    Loop While (Timer - t) * 1000 < espera And Timer >= t
+End Function
+
+Private Function PendientesEnLista(ws As Worksheet) As Long
+    Dim f As Long
+    For f = FILA_INI To FILA_INI + NUM_FILAS - 1
+        If CeldaVacia(ws.Cells(f, COL_POS)) Then Exit Function
+        If Left$(CStr(ws.Cells(f, COL_ESTADO).Value), 2) <> "OK" Then PendientesEnLista = PendientesEnLista + 1
+    Next f
+End Function
+
 Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As Long) As String
     Dim t As Single, s As String
     t = Timer
@@ -807,7 +824,7 @@ Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As 
         s = LeerCasilla(CAL_POS_I, CAL_POS_D, 0)
         If Len(mMotivo) > 0 Then Exit Function
         If Len(s) > 0 And IsNumeric(s) And s <> antes Then EsperarPosicionDistinta = s: Exit Function
-        Sleep 50
+        Sleep 150
     Loop While (Timer - t) * 1000 < espera And Timer >= t
 End Function
 

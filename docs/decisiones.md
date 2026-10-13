@@ -1676,3 +1676,16 @@ Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja y
 **Problema.** Al empezar, la macro tardaba mucho leyendo el nº de posición. Cada lectura empezaba el arrastre en el mismo punto que la anterior, y la protección contra el doble clic esperaba medio segundo antes de cada una.
 
 **Decisión.** Cada lectura arrastra en sentido contrario a la anterior. El botón nunca se pulsa dos veces seguidas en el mismo punto, así que no hace falta esperar.
+
+## Asistente: arranque sin tantas lecturas y la Z del ZNET
+
+**Problema.**
+- Al empezar, la macro leía el nº de posición 11 o 12 veces: lo leía, iba a la última posición con Mayús+F8, volvía a la primera con Mayús+F5 y esperaba a que cambiara, sondeando cada 50 ms mientras SAP aún cambiaba de pantalla.
+- A veces escribía «NET» o «ET» en vez de «ZNET»: se tecleaba antes de que SAP terminara de bajar la tabla con Ctrl+Fin.
+
+**Decisión.**
+- Se quita el paso por la última posición. Después de Mayús+F5 se espera medio segundo y se da la posición por buena cuando dos lecturas seguidas coinciden.
+- Se acaba en cuanto están hechas todas las posiciones de la lista.
+- Después de Mayús+F7 se esperan 350 ms antes de leer y luego se sondea cada 150 ms.
+- Después de Ctrl+Fin hay una espera fija de 400 ms más la pausa de F5 antes de teclear ZNET.
+- Lo que se pierde: ya no avisa de las posiciones del abono que vayan después de la última de la lista.
