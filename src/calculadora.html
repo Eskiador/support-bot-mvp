@@ -1259,7 +1259,16 @@ function diferenciaDe(fila){
 function precioSapDeModo(fila){
   const pSap = num(fila.precioSap);
   if(!isFinite(pSap)) return NaN;
-  return (fila.modo === 'precio_ud' || fila.modo === 'precio_cj') ? pSap / 100 : pSap;
+  if(fila.modo !== 'precio_ud' && fila.modo !== 'precio_cj') return pSap;
+  // A veces el precio de SAP viene ya por unidad (el propio cargo lo trae,
+  // 1,771 frente a 1,754). Se elige la lectura más cercana al precio del
+  // cargo: 204,33 frente a 1,74 es «por 100»; 1,771 frente a 1,754, no.
+  const d = Math.abs(datoCargo(fila));
+  if(isFinite(d) && d > 0){
+    const lejania = v => Math.abs(Math.log(v / d));
+    return lejania(pSap / 100) < lejania(pSap) ? pSap / 100 : pSap;
+  }
+  return pSap / 100;
 }
 
 function precioSapPorUnidad(fila){
@@ -1629,7 +1638,7 @@ function pintarLineas(){
       <td class="n" style="color:var(--muted)">${lf.precio!=null?nf3.format(lf.precio):'—'}</td>
       <td class="n"><input class="num precioSap" data-i="${i}" style="width:86px"
             value="${esc(fila.precioSap != null ? fila.precioSap : '')}"
-            title="${fila.modo==='total_linea' ? 'Total facturado en SAP para TODA la línea, no por unidad.' : 'Precio neto tal cual sale en SAP, por 100 (204,33 = 2,0433 € cada una). No hace falta mover la coma.'}"
+            title="${fila.modo==='total_linea' ? 'Total facturado en SAP para TODA la línea, no por unidad.' : 'Precio neto de SAP: tal cual sale en SAP (por 100: 204,33) o ya por unidad (1,771). Se distingue solo comparándolo con el precio del cargo.'}"
             placeholder="${necesitaPrecioSap(fila.modo) ? (fila.modo==='total_linea' ? 'total línea' : 'teclea') : '—'}"
             ${necesitaPrecioSap(fila.modo) ? '' : 'disabled'}></td>
       <td><select data-i="${i}" class="selCargo" title="${esc(opciones.length>1 && fila.cargoIdx>=0

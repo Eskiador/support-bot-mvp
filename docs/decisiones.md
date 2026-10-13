@@ -1651,3 +1651,5 @@ Después de varias vueltas sin errores de lectura ni de escritura, Pablo pidió 
 - Espera después de cada clic: de 150 a 60 ms.
 
 Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja ya preparada hay que bajarlas a mano.
+
+**Ampliación.** Hay cargos que traen el precio de SAP ya por unidad (1,771 frente a 1,754 del cargo). Dividirlo entre 100 daba −1.750,18 €. Ahora se elige la lectura más cercana al precio del cargo: el valor tal cual o dividido entre 100, según cuál esté más cerca en proporción. Sin dato del cargo se sigue entendiendo «por 100».
