@@ -1601,3 +1601,13 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 Pablo aclaró que en infusiones hay **una sola gama**, igual que Fragata en aceitunas. Los sabores (LAXSANA, manzanilla…) son variantes. Se quita «Laxante» como gama aparte: «LAXANTES» y «TIS» cuentan como INFU (Infusión).
 
 También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»). Cuenta como INFU.
+
+## Asistente v3: vuelve la secuencia con un solo Tab
+
+**Problema.** Con `ZNET{TAB}{TAB}{PRUEBA}…` el 10 caía en Moneda («La moneda 10,00 no existe») aunque la columna Descripción estaba visible. La fila en blanco no deja escribir en Descripción, así que el Tab se la salta.
+
+**Por qué se había añadido el segundo Tab.** En la primera prueba, la secuencia con un solo Tab dejó el Importe vacío y el 100 en Moneda. Se interpretó que faltaba un Tab, pero en realidad fue un problema de velocidad: SAP se comió el 10 y un Tab. Ese fallo ya está cubierto por las pausas en cada Tab.
+
+**Decisión.**
+- La secuencia vuelve a ser `ZNET{TAB}{PRUEBA}{TAB}{TAB}100`.
+- Si la hoja tiene la secuencia con dos Tab, la macro la corrige sola.

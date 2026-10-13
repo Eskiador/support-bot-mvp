@@ -78,9 +78,12 @@ Private Const C_PRUEBA As String = "C7"
 Private Const C_ESPERA As String = "C8"
 Private Const C_FILAS As String = "C9"
 Private Const C_CALIB As String = "F3"
-' Tp > (Tab) Descripcion > (Tab) Importe > (Tab) Moneda > (Tab) por
-Private Const SECUENCIA_ZNET As String = "ZNET{TAB}{TAB}{PRUEBA}{TAB}{TAB}100"
-Private Const SECUENCIA_V3_MALA As String = "ZNET{TAB}{PRUEBA}{TAB}{TAB}100"
+' Tp > (Tab) Importe > (Tab) Moneda > (Tab) por. La Descripcion de la fila
+' en blanco no admite escritura, asi que el Tab se la salta. (El fallo con
+' esta secuencia en la 1a prueba fue de velocidad, no de Tabs: con un Tab
+' de mas el 10 cae en Moneda, "La moneda 10,00 no existe".)
+Private Const SECUENCIA_ZNET As String = "ZNET{TAB}{PRUEBA}{TAB}{TAB}100"
+Private Const SECUENCIA_V3_MALA As String = "ZNET{TAB}{TAB}{PRUEBA}{TAB}{TAB}100"
 Private Const C_PAUSA_CAMPO As String = "F5"   ' pausa extra al cambiar de casilla (Tab / Intro)
 
 ' Calibracion: columna AA oculta. Todo relativo a la esquina de la ventana.
@@ -684,8 +687,7 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
         mPausaCampo = Val(ws.Range(C_PAUSA_CAMPO).Value)
     End If
     If mPausaCampo < 50 Then mPausaCampo = 50
-    ' La hoja de la primera v3 traia una secuencia con un Tab de menos (el
-    ' 10 caia en Descripcion y el 100 en Moneda): se corrige sola.
+    ' Una version anterior ponia un Tab de mas (el 10 caia en Moneda): se corrige sola.
     If StrComp(Trim$(CStr(ws.Range(C_SECUENCIA).Value)), SECUENCIA_V3_MALA, vbTextCompare) = 0 Then
         ws.Range(C_SECUENCIA).Value = SECUENCIA_ZNET
     End If
