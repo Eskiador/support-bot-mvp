@@ -1599,3 +1599,5 @@ La Calculadora ya no le pasa el ZNET. Le pasa el importe que tiene que dar cada 
 ## Infusiones: una sola gama
 
 Pablo aclaró que en infusiones hay **una sola gama**, igual que Fragata en aceitunas. Los sabores (LAXSANA, manzanilla…) son variantes. Se quita «Laxante» como gama aparte: «LAXANTES» y «TIS» cuentan como INFU (Infusión).
+
+También «SUS» marca una infusión: lo confirmó Pablo («las TIS y las SUS»). Cuenta como INFU.

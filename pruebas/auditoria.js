@@ -676,6 +676,7 @@ const dice = (bien, etiqueta, detalle='') => {
       ['SAL.DULC PIM. ROJ JALAP LVF280', 'LVF'],
       // «TIS» es la gama Infusión; LAXSANA es solo la variante.
       ['SUS TIS LAXSANA B(10x10 BOL)', 'INFU'],
+      ['SUS MANZANILLA 20 BOL', 'INFU'],
       ['TISANA RELAX 20 BOLSAS', null], ['AGUA MINERAL 1,5L', null]
     ];
     const detectadas = casos.map(([d, esperado]) => [d, window.__gamaDe(d), esperado]);
