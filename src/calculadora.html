@@ -2819,7 +2819,7 @@ const clavePdf = s => (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,
 // leer (un acceso directo de OneDrive, una sin permiso) o que Windows tarda en
 // servir se salta y se apunta, en vez de colgar o tumbar el índice entero.
 const CARPETAS_A_LA_VEZ = 6;
-let ESPERA_CARPETA_MS = 20000;    // sin respuesta en 20 s, esa carpeta se salta
+let ESPERA_CARPETA_MS = 60000;    // sin respuesta en 20 s, esa carpeta se salta
 const NIVELES_CARPETA = 8;         // no bajar hasta el infinito (con 4 se quedaban fuera subcarpetas de OneDrive)
 
 function conLimite(promesa, ms){
@@ -3059,7 +3059,7 @@ async function releerCarpeta(){
   rutas = conservarSaltadas(rutas, saltadas, E.memoria.pdfIndice);
   E.indice = rutas.map(entradaDeRuta);
   E.mapaDocs = null;
-  E.memoria.pdfIndice = {carpeta: E.carpeta.name, fecha: new Date().toISOString(), rutas};
+  E.memoria.pdfIndice = {carpeta: E.carpeta.name, fecha: new Date().toISOString(), rutas, saltadas};
   await guardarDatos();
   pintarCarpeta();
   pintarCola();
@@ -3108,8 +3108,13 @@ function pintarCarpeta(){
     ? `índice del ${new Date(g.fecha).toLocaleDateString('es-ES')} `+
       `${new Date(g.fecha).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`
     : 'índice de esta sesión';
+  const salt = (g && g.saltadas) || [];
   const detalle = `<p>${E.indice.length.toLocaleString('es-ES')} archivo(s) · ${cuando}`+
-    (total ? ` · PDF localizado en <b>${localizados}</b> de ${total} cargos` : '')+`</p>`;
+    (total ? ` · PDF localizado en <b>${localizados}</b> de ${total} cargos` : '')+`</p>`+
+    (salt.length ? `<p style="font-size:12.5px;color:var(--rojo-txt,#c33)">En la última lectura no se dejaron leer `+
+      `${salt.length} carpeta(s): ${esc(salt.slice(0, 6).join(' · '))}${salt.length > 6 ? '…' : ''}</p>` : '')+
+    `<div class="barra" style="justify-content:center"><input id="fBuscarIndice" placeholder="Buscar en el índice (nº o nombre)" style="width:260px"></div>
+     <div id="resBuscarIndice" style="font-size:12.5px"></div>`;
 
   if(!E.carpeta){
     z.className = 'zona';
@@ -3121,6 +3126,7 @@ function pintarCarpeta(){
       <div class="barra" style="justify-content:center">
         <button class="primario" id="btnEngancharCarpeta">Conectar la carpeta</button></div>`;
     $('#btnEngancharCarpeta').onclick = conectarCarpeta;
+    engancharBuscarIndice();
     return;
   }
 
@@ -3133,6 +3139,22 @@ function pintarCarpeta(){
       <span style="font-size:12px;color:var(--muted)">solo si has añadido cargos nuevos</span>
     </div>`;
   $('#btnRecargarCarpeta').onclick = releerCarpeta;
+  engancharBuscarIndice();
+}
+
+// Para comprobar si un PDF está en el índice (y con qué ruta) sin adivinar.
+function engancharBuscarIndice(){
+  const i = $('#fBuscarIndice'); if(!i) return;
+  i.oninput = () => {
+    const q = norm(i.value || '');
+    const r = $('#resBuscarIndice');
+    if(q.length < 3){ r.innerHTML = ''; return; }
+    const hits = (E.indice || []).filter(e => norm(e.ruta).includes(q));
+    r.innerHTML = hits.length
+      ? hits.slice(0, 15).map(e => `<div class="archivo">${esc(e.ruta)}</div>`).join('') +
+        (hits.length > 15 ? `<div>… y ${hits.length - 15} más</div>` : '')
+      : `<div>No está en el índice. Si el archivo existe en la carpeta, la lectura no ha llegado a él.</div>`;
+  };
 }
 
 async function abrirDoc(c){

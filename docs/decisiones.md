@@ -1708,3 +1708,8 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Para los PDF nuevos se sigue pulsando «Volver a leer la carpeta».
 
 **Ampliación.** Los dos cargos de HIPER USERA tenían el PDF a la vista y lo perdieron justo después de pulsar «Volver a leer la carpeta». Lo más probable es que la carpeta de OneDrive no contestara a tiempo: la lectura se la saltó y el índice nuevo sustituyó al anterior sin esos PDF. Ahora, al releer, se conservan del índice anterior los PDF que cuelgan de las carpetas saltadas. Si la saltada es la raíz, se conserva el índice entero.
+
+**Diagnóstico.** La carpeta conectada es `\\hq.gac\files\wmn\MN-EXP\CARGOS` y el PDF está en `04 CARGOS REPARTIDOS\PABLO\`, dentro de ella y a solo tres niveles. Aun así no aparece después de releer. Cambios:
+- En la zona de la carpeta hay un buscador del índice (por número o nombre) que enseña la ruta guardada, o dice que no está.
+- Las carpetas que se saltaron en la última lectura quedan guardadas y se enseñan ahí mismo.
+- La espera por carpeta sube de 20 a 60 s, porque es una unidad de red.
