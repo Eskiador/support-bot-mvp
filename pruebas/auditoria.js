@@ -977,6 +977,15 @@ const dice = (bien, etiqueta, detalle='') => {
   // campo para escribir. Ahora se escribe ahí mismo. Se usa el modo «precio
   // por unidad», que sí necesita la cantidad para la propia diferencia (a
   // diferencia de «importe», ver 5p-quater más abajo).
+  console.log('\n=== 5p-sexies · Nº de cargo abajo y Registrar centrado ===');
+  const abajo = await pagina.evaluate(async () => {
+    document.querySelector('#fNumCargo').value = 'C/12345';
+    document.querySelector('#fNumCargo').dispatchEvent(new Event('input'));
+    const b = document.querySelector('#btnRegistrar').parentElement;
+    return {num: document.querySelector('#numCargoAbajo').textContent, centrado: getComputedStyle(b).justifyContent};
+  });
+  dice(abajo.num === 'C/12345' && abajo.centrado === 'center', 'el nº de cargo sale abajo y Registrar va centrado', JSON.stringify(abajo));
+
   console.log('\n=== 5p-quinquies · El precio SAP se teclea tal cual (por 100) ===');
   const porCien = await pagina.evaluate(() => window.__precioSapPorUnidad(
     {modo:'precio_ud', precioSap:'204,33', fac:{cantidad:36, um:'UC'}}));

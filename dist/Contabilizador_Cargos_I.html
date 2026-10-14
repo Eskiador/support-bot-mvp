@@ -550,9 +550,12 @@ try{
         <button id="btnCopiarZnet">Copiar solo los ZNET</button>
         <button id="btnCopiarAsistente" title="Posición, importe a abonar y descripción de cada línea, para pegar en la celda B12 de la hoja «Asistente SAP» del Excel">Copiar para el asistente SAP</button>
         <button id="btnCopiarGamas" class="oculto">Copiar resumen de gamas</button>
+        <span id="estadoCopia" class="chip oculto"></span>
+      </div>
+      <div class="barra" style="justify-content:center;margin-top:14px">
+        <button id="btnCopiarNumCargo" title="Copiar el nº de cargo">Nº de cargo: <b id="numCargoAbajo">—</b> · copiar</button>
         <button class="primario" id="btnRegistrar">Registrar en el archivo de cargos</button>
         <button id="btnGuardar">Guardar en el archivo de datos</button>
-        <span id="estadoCopia" class="chip oculto"></span>
       </div>
     </div>
   </section>
@@ -91411,6 +91414,15 @@ window.addEventListener('pdfjs-listo', async ()=>{
     copiar(r.texto, r.sinObjetivo
       ? `Copiado. ${r.sinObjetivo} línea(s) sin importe se han dejado fuera.`
       : 'Copiado: pégalo en la celda B12 de la hoja Asistente SAP');
+  };
+  // El nº de cargo, repetido abajo para copiarlo de un clic al final del cuadre.
+  const pintarNumCargoAbajo = ()=>{ $('#numCargoAbajo').textContent = $('#fNumCargo').value.trim() || '—'; };
+  $('#fNumCargo').addEventListener('input', pintarNumCargoAbajo);
+  setInterval(pintarNumCargoAbajo, 1000);   // también cuando se rellena solo al leer el cargo
+  $('#btnCopiarNumCargo').onclick = ()=>{
+    const n = $('#fNumCargo').value.trim();
+    if(!n) return avisar('Todavía no hay nº de cargo.');
+    copiar(n, 'Nº de cargo copiado');
   };
   $('#btnGuardar').onclick = async ()=>{ recordarCliente();
     if(!await guardarDatos()) descargarDatos(); };

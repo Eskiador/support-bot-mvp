@@ -1689,3 +1689,10 @@ Las celdas C3 y F5 de la hoja mandan sobre estos valores, así que en una hoja y
 - Después de Mayús+F7 se esperan 350 ms antes de leer y luego se sondea cada 150 ms.
 - Después de Ctrl+Fin hay una espera fija de 400 ms más la pausa de F5 antes de teclear ZNET.
 - Lo que se pierde: ya no avisa de las posiciones del abono que vayan después de la última de la lista.
+
+## Registrar centrado y nº de cargo abajo
+
+Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la esquina, y el nº del cargo a mano al final para copiarlo rápido.
+- Registrar y Guardar pasan a una fila propia, centrada, debajo de los botones de copiar.
+- En esa fila hay un botón que enseña el nº de cargo y lo copia con un clic.
+- El número se actualiza al escribirlo y también cuando se rellena solo al leer el cargo (se comprueba cada segundo).
