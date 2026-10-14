@@ -91759,7 +91759,7 @@ const clavePdf = s => (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,
 // servir se salta y se apunta, en vez de colgar o tumbar el índice entero.
 const CARPETAS_A_LA_VEZ = 6;
 let ESPERA_CARPETA_MS = 20000;    // sin respuesta en 20 s, esa carpeta se salta
-const NIVELES_CARPETA = 4;         // no bajar hasta el infinito
+const NIVELES_CARPETA = 8;         // no bajar hasta el infinito (con 4 se quedaban fuera subcarpetas de OneDrive)
 
 function conLimite(promesa, ms){
   let t;

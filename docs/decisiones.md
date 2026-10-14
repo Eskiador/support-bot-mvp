@@ -1696,3 +1696,13 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Registrar y Guardar pasan a una fila propia, centrada, debajo de los botones de copiar.
 - En esa fila hay un botón que enseña el nº de cargo y lo copia con un clic.
 - El número se actualiza al escribirlo y también cuando se rellena solo al leer el cargo (se comprueba cada segundo).
+
+## PDF que están en la carpeta pero no aparecen
+
+**Problema.** Cargos de HIPER USERA (C/5300006069, C/5300008059) salían sin PDF aunque el archivo está en la carpeta con el nombre de siempre («HIPER USERA 5300006069.pdf»). El emparejado de nombres funciona: probado con ese nombre exacto. Quedan dos causas posibles:
+- El índice es anterior al PDF. El índice no se relee solo y este PDF se guardó el 08/09.
+- El índice solo bajaba 4 niveles de subcarpetas.
+
+**Decisión.**
+- El índice baja ahora hasta 8 niveles.
+- Para los PDF nuevos se sigue pulsando «Volver a leer la carpeta».
