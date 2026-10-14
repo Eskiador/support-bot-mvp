@@ -92089,10 +92089,25 @@ function engancharBuscarIndice(){
     const r = $('#resBuscarIndice');
     if(q.length < 3){ r.innerHTML = ''; return; }
     const hits = (E.indice || []).filter(e => norm(e.ruta).includes(q));
-    r.innerHTML = hits.length
+    // Y los cargos con ese número: con qué archivo enlazan, o por qué no.
+    if(!E.mapaDocs) E.mapaDocs = construirMapaDocs();
+    const cargos = Object.entries(E.memoria.cargos || {})
+      .filter(([, c]) => norm(c.asignacion || '').includes(q)).slice(0, 5);
+    const diag = cargos.map(([id, c]) => {
+      const d = buscarDoc(Object.assign({id}, c));
+      const cl = clavesDeAsignacion(c.asignacion).map(k => {
+        const cand = [...new Set(E.mapaDocs.get(k.clave) || [])];
+        return `${esc(k.clave)}${k.exigeCliente ? ' (exige cliente)' : ''}: ${cand.length} candidato(s)`+
+          (cand.length ? ' — ' + cand.slice(0, 3).map(f => esc(f.nombre) +
+            (clienteCoincide(f, c.cliente) ? ' ✓cliente' : ' ✗cliente')).join(', ') : '');
+      }).join(' · ');
+      return `<div>Cargo <b>${esc(c.asignacion)}</b> (${esc(c.cliente)}, asignación «${esc(JSON.stringify(c.asignacion))}»): `+
+        (d ? `enlaza con ${esc(d.ruta)}` : `<b>no enlaza</b>`) + `<br><span style="color:var(--muted)">${cl}</span></div>`;
+    }).join('');
+    r.innerHTML = diag + (hits.length
       ? hits.slice(0, 15).map(e => `<div class="archivo">${esc(e.ruta)}</div>`).join('') +
         (hits.length > 15 ? `<div>… y ${hits.length - 15} más</div>` : '')
-      : `<div>No está en el índice. Si el archivo existe en la carpeta, la lectura no ha llegado a él.</div>`;
+      : `<div>No está en el índice. Si el archivo existe en la carpeta, la lectura no ha llegado a él.</div>`);
   };
 }
 

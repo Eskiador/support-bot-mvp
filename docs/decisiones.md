@@ -1713,3 +1713,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - En la zona de la carpeta hay un buscador del índice (por número o nombre) que enseña la ruta guardada, o dice que no está.
 - Las carpetas que se saltaron en la última lectura quedan guardadas y se enseñan ahí mismo.
 - La espera por carpeta sube de 20 a 60 s, porque es una unidad de red.
+
+**Siguiente paso.** Con el buscador se vio que el PDF **sí está en el índice** («04 CARGOS REPARTIDOS/PABLO/HIPER USERA 5300006069.pdf»), pero la cola no lo enlaza. Con un índice de prueba con ese mismo nombre sí enlaza, así que el fallo depende de los datos reales. Ahora el buscador enseña también, para cada cargo cuya asignación contiene lo buscado:
+- si enlaza o no,
+- las claves con las que se busca,
+- los candidatos de cada clave y si coincide el cliente,
+- la asignación literal, para ver caracteres raros.
