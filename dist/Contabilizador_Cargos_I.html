@@ -90508,8 +90508,14 @@ function pintarCabecera(){
   const mem = E.memoria.clientes[clave];
   const chip = $('#chipMemoria');
   if(mem){
-    $('#fModo').value = mem.modo || $('#fModo').value;
-    if(mem.base) $('#fBase').value = mem.base;
+    // La memoria del cliente se aplica una vez, al llegar ese cliente. Antes
+    // se aplicaba en cada repintado y pisaba el modo que se acababa de elegir
+    // a mano en el desplegable: no había forma de cambiarlo.
+    if(E.memoriaAplicada !== clave){
+      $('#fModo').value = mem.modo || $('#fModo').value;
+      if(mem.base) $('#fBase').value = mem.base;
+      E.memoriaAplicada = clave;
+    }
     chip.className = 'chip ok';
     chip.textContent = `Memoria: ${mem.nombre} · ${etiquetaModo(mem.modo)} · ${mem.veces||1} cargo(s)`;
   } else {
@@ -90870,7 +90876,7 @@ function refrescar(){ pintarCabecera(); pintarLineas(); calcular(); }
 function limpiarCalculadora(){
   E.cargo = null; E.factura = null; E.filas = [];
   E.ultimaSalida = null; E.docCargo = null; E.ajuste = null; E.cargoAbierto = null;
-  E.fijado = null;
+  E.fijado = null; E.memoriaAplicada = null;
 
   ['fCliente','fNumCargo','fNumFactura','fFecha','fTotal'].forEach(id => $('#'+id).value = '');
   $('#fMarcaCalc').value = '';

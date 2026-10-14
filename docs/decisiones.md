@@ -1719,3 +1719,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - las claves con las que se busca,
 - los candidatos de cada clave y si coincide el cliente,
 - la asignación literal, para ver caracteres raros.
+
+## El modo por defecto no se podía cambiar
+
+**Problema.** Con un cliente que ya tenía un modo recordado (HIPER USERA: «Precio SAP − cargo»), elegir otro modo en el desplegable no hacía nada, y «Aplicar el modo a todas» tampoco. Cada cambio repintaba la cabecera, y el repintado volvía a poner el modo recordado del cliente encima del recién elegido.
+
+**Decisión.** La memoria del cliente se aplica una sola vez, al llegar ese cliente. Se vuelve a aplicar al vaciar la calculadora o al cambiar de cliente.

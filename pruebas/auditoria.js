@@ -983,6 +983,20 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(JSON.stringify(conserv) === '["A/a.pdf","HIPER USERA/HIPER USERA 5300006069.pdf"]',
        'se conservan los PDF ya conocidos de la carpeta saltada, y solo esos', JSON.stringify(conserv));
 
+  console.log('\n=== 5p-septies · El modo elegido a mano no lo pisa la memoria del cliente ===');
+  const modoMano = await pagina.evaluate(() => {
+    window.E.memoria.clientes['MEMO TEST'] = {nombre:'MEMO TEST', modo:'precio_ud', veces:3};
+    window.E.filas = [{fac:{pos:10, material:'1', desc:'X', cantidad:10, um:'UC', udsCaja:null, precio:1},
+      cargoIdx:-1, afectada:true, modo:'precio_ud', manual:null, objetivoForzado:null, base:null, netoPrueba:null, precioSap:null}];
+    const c = document.querySelector('#fCliente'); c.value = 'MEMO TEST'; c.dispatchEvent(new Event('change'));
+    const m = document.querySelector('#fModo'); m.value = 'importe'; m.dispatchEvent(new Event('change'));
+    const elegido = m.value;
+    document.querySelector('#btnAplicarModo').click();
+    return {elegido, linea: window.E.filas[0].modo};
+  });
+  dice(modoMano.elegido === 'importe' && modoMano.linea === 'importe',
+       'se puede cambiar el modo y aplicarlo a todas aunque el cliente tenga otro recordado', JSON.stringify(modoMano));
+
   console.log('\n=== 5p-sexies · Nº de cargo abajo y Registrar centrado ===');
   const abajo = await pagina.evaluate(async () => {
     document.querySelector('#fNumCargo').value = 'C/12345';
