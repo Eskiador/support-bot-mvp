@@ -3056,6 +3056,7 @@ async function releerCarpeta(){
     $('#btnReintentarCarpeta').onclick = () => releerCarpeta();
     return;
   }
+  rutas = conservarSaltadas(rutas, saltadas, E.memoria.pdfIndice);
   E.indice = rutas.map(entradaDeRuta);
   E.mapaDocs = null;
   E.memoria.pdfIndice = {carpeta: E.carpeta.name, fecha: new Date().toISOString(), rutas};
@@ -3069,6 +3070,20 @@ async function releerCarpeta(){
              `${saltadas.slice(0, 3).join(', ')}${saltadas.length > 3 ? '…' : ''}.`
            : `Queda guardado: la próxima vez es instantáneo.`), saltadas.length ? 12000 : 3200);
 }
+
+// Una carpeta que no contesta a tiempo (OneDrive) se salta; si además se
+// tiraba lo que ya había de ella, sus PDF desaparecían de la cola aunque
+// siguieran en el disco. Se conserva del índice anterior todo lo que cuelga
+// de las carpetas saltadas (y si la saltada es la raíz, el índice entero).
+function conservarSaltadas(rutas, saltadas, anterior){
+  if(!saltadas.length || !anterior || !Array.isArray(anterior.rutas)) return rutas;
+  const raiz = E.carpeta && E.carpeta.name;
+  const prefijos = saltadas.map(sx => sx === raiz ? '' : sx + '/');
+  const ya = new Set(rutas);
+  const extra = anterior.rutas.filter(r => !ya.has(r) && prefijos.some(p => r.startsWith(p)));
+  return rutas.concat(extra);
+}
+window.__conservarSaltadas = conservarSaltadas;
 
 // Carga el índice guardado sin tocar el disco.
 function cargarIndiceGuardado(){

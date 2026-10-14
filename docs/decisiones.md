@@ -1706,3 +1706,5 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 **Decisión.**
 - El índice baja ahora hasta 8 niveles.
 - Para los PDF nuevos se sigue pulsando «Volver a leer la carpeta».
+
+**Ampliación.** Los dos cargos de HIPER USERA tenían el PDF a la vista y lo perdieron justo después de pulsar «Volver a leer la carpeta». Lo más probable es que la carpeta de OneDrive no contestara a tiempo: la lectura se la saltó y el índice nuevo sustituyó al anterior sin esos PDF. Ahora, al releer, se conservan del índice anterior los PDF que cuelgan de las carpetas saltadas. Si la saltada es la raíz, se conserva el índice entero.

@@ -977,6 +977,12 @@ const dice = (bien, etiqueta, detalle='') => {
   // campo para escribir. Ahora se escribe ahí mismo. Se usa el modo «precio
   // por unidad», que sí necesita la cantidad para la propia diferencia (a
   // diferencia de «importe», ver 5p-quater más abajo).
+  console.log('\n=== 5s-bis · Releer no pierde los PDF de una carpeta que no contesta ===');
+  const conserv = await pagina.evaluate(() => window.__conservarSaltadas(
+    ['A/a.pdf'], ['HIPER USERA'], {rutas:['A/a.pdf','HIPER USERA/HIPER USERA 5300006069.pdf','B/b.pdf']}));
+  dice(JSON.stringify(conserv) === '["A/a.pdf","HIPER USERA/HIPER USERA 5300006069.pdf"]',
+       'se conservan los PDF ya conocidos de la carpeta saltada, y solo esos', JSON.stringify(conserv));
+
   console.log('\n=== 5p-sexies · Nº de cargo abajo y Registrar centrado ===');
   const abajo = await pagina.evaluate(async () => {
     document.querySelector('#fNumCargo').value = 'C/12345';
