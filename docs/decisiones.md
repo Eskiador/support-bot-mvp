@@ -1725,3 +1725,14 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 **Problema.** Con un cliente que ya tenía un modo recordado (HIPER USERA: «Precio SAP − cargo»), elegir otro modo en el desplegable no hacía nada, y «Aplicar el modo a todas» tampoco. Cada cambio repintaba la cabecera, y el repintado volvía a poner el modo recordado del cliente encima del recién elegido.
 
 **Decisión.** La memoria del cliente se aplica una sola vez, al llegar ese cliente. Se vuelve a aplicar al vaciar la calculadora o al cambiar de cliente.
+
+## Asistente: miles con punto y seguir donde se paró
+
+**Problema.**
+- En la posición 80, el ZNET definitivo fue de 1.936,78. Al corregirlo, la macro buscaba «1936,78», pero SAP lo enseña como «1.936,78» con punto de miles, así que no lo encontraba.
+- Además, después de una parada había que borrar todo y empezar de cero. Al volver a pulsar, la macro intentaba meter otro ZNET en una posición que ya lo tenía.
+
+**Decisión.**
+- Al comparar se quitan los puntos de miles. Se sigue comparando como texto, para que un «10,000» % no pase nunca por un ZNET de «10,00».
+- Hasta 3 intentos de corrección, en vez de 2. Con base en cajas el neto de prueba es pequeño y la primera medida es poco precisa.
+- **Seguir por donde se quedó.** Si la fila de la posición ya tiene «ZNET escrito», la macro lee el neto actual y corrige desde ahí. Si solo tiene «Neto de prueba», sigue desde el ZNET de prueba que ya está puesto. Para volver a empezar una posición desde cero hay que borrar esas celdas, o pulsar «Reiniciar estados».

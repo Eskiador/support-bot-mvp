@@ -558,8 +558,26 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     Dim znet As Double, fila As Long, paso As Double, intento As Long, t As Variant, actual As Double
 
     objetivo = Round(CDbl(ws.Cells(f, COL_OBJ).Value) + arrastre, 2)
-    ws.Cells(f, COL_NPRUEBA).ClearContents
-    ws.Cells(f, COL_ZNET).ClearContents
+
+    ' Si en la vuelta anterior se paro a medias en esta posicion, se sigue
+    ' por donde se quedo en vez de meter otro ZNET (SAP no admite dos):
+    '  - con ZNET escrito: se lee el neto actual y se corrige desde ahi;
+    '  - con solo el neto de prueba: el 10 de prueba ya esta puesto.
+    If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Then
+        actual = CDbl(ws.Cells(f, COL_ZNET).Value)
+        nFinal = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)
+        If Not ok Or nFinal <= 0 Then mMotivo = "no consigo leer el Neto para seguir": GoTo Mal
+        nPrueba = nFinal * prueba / actual
+        If EsNumeroPositivo(ws.Cells(f, COL_NPRUEBA).Value) Then nPrueba = CDbl(ws.Cells(f, COL_NPRUEBA).Value)
+        paso = nPrueba / prueba * 0.01
+        ws.Cells(f, COL_NFINAL).Value = nFinal
+        If Abs(nFinal - objetivo) <= paso / 2 + 0.015 Then GoTo Hecha
+        znet = Round(objetivo * actual / nFinal, 2)
+        GoTo Escribir
+    ElseIf EsNumeroPositivo(ws.Cells(f, COL_NPRUEBA).Value) Then
+        nPrueba = CDbl(ws.Cells(f, COL_NPRUEBA).Value)
+        GoTo Definitivo
+    End If
     ws.Cells(f, COL_NFINAL).ClearContents
 
     ' 1. Neto antes de tocar nada
@@ -585,11 +603,13 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     If nPrueba <= 0 Then mMotivo = "el Neto con el ZNET de prueba es " & nPrueba: GoTo Mal
     ws.Cells(f, COL_NPRUEBA).Value = nPrueba
 
-    ' 4. ZNET definitivo; si al leerlo no da, una correccion con la nueva medida
+    ' 4. ZNET definitivo; si al leerlo no da, se corrige con la nueva medida
+Definitivo:
     znet = Round(objetivo * prueba / nPrueba, 2)
     nFinal = nPrueba
     actual = prueba                         ' lo que pone ahora en la casilla del ZNET
-    For intento = 1 To 2
+Escribir:
+    For intento = 1 To 3
         If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
         fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
         If fila = 0 Then
@@ -610,7 +630,7 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
 
         paso = nPrueba / prueba * 0.01      ' lo que mueve un centimo de ZNET
         If Abs(nFinal - objetivo) <= paso / 2 + 0.015 Then Exit For
-        If intento = 2 Then
+        If intento = 3 Then
             mMotivo = "el Neto final (" & Format(nFinal, "0.00") & ") no da el importe (" & _
                       Format(objetivo, "0.00") & ") ni corrigiendo"
             GoTo Mal
@@ -618,6 +638,7 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
         znet = Round(objetivo * znet / nFinal, 2)
     Next intento
 
+Hecha:
     arrastre = Round(objetivo - nFinal, 2)
     MarcarFila ws, f, "OK " & Format(Now, "hh:mm:ss") & _
                IIf(Abs(arrastre) >= 0.005, "  (pasa " & Format(arrastre, "0.00") & " a la siguiente)", ""), True
@@ -857,6 +878,10 @@ Private Function FilaEsZnet(ByVal r As Long, ByVal buscado As String) As Boolean
     s = UCase$(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", ""))
     ' Lo leido se apunta, para poder decir que habia en cada fila si no aparece
     If Len(mLeidoTpCd) < 300 Then mLeidoTpCd = mLeidoTpCd & r & ":" & IIf(Len(s) = 0, "(vacio)", s) & " "
+    ' SAP escribe los miles con punto (1.936,78) y el valor buscado va sin
+    ' ellos (1936,78): se quitan antes de comparar. Se sigue comparando como
+    ' texto para que un 10,000 % (IVA) nunca pase por un ZNET de 10,00.
+    If mSep = "," Then s = Replace(s, ".", "") Else s = Replace(s, ",", "")
     FilaEsZnet = (s = buscado)
 End Function
 
@@ -1086,6 +1111,12 @@ End Function
 ' ------------------------------------------------------------------
 '  Varios
 ' ------------------------------------------------------------------
+Private Function EsNumeroPositivo(ByVal v As Variant) As Boolean
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    EsNumeroPositivo = (CDbl(v) > 0)
+End Function
+
 Private Function FilaDePosicion(ws As Worksheet, ByVal pos As String) As Long
     Dim f As Long
     For f = FILA_INI To FILA_INI + NUM_FILAS - 1
