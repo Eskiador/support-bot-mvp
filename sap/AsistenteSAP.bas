@@ -100,8 +100,10 @@ Private Const CAL_NETO_D As Long = 6
 Private Const CAL_IMP_I As Long = 7
 Private Const CAL_IMP_D As Long = 8
 Private Const CAL_IMP_2 As Long = 9
-Private Const CAL_N As Long = 10
-Private Const CAL_VERSION As Long = 10   ' "TPCD": los puntos 5-7 son la columna TpCd, no Importe
+Private Const CAL_N As Long = 11
+Private Const CAL_VERSION As Long = 10   ' "IMP2": puntos 5-7 en Importe con la tabla a la izquierda + punto 8
+Private Const CAL_FLECHA As Long = 11    ' flecha izquierda de la barra horizontal de la tabla
+Private Const VERSION_CAL As String = "IMP2"
 
 ' Tabla de posiciones
 Private Const FILA_CAB As Long = 11
@@ -296,8 +298,10 @@ Public Sub Calibrar()
     If MsgBox("Antes de empezar, en SAP:" & vbCrLf & _
               "  - Ventana en su sitio y con su tamano de siempre." & vbCrLf & _
               "  - Dentro de una posicion del abono, pestana Condiciones." & vbCrLf & _
-              "  - Tabla subida arriba del todo (Ctrl+Inicio), con ZTAR en la 1a fila." & vbCrLf & vbCrLf & _
-              "Te ire pidiendo 7 puntos. Para cada uno:" & vbCrLf & _
+              "  - Tabla subida arriba del todo (Ctrl+Inicio), con ZTAR en la 1a fila." & vbCrLf & _
+              "  - Tabla movida del todo a la IZQUIERDA: que se vea la columna Descripcion" & vbCrLf & _
+              "    (flecha de la barra de abajo de la tabla, hasta que no se mueva mas)." & vbCrLf & vbCrLf & _
+              "Te ire pidiendo 8 puntos. Para cada uno:" & vbCrLf & _
               "  1) pulsa Aceptar en el aviso," & vbCrLf & _
               "  2) DESPUES pon el raton encima del sitio en SAP (sin hacer clic)," & vbCrLf & _
               "  3) y pulsa la tecla Control. Oiras un pitido.", _
@@ -308,19 +312,22 @@ Public Sub Calibrar()
         "la casilla POSICION: su borde DERECHO, por dentro", _
         "la casilla NETO de arriba (la del 5,02): su borde IZQUIERDO, por dentro", _
         "la casilla NETO: su borde DERECHO, por dentro (antes de 'EUR')", _
-        "la columna TpCd de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro", _
-        "la columna TpCd de la 1a fila: borde DERECHO, por dentro", _
-        "la columna TpCd de la 2a fila (ZDC1): en el centro")
+        "la columna IMPORTE de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro", _
+        "la columna IMPORTE de la 1a fila: borde DERECHO, por dentro", _
+        "la columna IMPORTE de la 2a fila (ZDC1): en el centro", _
+        "la FLECHA IZQUIERDA de la barra de desplazamiento horizontal de la tabla (abajo a la izquierda, junto a la barra)")
 
-    For i = CAL_POS_I To CAL_IMP_2
-        If Not CapturarPunto("Punto " & (i - 2) & " de 7:" & vbCrLf & vbCrLf & _
-                             "Pulsa Aceptar. Luego pon el raton sobre " & que(i - 2) & _
+    For i = CAL_POS_I To CAL_FLECHA
+        If i > CAL_IMP_2 And i < CAL_FLECHA Then GoTo SiguientePunto
+        If Not CapturarPunto("Punto " & IIf(i = CAL_FLECHA, 8, i - 2) & " de 8:" & vbCrLf & vbCrLf & _
+                             "Pulsa Aceptar. Luego pon el raton sobre " & que(IIf(i = CAL_FLECHA, 8, i - 2)) & _
                              " y pulsa Control.", p(i), motivo) Then
-            MsgBox "Calibracion cancelada en el punto " & (i - 2) & ": " & motivo & "." & vbCrLf & _
+            MsgBox "Calibracion cancelada en el punto " & IIf(i = CAL_FLECHA, 8, i - 2) & ": " & motivo & "." & vbCrLf & _
                    "No se ha guardado nada; la calibracion anterior (si la habia) sigue valiendo.", _
                    vbExclamation, TITULO_MSG
             Exit Sub
         End If
+SiguientePunto:
     Next i
 
     ' Comprobaciones de sentido comun
@@ -342,7 +349,8 @@ Public Sub Calibrar()
     For i = CAL_POS_I To CAL_IMP_2
         ws.Range(COL_CAL & i).Value = (p(i).x - mRect.Izq) & ";" & (p(i).y - mRect.Arr)
     Next i
-    ws.Range(COL_CAL & CAL_VERSION).Value = "TPCD"
+    ws.Range(COL_CAL & CAL_FLECHA).Value = (p(CAL_FLECHA).x - mRect.Izq) & ";" & (p(CAL_FLECHA).y - mRect.Arr)
+    ws.Range(COL_CAL & CAL_VERSION).Value = VERSION_CAL
     PintarCalibracion ws
     SoltarTeclas
     ProbarLectura
@@ -405,9 +413,10 @@ Public Sub ProbarLectura()
     txt = "Posicion: [" & s & "]" & vbCrLf
     s = LeerCasilla(CAL_NETO_I, CAL_NETO_D, 0): If Len(s) = 0 Then vacias = vacias + 1
     txt = txt & "Neto: [" & s & "]" & vbCrLf
+    TablaAIzquierda
     For r = 1 To 3
         s = LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1): If Len(s) = 0 Then vacias = vacias + 1
-        txt = txt & "TpCd fila " & r & ": [" & s & "]" & vbCrLf
+        txt = txt & "Importe fila " & r & ": [" & s & "]" & vbCrLf
     Next r
 
     If Len(mMotivo) > 0 Then
@@ -719,9 +728,10 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     On Error GoTo 0
 
     If conCalibracion Then
-        If CStr(ws.Range(COL_CAL & CAL_VERSION).Value) <> "TPCD" Then
-            MsgBox "Hay que volver a calibrar: ahora los puntos 5, 6 y 7 son la columna TpCd " & _
-                   "(la de ZTAR, ZNET...), no la columna Importe.", vbExclamation, TITULO_MSG
+        If CStr(ws.Range(COL_CAL & CAL_VERSION).Value) <> VERSION_CAL Then
+            MsgBox "Hay que volver a calibrar: ahora son 8 puntos. Los 5, 6 y 7 en la columna " & _
+                   "IMPORTE con la tabla movida del todo a la izquierda (que se vea Descripcion), " & _
+                   "y el 8 en la flecha izquierda de la barra horizontal de la tabla.", vbExclamation, TITULO_MSG
             Exit Function
         End If
         If Len(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value)) = 0 Then
@@ -856,6 +866,10 @@ Private Function BuscarFilaZnet(ByVal buscado As String, ByVal maxFilas As Long)
     mLeidoTpCd = ""
     If Not EnfocarTabla() Then Exit Function
     If Not Pulsar("^{HOME}") Then Exit Function
+    ' La columna Importe cambia de sitio segun la tabla este desplazada de
+    ' lado o no (al tabular hasta "por" se esconde Descripcion). Se lleva
+    ' siempre del todo a la izquierda, que es como se calibro.
+    If Not TablaAIzquierda() Then Exit Function
     ' Primero la fila donde estaba en la posicion anterior: dentro de un
     ' mismo abono suele ser la misma, y asi no hay que leer fila a fila.
     If mFilaZnet > 0 And mFilaZnet <= maxFilas Then
@@ -870,10 +884,8 @@ Private Function BuscarFilaZnet(ByVal buscado As String, ByVal maxFilas As Long)
     Next r
 End Function
 
-' Se selecciona en la columna TpCd, que es fija (la tabla se desplaza de lado
-' al tabular). Al hacer clic ahi SAP pone el cursor en el Importe de esa
-' fila, y Ctrl+C copia ESE importe: se compara con el valor del ZNET. El
-' primero que coincide es el ZNET (los subtotales con ese valor van debajo).
+' Se lee la casilla Importe de la fila y se compara con el valor del ZNET.
+' El primero que coincide es el ZNET (los subtotales con ese valor van debajo).
 Private Function FilaEsZnet(ByVal r As Long, ByVal buscado As String) As Boolean
     Dim s As String
     s = UCase$(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, r - 1), " ", ""))
@@ -886,12 +898,12 @@ Private Function FilaEsZnet(ByVal r As Long, ByVal buscado As String) As Boolean
     FilaEsZnet = (s = buscado)
 End Function
 
-' Clic en el TpCd de esa fila, Tab a su Importe, selecciona lo que hay y escribe encima.
+' Clic en el Importe de esa fila, selecciona lo que hay y escribe encima.
 Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Boolean
     Dim a As PUNTO, b As PUNTO, i As Long
     a = PuntoCal(CAL_IMP_I, fila - 1)
     b = PuntoCal(CAL_IMP_D, fila - 1)
-    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function   ' TpCd: SAP pone el cursor en su Importe
+    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
     Sleep 30
     If Not Pulsar("{END}") Then Exit Function
     If Not Pulsar("+{HOME}") Then Exit Function
@@ -899,6 +911,26 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
         If Not Pulsar(Mid$(valor, i, 1)) Then Exit Function
     Next i
     EscribirEnFila = Pulsar("{ENTER}")
+End Function
+
+' Lleva la tabla del todo a la izquierda con la flecha de su barra horizontal
+' (varios clics: si ya esta a la izquierda, no hace nada). Son clics sobre la
+' barra, asi que no esperan el tiempo de doble clic.
+Private Function TablaAIzquierda() As Boolean
+    Dim p As PUNTO, i As Long
+    p = PuntoCal(CAL_FLECHA, 0)
+    For i = 1 To 4
+        If Not Seguir() Then Exit Function
+        MoverRaton p.x, p.y
+        Sleep 15
+        mouse_event RATON_ABAJO, 0, 0, 0, 0
+        Sleep 15
+        mouse_event RATON_ARRIBA, 0, 0, 0, 0
+        Sleep 60
+    Next i
+    mUltimoClic = 0                     ' que el siguiente clic no espere
+    Sleep mPausaCampo
+    TablaAIzquierda = True
 End Function
 
 ' Clic en la 1a fila de la tabla para que el cursor este en ella (no escribe nada).

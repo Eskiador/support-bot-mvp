@@ -1771,3 +1771,12 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 **Problema.** Desde que cada lectura alternaba el sentido del arrastre, la mitad de las lecturas de la tabla empezaban en el borde derecho de TpCd. Ese punto a veces cae ya en la columna de al lado, y SAP dejaba el cursor en otra casilla (se vio en Moneda), así que no encontraba el ZNET.
 
 **Decisión.** Se arrastra siempre de izquierda a derecha, que es como funcionaba. Para que dos lecturas seguidas no cuenten como doble clic, cada una va 4 píxeles más arriba o más abajo que la anterior, dentro de la misma fila o casilla.
+
+## Asistente: la tabla se desplaza de lado
+
+**Lo que se aclaró.** Pablo siempre calibraba los puntos 5 a 7 en la columna **Importe**, no en TpCd. La explicación anterior («clic en TpCd copia el Importe») era falsa. El fallo de verdad es que la tabla de condiciones se desplaza de lado: al tabular hasta «por», la columna Descripción se esconde y la columna Importe se mueve a la izquierda. Con la calibración hecha con Descripción a la vista, la macro leía Moneda o «por».
+
+**Decisión.**
+- La calibración pasa a tener 8 puntos. Los puntos 5 a 7 van en Importe, con la tabla del todo a la izquierda (Descripción a la vista). El punto 8 es la flecha izquierda de la barra horizontal de la tabla.
+- Antes de leer o escribir en la tabla, la macro pulsa esa flecha 4 veces, para que la tabla quede siempre como se calibró.
+- Una calibración antigua no se acepta: la macro pide volver a calibrar.
