@@ -1780,3 +1780,12 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - La calibración pasa a tener 8 puntos. Los puntos 5 a 7 van en Importe, con la tabla del todo a la izquierda (Descripción a la vista). El punto 8 es la flecha izquierda de la barra horizontal de la tabla.
 - Antes de leer o escribir en la tabla, la macro pulsa esa flecha 4 veces, para que la tabla quede siempre como se calibró.
 - Una calibración antigua no se acepta: la macro pide volver a calibrar.
+
+## Asistente: fuera la flecha, se calibra como estaba
+
+**Problema.** Con la flecha de la barra horizontal, de vez en cuando la macro hacía clic arriba, cerca de Grabar, y se quedaba leyendo el Neto sin avanzar. Además iba más lenta. Pablo pidió volver a como funcionaba antes.
+
+**Decisión.**
+- Se quita la flecha. La calibración vuelve a 7 puntos.
+- Los puntos 5 a 7 se marcan en la columna Importe con la tabla **como la deja la macro al poner el ZNET**: con Descripción escondida. Es justo el estado en que la macro lee la tabla, y así fue la calibración con la que salió bien el abono de 7 posiciones.
+- La marca de versión cambia a IMP3, así que hay que volver a calibrar.
