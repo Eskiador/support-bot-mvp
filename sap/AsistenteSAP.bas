@@ -567,21 +567,43 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     ' por donde se quedo en vez de meter otro ZNET (SAP no admite dos):
     '  - con ZNET escrito: se lee el neto actual y se corrige desde ahi;
     '  - con solo el neto de prueba: el 10 de prueba ya esta puesto.
-    If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Then
-        actual = CDbl(ws.Cells(f, COL_ZNET).Value)
+    '  Antes se comprueba que ese ZNET sigue en SAP: se busca con el valor
+    '  escrito y, si no, con el de prueba. Si no esta ninguno, es que se ha
+    '  borrado a mano en SAP: la posicion se hace desde cero.
+    If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Or EsNumeroPositivo(ws.Cells(f, COL_NPRUEBA).Value) Then
+        actual = prueba
+        fila = 0
+        If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Then
+            actual = CDbl(ws.Cells(f, COL_ZNET).Value)
+            fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
+            If Len(mMotivo) > 0 Then GoTo Mal
+        End If
+        If fila = 0 And actual <> prueba Then actual = prueba
+        If fila = 0 Then
+            fila = BuscarFilaZnet(ImporteTexto(prueba), maxFilas)
+            If Len(mMotivo) > 0 Then GoTo Mal
+        End If
+        If fila = 0 Then
+            ws.Cells(f, COL_NPRUEBA).ClearContents
+            ws.Cells(f, COL_ZNET).ClearContents
+            GoTo DesdeCero
+        End If
         nFinal = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)
         If Not ok Or nFinal <= 0 Then mMotivo = "no consigo leer el Neto para seguir": GoTo Mal
+        If actual = prueba Then
+            ' Esta el ZNET de prueba: el neto de ahora es la medida buena
+            nPrueba = nFinal
+            ws.Cells(f, COL_NPRUEBA).Value = nPrueba
+            GoTo Definitivo
+        End If
         nPrueba = nFinal * prueba / actual
-        If EsNumeroPositivo(ws.Cells(f, COL_NPRUEBA).Value) Then nPrueba = CDbl(ws.Cells(f, COL_NPRUEBA).Value)
         paso = nPrueba / prueba * 0.01
         ws.Cells(f, COL_NFINAL).Value = nFinal
         If Abs(nFinal - objetivo) <= paso / 2 + 0.015 Then GoTo Hecha
         znet = Round(objetivo * actual / nFinal, 2)
         GoTo Escribir
-    ElseIf EsNumeroPositivo(ws.Cells(f, COL_NPRUEBA).Value) Then
-        nPrueba = CDbl(ws.Cells(f, COL_NPRUEBA).Value)
-        GoTo Definitivo
     End If
+DesdeCero:
     ws.Cells(f, COL_NFINAL).ClearContents
 
     ' 1. Neto antes de tocar nada
@@ -616,6 +638,17 @@ Escribir:
     For intento = 1 To 3
         If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
         fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
+        If fila = 0 And Len(mMotivo) = 0 And actual <> prueba Then
+            ' El definitivo no llego a la casilla: el ZNET sigue con el de prueba.
+            ' Se vuelve a medir con el y se escribe otra vez.
+            fila = BuscarFilaZnet(ImporteTexto(prueba), maxFilas)
+            If fila > 0 Then
+                nFinal = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)
+                If Not ok Or nFinal <= 0 Then mMotivo = "no consigo leer el Neto": GoTo Mal
+                actual = prueba
+                znet = Round(objetivo * prueba / nFinal, 2)
+            End If
+        End If
         If fila = 0 Then
             If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila con el ZNET " & ImporteTexto(actual) & ". He leido: " & mLeidoTpCd
             GoTo Mal
@@ -891,7 +924,7 @@ End Function
 
 ' Clic en el Importe de esa fila, selecciona lo que hay y escribe encima.
 Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Boolean
-    Dim a As PUNTO, b As PUNTO, i As Long
+    Dim a As PUNTO, b As PUNTO, i As Long, s As String
     a = PuntoCal(CAL_IMP_I, fila - 1)
     b = PuntoCal(CAL_IMP_D, fila - 1)
     If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
@@ -901,6 +934,15 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
     For i = 1 To Len(valor)
         If Not Pulsar(Mid$(valor, i, 1)) Then Exit Function
     Next i
+    ' Antes de Intro se comprueba que lo escrito esta en esa casilla. Si no,
+    ' ha caido en otro sitio y no se confirma: se para para revisarlo.
+    s = Replace(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, fila - 1), " ", ""), IIf(mSep = ",", ".", ","), "")
+    If Len(mMotivo) > 0 Then Exit Function
+    If s <> valor Then
+        mMotivo = "lo escrito (" & valor & ") no ha caido en la casilla del ZNET (alli pone '" & s & _
+                  "'). NO se ha pulsado Intro: revisa esa posicion en SAP"
+        Exit Function
+    End If
     EscribirEnFila = Pulsar("{ENTER}")
 End Function
 

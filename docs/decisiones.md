@@ -1789,3 +1789,12 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Se quita la flecha. La calibración vuelve a 7 puntos.
 - Los puntos 5 a 7 se marcan en la columna Importe con la tabla **como la deja la macro al poner el ZNET**: con Descripción escondida. Es justo el estado en que la macro lee la tabla, y así fue la calibración con la que salió bien el abono de 7 posiciones.
 - La marca de versión cambia a IMP3, así que hay que volver a calibrar.
+
+## Asistente: no perder la posición si el ZNET definitivo no cae en su casilla
+
+**Problema.** En la posición 170, el ZNET definitivo (50,87) no llegó a la casilla del ZNET y el neto quedó en 289,11. Al darle a seguir, la macro buscaba «50,87» y no lo encontraba. Cuando Pablo borró el ZNET en SAP para empezar de nuevo, la macro seguía buscándolo, porque la hoja aún tenía apuntado el ZNET escrito.
+
+**Decisión.**
+- **Antes de Intro**, la macro lee la casilla y comprueba que lo que ha tecleado está ahí. Si no está, no pulsa Intro y se para diciendo qué hay en la casilla, para no confirmar un valor en otra condición.
+- **Al corregir**, si no encuentra el ZNET escrito pero sí el de prueba (10,00), entiende que el definitivo no llegó: vuelve a medir y lo escribe otra vez.
+- **Al seguir** después de una parada, primero comprueba que el ZNET sigue en SAP, buscando el escrito y, si no, el de prueba. Si no encuentra ninguno, es que se ha borrado a mano: limpia esa fila de la hoja y hace la posición desde cero.
