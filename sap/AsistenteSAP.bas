@@ -653,8 +653,10 @@ Escribir:
             If Len(mMotivo) = 0 Then mMotivo = "no encuentro la fila con el ZNET " & ImporteTexto(actual) & ". He leido: " & mLeidoTpCd
             GoTo Mal
         End If
-        If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
+        ' Se apunta antes de escribir: si se para a mitad, al seguir sabe que
+        ' valor buscar en la casilla.
         ws.Cells(f, COL_ZNET).Value = znet
+        If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
         actual = znet
 
         nFinal = EsperarNetoDistinto(nFinal, espera, ok)
@@ -799,6 +801,10 @@ Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas
     a = PuntoCal(nIzq, filas)
     b = PuntoCal(nDer, filas)
     b.y = a.y
+    ' El arrastre acaba 12 px mas alla del borde calibrado: con la cifra pegada
+    ' al borde derecho (50,87) se quedaba fuera el ultimo digito y se leia
+    ' "50,8". La seleccion no sale de la casilla donde empieza.
+    b.x = b.x + 12
     SoltarTeclas
     For intento = 1 To 2
         If Not Seguir() Then Exit Function
@@ -938,9 +944,11 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
     ' ha caido en otro sitio y no se confirma: se para para revisarlo.
     s = Replace(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, fila - 1), " ", ""), IIf(mSep = ",", ".", ","), "")
     If Len(mMotivo) > 0 Then Exit Function
-    If s <> valor Then
+    ' Si solo falta el ultimo digito es la lectura, no lo escrito.
+    If s <> valor And Not (Len(s) = Len(valor) - 1 And Len(s) >= 3 And Left$(valor, Len(s)) = s) Then
         mMotivo = "lo escrito (" & valor & ") no ha caido en la casilla del ZNET (alli pone '" & s & _
-                  "'). NO se ha pulsado Intro: revisa esa posicion en SAP"
+                  "'). NO se ha pulsado Intro: revisa esa posicion en SAP; si el numero esta bien, " & _
+                  "pulsa Intro en SAP y vuelve a darle a 'Hacer todas las posiciones'"
         Exit Function
     End If
     EscribirEnFila = Pulsar("{ENTER}")

@@ -1798,3 +1798,8 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - **Antes de Intro**, la macro lee la casilla y comprueba que lo que ha tecleado está ahí. Si no está, no pulsa Intro y se para diciendo qué hay en la casilla, para no confirmar un valor en otra condición.
 - **Al corregir**, si no encuentra el ZNET escrito pero sí el de prueba (10,00), entiende que el definitivo no llegó: vuelve a medir y lo escribe otra vez.
 - **Al seguir** después de una parada, primero comprueba que el ZNET sigue en SAP, buscando el escrito y, si no, el de prueba. Si no encuentra ninguno, es que se ha borrado a mano: limpia esa fila de la hoja y hace la posición desde cero.
+
+**Ampliación.** La comprobación de antes de Intro paró en falso: la casilla ponía 50,87, pero se leyó «50,8». El último dígito está pegado al borde derecho y el arrastre acababa justo antes.
+- Las lecturas arrastran ahora 12 px más allá del borde calibrado. La selección no sale de la casilla donde empieza.
+- Si a lo leído solo le falta el último dígito, se da por bueno.
+- El ZNET definitivo se apunta en la hoja antes de escribirlo. Así, si se para, al seguir sabe qué buscar y no mete un segundo ZNET.
