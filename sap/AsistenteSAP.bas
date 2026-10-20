@@ -757,25 +757,26 @@ End Function
 
 ' Selecciona con el raton de izquierda a derecha y copia. Devuelve el texto.
 Private Function LeerCasilla(ByVal nIzq As Long, ByVal nDer As Long, ByVal filas As Long) As String
-    Dim a As PUNTO, b As PUNTO, i As Long, x As Long, s As String, intento As Long
+    Dim a As PUNTO, b As PUNTO, i As Long, x As Long, y As Long, s As String, intento As Long
     a = PuntoCal(nIzq, filas)
     b = PuntoCal(nDer, filas)
     b.y = a.y
     SoltarTeclas
     For intento = 1 To 2
         If Not Seguir() Then Exit Function
-        ' Cada lectura arrastra en sentido contrario a la anterior: asi el
-        ' boton nunca se pulsa dos veces seguidas en el mismo punto, que
-        ' Windows tomaria por doble clic y habria que esperar medio segundo.
+        ' Siempre de izquierda a derecha: empezar por el borde derecho caia a
+        ' veces en la columna de al lado y se leia otra casilla. Para que dos
+        ' lecturas seguidas no sean un doble clic (y no haya que esperar medio
+        ' segundo), cada una va 4 pixeles mas arriba o mas abajo que la anterior.
         mAlReves = Not mAlReves
-        x = a.x: a.x = b.x: b.x = x
+        y = a.y + IIf(mAlReves, 4, -4)
         VaciarPortapapeles
-        MoverRaton a.x, a.y
+        MoverRaton a.x, y
         Sleep 10
         PulsarBoton
         For i = 1 To 3
             x = a.x + (b.x - a.x) * i \ 3
-            MoverRaton x, a.y
+            MoverRaton x, y
             Sleep 10
         Next i
         mouse_event RATON_ARRIBA, 0, 0, 0, 0

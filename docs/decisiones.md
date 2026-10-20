@@ -1765,3 +1765,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Datos nuevos en el cargo: `recordatorios` (fechas), `respuesta` {tipo, fecha} y `respuestasAnteriores`. Se usa el `fechaReclamacion` de siempre.
 - Hoja **«No conformes»** en Cargos_I.xlsx con las mismas columnas, para la jefa.
 - Prueba: auditoría 5t.
+
+## Asistente: leía la columna de al lado
+
+**Problema.** Desde que cada lectura alternaba el sentido del arrastre, la mitad de las lecturas de la tabla empezaban en el borde derecho de TpCd. Ese punto a veces cae ya en la columna de al lado, y SAP dejaba el cursor en otra casilla (se vio en Moneda), así que no encontraba el ZNET.
+
+**Decisión.** Se arrastra siempre de izquierda a derecha, que es como funcionaba. Para que dos lecturas seguidas no cuenten como doble clic, cada una va 4 píxeles más arriba o más abajo que la anterior, dentro de la misma fila o casilla.
