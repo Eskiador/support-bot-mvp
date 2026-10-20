@@ -149,6 +149,8 @@ code.zaju{font-family:ui-monospace,Consolas,monospace;background:var(--azul-clar
 .pill.verde{background:var(--verde-claro);color:var(--verde-txt)}
 .pill.ambar{background:var(--ambar-claro);color:var(--ambar-txt)}
 .pill.rojo{background:var(--rojo-claro);color:var(--rojo-txt)}
+#tablaNC td,#tablaNC th{padding-left:7px;padding-right:7px}
+#tablaNC input[type=date]{width:122px;padding:4px 6px}
 /* casillas que se cambian con un clic en la propia tabla */
 .pill.tog{cursor:pointer;border:1px solid transparent}
 .pill.tog:hover{filter:brightness(0.94);border-color:currentColor}
@@ -204,6 +206,7 @@ try{
     <button class="pest activa" data-vista="cargos">Cola de cargos <span class="cuenta" id="cnPend">0</span></button>
     <button class="pest" data-vista="calc">Calculadora</button>
     <button class="pest" data-vista="comerciales">Comerciales</button>
+    <button class="pest" data-vista="nc" title="Seguimiento de los no conformes que siguen abiertos">No conformes <span class="cuenta" id="cnNC">0</span></button>
   </nav>
   <div class="crece"></div>
   <span class="chip" id="chipExcel">Excel: sin conectar</span>
@@ -368,6 +371,40 @@ try{
         <div class="tablaenv" style="margin-top:10px">
           <table id="tablaCom">
             <thead><tr><th>Cliente</th><th>Marca</th><th>Comercial</th><th>Correo</th><th>Notas</th><th class="n">Cargos</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ====================== SEGUIMIENTO NO CONFORMES ====================== -->
+  <div id="vistaNC" class="oculto">
+    <section>
+      <div class="cab"><span class="paso">!</span><h2>Seguimiento de los no conformes</h2>
+        <div class="crece"></div>
+        <span class="chip" id="chipNC"></span>
+      </div>
+      <div class="cuerpo">
+        <p class="pista">Todos los cargos <b>no conformes que no están cerrados</b>. Al cerrar un cargo
+          sale de aquí (su historial se queda guardado). Se marca en rojo lo que lleva más de
+          <b>7 días</b> sin movimiento: sin reclamar, o reclamado y sin respuesta. Esto mismo va en la
+          hoja «No conformes» del Excel.</p>
+        <div class="marcador" id="contadoresNC" style="grid-template-columns:repeat(5,1fr)"></div>
+        <div class="filtros" style="margin-top:14px">
+          <input id="ncBuscar" placeholder="Buscar cliente, asignación, comercial…" style="min-width:280px">
+          <select id="ncSituacion">
+            <option value="">Todas las situaciones</option>
+            <option value="sin_reclamar">Sin reclamar</option>
+            <option value="esperando">Reclamado, sin respuesta</option>
+            <option value="revisa">Lo revisa con el cliente</option>
+            <option value="aviso">Solo los que llevan +7 días</option>
+          </select>
+        </div>
+        <div class="tablaenv" style="margin-top:10px">
+          <table id="tablaNC">
+            <thead><tr><th>Cargo</th><th class="n">Importe</th><th>Comercial</th><th>Situación</th>
+              <th>1ª reclamación</th><th>Recordatorios</th><th>Respuesta del comercial</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -2362,6 +2399,7 @@ window.addEventListener('pdfjs-listo', async ()=>{
 
   // --- pestañas ---
   $$('.pest').forEach(b => b.onclick = ()=>cambiarVista(b.dataset.vista));
+  engancharNC();
 
   // --- listado de cargos ---
   montarZona($('#zonaListado'));
@@ -3382,6 +3420,7 @@ function pintarCola(){
   // un reclamado con abono sigue siendo un abono por compensar
   const sinCompensar = todos.filter(c=>c.abono && !c.cerrado && !c.compensado).length;
   $('#cnPend').textContent = cuenta('pendiente');
+  $('#cnNC').textContent = todos.filter(esNCAbierto).length;
   $('#contadores').innerHTML = `
     <div class="dato"><div class="et">Pendientes</div><div class="vl">${cuenta('pendiente')}</div></div>
     <div class="dato"><div class="et">En curso</div><div class="vl">${cuenta('en curso')}</div></div>
@@ -3760,6 +3799,173 @@ Gracias.`;
   return {asunto, cuerpo, para: com && com.correo ? com.correo : ''};
 }
 
+/* ==================================================================
+   SEGUIMIENTO DE NO CONFORMES
+   Lo que se apunta de cada no conforme abierto: la 1ª reclamación
+   (fechaReclamacion, la de siempre), cada recordatorio (recordatorios: lista
+   de fechas) y la respuesta del comercial (respuesta: {tipo, fecha}). Cerrar
+   el cargo lo saca del seguimiento; el historial se queda en el cargo.
+   ================================================================== */
+const DIAS_AVISO_NC = 7;
+const RESPUESTAS_NC = {revisa: 'Lo revisa con el cliente'};
+const SITUACIONES_NC = {
+  sin_reclamar: {et:'Sin reclamar',              pill:'rojo'},
+  esperando:    {et:'Reclamado, sin respuesta',  pill:'ambar'},
+  revisa:       {et:'Lo revisa con el cliente',  pill:'azul'}
+};
+const esNCAbierto = c => c.conforme === false && !c.cerrado;
+
+function seguimientoNC(c){
+  const recs = Array.isArray(c.recordatorios) ? c.recordatorios : [];
+  const ultimaRec = recs.length ? recs[recs.length - 1] : (c.fechaReclamacion || '');
+  const resp = c.respuesta && c.respuesta.fecha ? c.respuesta : null;
+  let situacion, desde;
+  if(!c.reclamado){ situacion = 'sin_reclamar'; desde = c.fecha || ''; }
+  // Un recordatorio posterior a la respuesta vuelve a dejarlo esperando.
+  else if(resp && resp.fecha >= ultimaRec){ situacion = 'revisa'; desde = resp.fecha; }
+  else { situacion = 'esperando'; desde = ultimaRec; }
+  const dias = diasDesde(desde);
+  return {situacion, desde, dias, ultimaRec, recs, resp,
+          aviso: dias != null && dias > DIAS_AVISO_NC};
+}
+
+// Reclamar: la primera vez marca el cargo como reclamado; las siguientes
+// apuntan un recordatorio con la fecha de hoy.
+function reclamarNC(id){
+  const c = E.memoria.cargos[id]; if(!c) return;
+  if(!c.reclamado){
+    c.reclamado = true;
+    if(!c.fechaReclamacion) c.fechaReclamacion = HOY();
+    registrar('nc_reclamado', {id, cliente:c.cliente, asignacion:c.asignacion});
+  } else {
+    c.recordatorios = (c.recordatorios || []).concat(HOY());
+    // Volver a reclamar es que la respuesta anterior ya no vale: pasa al
+    // historial y el cargo vuelve a quedar esperando respuesta.
+    if(c.respuesta){
+      c.respuestasAnteriores = (c.respuestasAnteriores || []).concat(c.respuesta);
+      c.respuesta = null;
+    }
+    registrar('nc_recordatorio', {id, cliente:c.cliente, asignacion:c.asignacion,
+                                  n:c.recordatorios.length});
+  }
+  recalcularEstado(c); guardarPronto(); pintarNC();
+}
+
+function quitarRecordatorioNC(id){
+  const c = E.memoria.cargos[id]; if(!c || !(c.recordatorios || []).length) return;
+  if(!confirm(`¿Quitar el último recordatorio (${fechaCorta(c.recordatorios[c.recordatorios.length-1])})?`)) return;
+  c.recordatorios = c.recordatorios.slice(0, -1);
+  registrar('nc_recordatorio_quitado', {id, cliente:c.cliente, asignacion:c.asignacion});
+  guardarPronto(); pintarNC();
+}
+
+function respuestaNC(id, tipo){
+  const c = E.memoria.cargos[id]; if(!c) return;
+  if(!c.reclamado) return avisar('Primero hay que reclamarlo al comercial.');
+  c.respuesta = tipo ? {tipo, fecha: HOY()} : null;
+  registrar('nc_respuesta', {id, cliente:c.cliente, asignacion:c.asignacion, respuesta: tipo || 'quitada'});
+  guardarPronto(); pintarNC();
+}
+
+function fechaNC(id, campo, valor){
+  const c = E.memoria.cargos[id]; if(!c) return;
+  if(campo === 'reclamacion'){
+    c.fechaReclamacion = valor || '';
+    if(valor && !c.reclamado) c.reclamado = true;
+    recalcularEstado(c);
+  } else if(campo === 'respuesta' && c.respuesta){
+    c.respuesta.fecha = valor || c.respuesta.fecha;
+  }
+  registrar('nc_fecha', {id, cliente:c.cliente, asignacion:c.asignacion, campo, valor});
+  guardarPronto(); pintarNC();
+}
+
+function listaNC(){
+  return Object.entries(E.memoria.cargos || {})
+    .map(([id, c]) => { recalcularEstado(c); return Object.assign({id}, c); })
+    .filter(esNCAbierto)
+    .map(c => Object.assign(c, {seg: seguimientoNC(c), com: comercialDe(c.cliente, c.marca)}))
+    // lo que más tiempo lleva parado, primero
+    .sort((a, b) => (b.seg.dias ?? -1) - (a.seg.dias ?? -1));
+}
+
+function pintarNC(){
+  const todos = listaNC();
+  $('#cnNC').textContent = todos.length;
+  const n = k => todos.filter(c => c.seg.situacion === k).length;
+  const avisos = todos.filter(c => c.seg.aviso).length;
+  const importe = todos.reduce((a, c) => a + Math.abs(+c.importe || 0), 0);
+  $('#contadoresNC').innerHTML = `
+    <div class="dato"><div class="et">No conformes abiertos</div><div class="vl">${todos.length}</div></div>
+    <div class="dato"><div class="et">Sin reclamar</div><div class="vl" style="color:${n('sin_reclamar')?'var(--rojo)':'inherit'}">${n('sin_reclamar')}</div></div>
+    <div class="dato"><div class="et">Reclamados sin respuesta</div><div class="vl">${n('esperando')}</div></div>
+    <div class="dato"><div class="et">Lo revisa con el cliente</div><div class="vl">${n('revisa')}</div></div>
+    <div class="dato"><div class="et" title="Importe total de los no conformes abiertos">Importe en juego</div><div class="vl">${eur(importe)}</div></div>`;
+  $('#chipNC').className = 'chip ' + (avisos ? 'no' : 'ok');
+  $('#chipNC').textContent = avisos ? `${avisos} con más de ${DIAS_AVISO_NC} días sin movimiento` : 'Todo al día';
+
+  const q = norm($('#ncBuscar').value || ''), sit = $('#ncSituacion').value;
+  const lista = todos.filter(c =>
+    (!sit || (sit === 'aviso' ? c.seg.aviso : c.seg.situacion === sit)) &&
+    (!q || norm([c.cliente, c.asignacion, c.com?.nombre, c.com?.correo, c.abono].join(' ')).includes(q)));
+
+  const tb = $('#tablaNC tbody');
+  tb.innerHTML = lista.length ? '' : `<tr><td colspan="8" style="color:var(--muted)">${todos.length
+      ? 'Ninguno con ese filtro.' : 'No hay no conformes abiertos.'}</td></tr>`;
+  for(const c of lista){
+    const s = c.seg, sit = SITUACIONES_NC[s.situacion];
+    const tr = document.createElement('tr');
+    if(s.aviso) tr.style.background = 'var(--rojo-claro, rgba(220,60,60,.12))';
+    const desdeQue = s.situacion === 'sin_reclamar' ? 'sin reclamar'
+                   : (s.situacion === 'revisa' ? 'desde la respuesta' : 'sin respuesta');
+    tr.innerHTML = `
+      <td><b>${esc(c.asignacion)}</b><br><span style="font-size:12px;color:var(--muted)">${esc(c.cliente)} · ${fechaCorta(c.fecha)}</span></td>
+      <td class="n">${eur(Math.abs(+c.importe || 0))}<br><span style="font-size:12px;color:var(--muted)">${esc(c.marca || '')}</span></td>
+      <td>${c.com ? esc(c.com.nombre || c.com.correo || '') : '<span style="color:var(--muted)">—</span>'}</td>
+      <td><span class="pill ${sit.pill}">${sit.et}</span><br>
+          <span style="font-size:12px;${s.aviso ? 'color:var(--rojo-txt);font-weight:650' : 'color:var(--muted)'}">${s.dias != null ? s.dias + ' días ' + desdeQue : ''}</span></td>
+      <td><input type="date" data-nc-fecha="reclamacion" data-id="${c.id}" value="${esc(c.fechaReclamacion || '')}" ></td>
+      <td>${s.recs.length
+          ? `${s.recs.length} · ${fechaCorta(s.recs[s.recs.length-1])} <button class="mini" data-nc-quitarrec="${c.id}" title="Quitar el último recordatorio">×</button>`
+          : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${s.resp
+          ? `${esc(RESPUESTAS_NC[s.resp.tipo] || s.resp.tipo)} <button class="mini" data-nc-resp="" data-id="${c.id}" title="Quitar la respuesta">×</button><br>
+             <input type="date" data-nc-fecha="respuesta" data-id="${c.id}" value="${esc(s.resp.fecha)}" >`
+          : (c.reclamado ? `<button class="mini" data-nc-resp="revisa" data-id="${c.id}">Lo revisa con el cliente</button>` : '<span style="color:var(--muted)">—</span>')}</td>
+      <td><div style="display:grid;grid-template-columns:auto auto;gap:4px">
+        <button class="mini" data-nc-reclamar="${c.id}" title="${c.reclamado ? 'Apuntar un recordatorio con la fecha de hoy' : 'Marcar como reclamado hoy'}">${c.reclamado ? 'Recordatorio' : 'Reclamado'}</button>
+        <button class="mini" data-nc-correo="${c.id}" title="Abrir el correo de reclamación al comercial">Correo</button>
+        <button class="mini" data-nc-ficha="${c.id}">Ficha</button>
+        <button class="mini" data-nc-cerrar="${c.id}" title="Cerrar el cargo: sale del seguimiento">Cerrar</button>
+      </div></td>`;
+    tb.appendChild(tr);
+  }
+}
+
+function engancharNC(){
+  $('#ncBuscar').addEventListener('input', pintarNC);
+  $('#ncSituacion').addEventListener('change', pintarNC);
+  $('#tablaNC').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    const d = b.dataset;
+    if(d.ncReclamar) reclamarNC(d.ncReclamar);
+    else if(d.ncQuitarrec) quitarRecordatorioNC(d.ncQuitarrec);
+    else if(d.ncResp !== undefined) respuestaNC(d.id, d.ncResp || null);
+    else if(d.ncCorreo) abrirCorreo(Object.assign({id:d.ncCorreo}, E.memoria.cargos[d.ncCorreo]));
+    else if(d.ncFicha){ cambiarVista('cargos'); abrirFicha(d.ncFicha); }
+    else if(d.ncCerrar){
+      const c = E.memoria.cargos[d.ncCerrar];
+      if(c && !c.cerrado && confirm(`¿Cerrar el cargo ${c.asignacion} (${c.cliente})? Sale del seguimiento.`)){
+        alternarCasilla(d.ncCerrar, 'cerrado'); pintarNC();
+      }
+    }
+  });
+  $('#tablaNC').addEventListener('change', e => {
+    const i = e.target; if(!i.dataset.ncFecha) return;
+    fechaNC(i.dataset.id, i.dataset.ncFecha, i.value);
+  });
+}
+
 function abrirCorreo(c){
   const {asunto, cuerpo, para} = textoCorreo(c);
   if(!para){
@@ -4068,8 +4274,23 @@ function hojasDelLibro(){
     ]);
   }
 
+  const nc = [[CAB('Fecha cargo'), CAB('Cliente'), CAB('Asignación'), CAB('Importe'), CAB('Marca'),
+               CAB('Comercial'), CAB('Situación'), CAB('1ª reclamación'), CAB('Nº recordatorios'),
+               CAB('Última reclamación'), CAB('Respuesta del comercial'), CAB('Fecha respuesta'),
+               CAB('Días sin movimiento'), CAB('Aviso'), CAB('Nº abono'), CAB('Nota')]];
+  for(const c of listaNC()){
+    const s = c.seg;
+    nc.push([fechaCorta(c.fecha), c.cliente, c.asignacion, {v:Math.abs(+c.importe||0), s:2}, c.marca||'',
+      c.com ? (c.com.nombre || c.com.correo || '') : '', SITUACIONES_NC[s.situacion].et,
+      c.fechaReclamacion ? fechaCorta(c.fechaReclamacion) : '', s.recs.length,
+      s.ultimaRec ? fechaCorta(s.ultimaRec) : '',
+      s.resp ? (RESPUESTAS_NC[s.resp.tipo] || s.resp.tipo) : '', s.resp ? fechaCorta(s.resp.fecha) : '',
+      s.dias ?? '', s.aviso ? `+${DIAS_AVISO_NC} días` : '', c.abono||'', c.nota||'']);
+  }
+
   return [
     {nombre:'Cargos', filas:cargos, anchos:[11,30,18,13,12,18,13,8,13,13,30,34,7,13,12,12,15,13,12,20,13,30]},
+    {nombre:'No conformes', filas:nc, anchos:[11,30,18,12,7,22,24,13,10,13,24,13,10,10,13,34]},
     {nombre:'Comerciales', filas:comerciales, anchos:[32,15,24,30,26,9,12]},
     {nombre:'Calculadora', filas:calc, anchos:[82]},
     {nombre:'Registro', filas:registro, anchos:[19,20,28,18,60]}
@@ -4269,6 +4490,8 @@ function cambiarVista(v){
   $('#vistaCargos').classList.toggle('oculto', v !== 'cargos');
   $('#vistaCalc').classList.toggle('oculto', v !== 'calc');
   $('#vistaComerciales').classList.toggle('oculto', v !== 'comerciales');
+  $('#vistaNC').classList.toggle('oculto', v !== 'nc');
+  if(v === 'nc') pintarNC();
   if(v === 'cargos') pintarCola();
   if(v === 'comerciales') pintarComerciales();
   if(v === 'calc') pintarEnlaceCargo();
@@ -4293,6 +4516,11 @@ window.__descargarExcel = descargarExcel;
 window.__archivoTieneContenido = archivoTieneContenido;
 window.__conectarExcel = conectarExcel;
 window.__cambiarVista = cambiarVista;
+window.__seguimientoNC = seguimientoNC;
+window.__reclamarNC = reclamarNC;
+window.__respuestaNC = respuestaNC;
+window.__pintarNC = pintarNC;
+window.__hojasDelLibro = hojasDelLibro;
 window.__marcarLote = marcarLote;
 window.__comercialDe = comercialDe;
 window.__repartidoPorMarca = repartidoPorMarca;

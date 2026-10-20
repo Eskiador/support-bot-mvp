@@ -1736,3 +1736,32 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Al comparar se quitan los puntos de miles. Se sigue comparando como texto, para que un «10,000» % no pase nunca por un ZNET de «10,00».
 - Hasta 3 intentos de corrección, en vez de 2. Con base en cajas el neto de prueba es pequeño y la primera medida es poco precisa.
 - **Seguir por donde se quedó.** Si la fila de la posición ya tiene «ZNET escrito», la macro lee el neto actual y corrige desde ahí. Si solo tiene «Neto de prueba», sigue desde el ZNET de prueba que ya está puesto. Para volver a empezar una posición desde cero hay que borrar esas celdas, o pulsar «Reiniciar estados».
+
+## Seguimiento de los no conformes
+
+**Petición.** La jefa de Pablo quiere ver cómo van los no conformes que siguen abiertos: cuándo se reclamaron por primera vez, si el comercial ha contestado, etc. Al cerrar el cargo, el seguimiento se da por terminado.
+
+**Lo que contestó Pablo.**
+- Dónde: en la herramienta y en el Excel.
+- Qué apuntar: la 1ª reclamación y los recordatorios.
+- Respuesta del comercial: «Lo revisa con el cliente».
+- Aviso: a los 7 días.
+
+**Decisión.**
+- Pestaña nueva **«No conformes»**, con un contador en la cabecera. Recoge los cargos no conformes que no están cerrados y los ordena por días sin movimiento.
+- Situaciones:
+  - Sin reclamar.
+  - Reclamado, sin respuesta (días desde la última reclamación).
+  - Lo revisa con el cliente (días desde la respuesta).
+- Más de 7 días sin movimiento sale en rojo.
+- Botones en cada fila:
+  - «Reclamado» la primera vez, que marca el cargo y pone la fecha de hoy. Después pasa a «Recordatorio», que apunta la fecha de hoy.
+  - «Lo revisa con el cliente», con fecha editable.
+  - Correo, que usa la plantilla de siempre.
+  - Ficha.
+  - Cerrar: el cargo sale del seguimiento.
+- La fecha de la 1ª reclamación se puede editar, para pasar a la herramienta reclamaciones antiguas.
+- Volver a reclamar después de una respuesta manda esa respuesta al historial (respuestasAnteriores) y el cargo vuelve a quedar esperando.
+- Datos nuevos en el cargo: `recordatorios` (fechas), `respuesta` {tipo, fecha} y `respuestasAnteriores`. Se usa el `fechaReclamacion` de siempre.
+- Hoja **«No conformes»** en Cargos_I.xlsx con las mismas columnas, para la jefa.
+- Prueba: auditoría 5t.

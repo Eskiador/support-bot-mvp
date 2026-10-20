@@ -997,6 +997,41 @@ const dice = (bien, etiqueta, detalle='') => {
   dice(modoMano.elegido === 'importe' && modoMano.linea === 'importe',
        'se puede cambiar el modo y aplicarlo a todas aunque el cliente tenga otro recordado', JSON.stringify(modoMano));
 
+  console.log('\n=== 5t · Seguimiento de no conformes ===');
+  const segNC = await pagina.evaluate(() => {
+    const hace = d => new Date(Date.now() - d*86400000).toISOString().slice(0,10);
+    const base = {cliente:'NC TEST, S.L.', importe:-50, ndoc:'', moneda:'EUR', clave:'I', abono:'',
+      fechaAbono:'', marcadoEnSap:false, compensado:false, nota:'', clasificado:'precio', calculo:null,
+      enListado:true, pdfGuardado:false, marca:'MDF', fechaPedido:'', pedidoCliente:'', estado:'pendiente'};
+    window.E.memoria.cargos = {
+      a: Object.assign({}, base, {asignacion:'C/NC1', fecha:hace(20), conforme:false, reclamado:false, fechaReclamacion:'', cerrado:false}),
+      b: Object.assign({}, base, {asignacion:'C/NC2', fecha:hace(30), conforme:false, reclamado:true, fechaReclamacion:hace(10), cerrado:false}),
+      c: Object.assign({}, base, {asignacion:'C/NC3', fecha:hace(30), conforme:false, reclamado:true, fechaReclamacion:hace(3), cerrado:true}),
+      d: Object.assign({}, base, {asignacion:'C/OK1', fecha:hace(30), conforme:true, reclamado:false, fechaReclamacion:'', cerrado:false})
+    };
+    window.__cambiarVista('nc');
+    const filas = () => [...document.querySelectorAll('#tablaNC tbody tr')].map(t => t.querySelector('b').textContent);
+    const r = {visibles: filas(), sitA: window.__seguimientoNC(window.E.memoria.cargos.a).situacion,
+               avisoB: window.__seguimientoNC(window.E.memoria.cargos.b).aviso};
+    window.__reclamarNC('a');                     // 1ª reclamación
+    r.aReclamado = window.E.memoria.cargos.a.reclamado && !!window.E.memoria.cargos.a.fechaReclamacion;
+    window.__respuestaNC('b', 'revisa');
+    r.sitB = window.__seguimientoNC(window.E.memoria.cargos.b).situacion;
+    window.__reclamarNC('b');                     // recordatorio después de la respuesta
+    r.sitB2 = window.__seguimientoNC(window.E.memoria.cargos.b).situacion;
+    r.recsB = (window.E.memoria.cargos.b.recordatorios || []).length;
+    const hoja = window.__hojasDelLibro().find(h => h.nombre === 'No conformes');
+    r.hoja = hoja ? hoja.filas.length - 1 : -1;
+    r.contador = document.querySelector('#cnNC').textContent;
+    return r;
+  });
+  dice(JSON.stringify(segNC.visibles.sort()) === '["C/NC1","C/NC2"]', 'salen solo los no conformes sin cerrar', JSON.stringify(segNC.visibles));
+  dice(segNC.sitA === 'sin_reclamar' && segNC.avisoB === true, 'sin reclamar, y aviso con más de 7 días sin respuesta', JSON.stringify(segNC));
+  dice(segNC.aReclamado, 'reclamar desde el seguimiento marca el cargo y apunta la fecha');
+  dice(segNC.sitB === 'revisa' && segNC.sitB2 === 'esperando' && segNC.recsB === 1,
+       'respuesta «lo revisa» y un recordatorio posterior lo vuelve a dejar esperando', JSON.stringify(segNC));
+  dice(segNC.hoja === 2 && segNC.contador === '2', 'el Excel lleva la hoja «No conformes» y la pestaña cuenta los abiertos', JSON.stringify(segNC));
+
   console.log('\n=== 5p-sexies · Nº de cargo abajo y Registrar centrado ===');
   const abajo = await pagina.evaluate(async () => {
     document.querySelector('#fNumCargo').value = 'C/12345';
