@@ -1803,3 +1803,14 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Las lecturas arrastran ahora 12 px más allá del borde calibrado. La selección no sale de la casilla donde empieza.
 - Si a lo leído solo le falta el último dígito, se da por bueno.
 - El ZNET definitivo se apunta en la hoja antes de escribirlo. Así, si se para, al seguir sabe qué buscar y no mete un segundo ZNET.
+
+## Asistente: el neto no siempre es proporcional al ZNET
+
+**Problema.** En la posición 160 (LVC MERM CEREZA, 34 CJ) hay una condición de importe fijo, **ZTRT 88,00-**, que se resta pase lo que pase. Con el ZNET de prueba de 10, el neto salió **negativo (−0,64)** y la macro se paró. Además la regla de tres (ZNET = importe × 10 / neto de prueba) da mal siempre que hay un importe fijo, porque supone que con ZNET 0 el neto es 0.
+
+**Decisión.** El neto se trata como una recta: neto = a × ZNET + b.
+- Con la primera medida se supone b = 0, como hasta ahora. Si el neto de prueba es negativo o cero, el primer ZNET es 10 veces el de prueba, solo para tener un segundo punto.
+- A partir de dos medidas se calcula la recta y se acierta: en una o dos correcciones, en vez de quedarse cerca.
+- Hasta 4 intentos.
+- Un neto negativo ya no para la macro.
+- Al seguir después de una parada, se usa como primer punto el neto de prueba apuntado.

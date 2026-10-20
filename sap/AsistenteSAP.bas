@@ -560,6 +560,7 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
                                ByVal maxFilas As Long, ByVal espera As Long, ByRef arrastre As Double) As Boolean
     Dim objetivo As Double, n0 As Double, nPrueba As Double, nFinal As Double, ok As Boolean
     Dim znet As Double, fila As Long, paso As Double, intento As Long, t As Variant, actual As Double
+    Dim z1 As Double, n1 As Double, pendiente As Double
 
     objetivo = Round(CDbl(ws.Cells(f, COL_OBJ).Value) + arrastre, 2)
 
@@ -570,7 +571,7 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     '  Antes se comprueba que ese ZNET sigue en SAP: se busca con el valor
     '  escrito y, si no, con el de prueba. Si no esta ninguno, es que se ha
     '  borrado a mano en SAP: la posicion se hace desde cero.
-    If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Or EsNumeroPositivo(ws.Cells(f, COL_NPRUEBA).Value) Then
+    If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Or EsNumero(ws.Cells(f, COL_NPRUEBA).Value) Then
         actual = prueba
         fila = 0
         If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Then
@@ -589,18 +590,24 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
             GoTo DesdeCero
         End If
         nFinal = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)
-        If Not ok Or nFinal <= 0 Then mMotivo = "no consigo leer el Neto para seguir": GoTo Mal
+        If Not ok Then mMotivo = "no consigo leer el Neto para seguir": GoTo Mal
         If actual = prueba Then
             ' Esta el ZNET de prueba: el neto de ahora es la medida buena
             nPrueba = nFinal
             ws.Cells(f, COL_NPRUEBA).Value = nPrueba
             GoTo Definitivo
         End If
-        nPrueba = nFinal * prueba / actual
-        paso = nPrueba / prueba * 0.01
+        ' Con ZNET definitivo: el punto anterior es el de prueba, si se apunto
+        If EsNumero(ws.Cells(f, COL_NPRUEBA).Value) Then
+            z1 = prueba: n1 = CDbl(ws.Cells(f, COL_NPRUEBA).Value)
+        Else
+            z1 = 0: n1 = 0
+        End If
         ws.Cells(f, COL_NFINAL).Value = nFinal
-        If Abs(nFinal - objetivo) <= paso / 2 + 0.015 Then GoTo Hecha
-        znet = Round(objetivo * actual / nFinal, 2)
+        pendiente = Pendiente2(z1, n1, actual, nFinal)
+        If Abs(nFinal - objetivo) <= Abs(pendiente) * 0.01 / 2 + 0.015 Then GoTo Hecha
+        znet = SiguienteZnet(z1, n1, actual, nFinal, objetivo, prueba)
+        z1 = actual: n1 = nFinal
         GoTo Escribir
     End If
 DesdeCero:
@@ -619,23 +626,30 @@ DesdeCero:
     Next t
     If Not Pulsar("{ENTER}") Then GoTo Mal
 
-    ' 3. Neto con la prueba
+    ' 3. Neto con la prueba. Puede salir negativo: hay condiciones de importe
+    ' fijo (ZTRT) que se restan aunque el ZNET sea pequeno.
     nPrueba = EsperarNetoDistinto(n0, espera, ok)
     If Not ok Then
         If Len(mMotivo) = 0 Then mMotivo = "el Neto no ha cambiado al poner el ZNET de prueba " & _
             "(ya tenia ZNET? ha salido un aviso?)"
         GoTo Mal
     End If
-    If nPrueba <= 0 Then mMotivo = "el Neto con el ZNET de prueba es " & nPrueba: GoTo Mal
     ws.Cells(f, COL_NPRUEBA).Value = nPrueba
 
-    ' 4. ZNET definitivo; si al leerlo no da, se corrige con la nueva medida
+    ' 4. ZNET definitivo. El neto es una recta en el ZNET (neto = a x ZNET + b):
+    ' b no es cero cuando hay importes fijos como ZTRT. Con un solo punto se
+    ' supone b = 0; en cuanto hay dos, se calcula la recta y se acierta.
 Definitivo:
-    znet = Round(objetivo * prueba / nPrueba, 2)
+    z1 = prueba: n1 = nPrueba
+    If nPrueba > 0 Then
+        znet = Round(objetivo * prueba / nPrueba, 2)
+    Else
+        znet = Round(prueba * 10, 2)        ' sin referencia util: segundo punto mas arriba
+    End If
     nFinal = nPrueba
     actual = prueba                         ' lo que pone ahora en la casilla del ZNET
 Escribir:
-    For intento = 1 To 3
+    For intento = 1 To 4
         If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
         fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
         If fila = 0 And Len(mMotivo) = 0 And actual <> prueba Then
@@ -644,9 +658,10 @@ Escribir:
             fila = BuscarFilaZnet(ImporteTexto(prueba), maxFilas)
             If fila > 0 Then
                 nFinal = LeerImporte(CAL_NETO_I, CAL_NETO_D, 0, ok)
-                If Not ok Or nFinal <= 0 Then mMotivo = "no consigo leer el Neto": GoTo Mal
+                If Not ok Then mMotivo = "no consigo leer el Neto": GoTo Mal
                 actual = prueba
-                znet = Round(objetivo * prueba / nFinal, 2)
+                z1 = prueba: n1 = nFinal
+                If nFinal > 0 Then znet = Round(objetivo * prueba / nFinal, 2) Else znet = Round(prueba * 10, 2)
             End If
         End If
         If fila = 0 Then
@@ -667,14 +682,17 @@ Escribir:
         End If
         ws.Cells(f, COL_NFINAL).Value = nFinal
 
-        paso = nPrueba / prueba * 0.01      ' lo que mueve un centimo de ZNET
+        pendiente = Pendiente2(z1, n1, znet, nFinal)   ' lo que mueve cada euro de ZNET
+        paso = Abs(pendiente) * 0.01                   ' y cada centimo
         If Abs(nFinal - objetivo) <= paso / 2 + 0.015 Then Exit For
-        If intento = 3 Then
+        If intento = 4 Then
             mMotivo = "el Neto final (" & Format(nFinal, "0.00") & ") no da el importe (" & _
                       Format(objetivo, "0.00") & ") ni corrigiendo"
             GoTo Mal
         End If
-        znet = Round(objetivo * znet / nFinal, 2)
+        actual = znet
+        znet = SiguienteZnet(z1, n1, znet, nFinal, objetivo, prueba)
+        z1 = actual: n1 = nFinal
     Next intento
 
 Hecha:
@@ -1165,6 +1183,34 @@ End Function
 ' ------------------------------------------------------------------
 '  Varios
 ' ------------------------------------------------------------------
+Private Function EsNumero(ByVal v As Variant) As Boolean
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If VarType(v) = vbString Then If Len(Trim$(v)) = 0 Then Exit Function
+    EsNumero = IsNumeric(v)
+End Function
+
+' Pendiente de la recta neto/ZNET entre dos medidas (si no hay dos distintas,
+' la de la recta que pasa por el origen).
+Private Function Pendiente2(ByVal za As Double, ByVal na As Double, ByVal zb As Double, ByVal nb As Double) As Double
+    If Abs(zb - za) > 0.0001 Then
+        Pendiente2 = (nb - na) / (zb - za)
+    ElseIf zb <> 0 Then
+        Pendiente2 = nb / zb
+    End If
+End Function
+
+' ZNET que da el objetivo segun la recta de las dos ultimas medidas.
+Private Function SiguienteZnet(ByVal za As Double, ByVal na As Double, ByVal zb As Double, ByVal nb As Double, _
+                               ByVal objetivo As Double, ByVal prueba As Double) As Double
+    Dim a As Double
+    a = Pendiente2(za, na, zb, nb)
+    If Abs(a) < 0.000001 Then
+        SiguienteZnet = Round(zb * 2, 2)                 ' no se mueve: probar mas alto
+    Else
+        SiguienteZnet = Round(zb + (objetivo - nb) / a, 2)
+    End If
+End Function
+
 Private Function EsNumeroPositivo(ByVal v As Variant) As Boolean
     If IsError(v) Or IsEmpty(v) Then Exit Function
     If Not IsNumeric(v) Then Exit Function
