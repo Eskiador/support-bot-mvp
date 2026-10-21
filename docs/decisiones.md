@@ -1844,3 +1844,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - El asistente pasa a positivo los importes de la lista antes de empezar.
 - «Copiar para el asistente» ya los copia en positivo desde la Calculadora.
 - Solo se para con importe cero.
+
+**Corrección.** No era eso: en SAP el abono tiene que **quedar en negativo**. Se deshace el paso a positivo.
+- El asistente respeta el signo del importe. Para un objetivo negativo el ZNET sale negativo y se escribe como SAP: 97,78-.
+- Solo se para con un ZNET de 0.
+- Al seguir después de una parada también se reconoce un ZNET negativo.
+- La Calculadora copia los importes con su signo, y el ajuste al total del cargo se hace en negativo cuando las líneas lo son.

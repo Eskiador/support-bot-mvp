@@ -2201,12 +2201,13 @@ function textoAsistente(salida, total){
     const f = s.fila || {};
     const obj = f.objetivoForzado != null ? f.objetivoForzado : s.objetivo;
     if(!isFinite(obj) || Math.abs(obj) < 0.005){ sinObjetivo++; continue; }
-    lineas.push({pos: f.fac.pos, obj: r2(Math.abs(obj)), desc: String(f.fac.desc || '').replace(/[\t\r\n]+/g, ' ')});
+    lineas.push({pos: f.fac.pos, obj: r2(obj), desc: String(f.fac.desc || '').replace(/[\t\r\n]+/g, ' ')});
   }
   let ajusteTotal = 0;
   if(isFinite(total) && lineas.length){
     const suma = r2(lineas.reduce((a, l) => a + l.obj, 0));
-    ajusteTotal = r2(Math.abs(total) - suma);
+    // Con las líneas en negativo, el total del cargo también se busca en negativo
+    ajusteTotal = r2((suma < 0 ? -Math.abs(total) : Math.abs(total)) - suma);
     if(Math.abs(ajusteTotal) >= 0.005 && Math.abs(ajusteTotal) < Math.abs(suma)){
       const mayor = lineas.reduce((m, l) => Math.abs(l.obj) > Math.abs(m.obj) ? l : m);
       mayor.obj = r2(mayor.obj + ajusteTotal);

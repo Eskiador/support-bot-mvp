@@ -456,9 +456,8 @@ Public Sub HacerTodas()
                    vbExclamation, TITULO_MSG
             Exit Sub
         End If
-        ' El signo no importa: un cargo puede venir en negativo y el abono es
-        ' el mismo. Se trabaja siempre con el importe en positivo.
-        If CDbl(ws.Cells(f, COL_OBJ).Value) < 0 Then ws.Cells(f, COL_OBJ).Value = -CDbl(ws.Cells(f, COL_OBJ).Value)
+        ' Un importe negativo se respeta: el neto en SAP tiene que quedar en
+        ' negativo, y para eso el ZNET sale negativo (se escribe 97,78-).
         If CDbl(ws.Cells(f, COL_OBJ).Value) = 0 Then
             MsgBox "La posicion " & ws.Cells(f, COL_POS).Value & " tiene importe cero.", vbExclamation, TITULO_MSG
             Exit Sub
@@ -573,10 +572,10 @@ Private Function HacerPosicion(ws As Worksheet, ByVal f As Long, secPrueba As Co
     '  Antes se comprueba que ese ZNET sigue en SAP: se busca con el valor
     '  escrito y, si no, con el de prueba. Si no esta ninguno, es que se ha
     '  borrado a mano en SAP: la posicion se hace desde cero.
-    If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Or EsNumero(ws.Cells(f, COL_NPRUEBA).Value) Then
+    If EsNumeroNoCero(ws.Cells(f, COL_ZNET).Value) Or EsNumero(ws.Cells(f, COL_NPRUEBA).Value) Then
         actual = prueba
         fila = 0
-        If EsNumeroPositivo(ws.Cells(f, COL_ZNET).Value) Then
+        If EsNumeroNoCero(ws.Cells(f, COL_ZNET).Value) Then
             actual = CDbl(ws.Cells(f, COL_ZNET).Value)
             fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
             If Len(mMotivo) > 0 Then GoTo Mal
@@ -652,7 +651,7 @@ Definitivo:
     actual = prueba                         ' lo que pone ahora en la casilla del ZNET
 Escribir:
     For intento = 1 To 4
-        If znet <= 0 Then mMotivo = "sale un ZNET de " & znet: GoTo Mal
+        If znet = 0 Then mMotivo = "sale un ZNET de 0": GoTo Mal
         fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas)
         If fila = 0 And Len(mMotivo) = 0 And actual <> prueba Then
             ' El definitivo no llego a la casilla: el ZNET sigue con el de prueba.
@@ -1173,9 +1172,10 @@ End Function
 ' Importe para escribir en SAP: 2 decimales, separador de SAP, sin miles.
 Private Function ImporteTexto(ByVal d As Double) As String
     Dim s As String
-    s = Replace(Format(Round(d, 2), "0.00"), Mid$(Format(1.5, "0.0"), 2, 1), "|")
+    ' Negativo como lo escribe SAP: con el signo detras (97,78-)
+    s = Replace(Format(Abs(Round(d, 2)), "0.00"), Mid$(Format(1.5, "0.0"), 2, 1), "|")
     If Len(mSep) = 0 Then mSep = ","
-    ImporteTexto = Replace(s, "|", mSep)
+    ImporteTexto = Replace(s, "|", mSep) & IIf(Round(d, 2) < 0, "-", "")
 End Function
 
 ' Traduce la secuencia de la celda C6. Solo letras, cifras, coma, punto,
@@ -1232,6 +1232,11 @@ Private Function SiguienteZnet(ByVal za As Double, ByVal na As Double, ByVal zb 
     Else
         SiguienteZnet = Round(zb + (objetivo - nb) / a, 2)
     End If
+End Function
+
+Private Function EsNumeroNoCero(ByVal v As Variant) As Boolean
+    If Not EsNumero(v) Then Exit Function
+    EsNumeroNoCero = (CDbl(v) <> 0)
 End Function
 
 Private Function EsNumeroPositivo(ByVal v As Variant) As Boolean
