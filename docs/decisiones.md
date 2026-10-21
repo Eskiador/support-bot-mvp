@@ -1814,3 +1814,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Hasta 4 intentos.
 - Un neto negativo ya no para la macro.
 - Al seguir después de una parada, se usa como primer punto el neto de prueba apuntado.
+
+## Asistente: el definitivo no caía en la casilla
+
+**Problema.** En la posición 60, después de leer el neto y encontrar la fila del ZNET (10,00), lo tecleado (1,80) no llegó a la casilla: la comprobación de antes de Intro siguió leyendo 10,00. Lo más probable es que el clic llegara mientras SAP aún estaba con la lectura anterior, así que no puso el cursor en la casilla.
+
+**Decisión.** Se espera más antes y después del clic (150 ms más la pausa de F5). Si la casilla sigue sin el valor, se repite el clic y el tecleo hasta 3 veces antes de parar. Se trabaja sobre el .bas que mandó Pablo: es igual al del repositorio, solo cambian mayúsculas que pone el editor de VBA.

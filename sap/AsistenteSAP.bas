@@ -948,28 +948,34 @@ End Function
 
 ' Clic en el Importe de esa fila, selecciona lo que hay y escribe encima.
 Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Boolean
-    Dim a As PUNTO, b As PUNTO, i As Long, s As String
+    Dim a As PUNTO, b As PUNTO, i As Long, s As String, intento As Long
     a = PuntoCal(CAL_IMP_I, fila - 1)
     b = PuntoCal(CAL_IMP_D, fila - 1)
-    If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
-    Sleep 30
-    If Not Pulsar("{END}") Then Exit Function
-    If Not Pulsar("+{HOME}") Then Exit Function
-    For i = 1 To Len(valor)
-        If Not Pulsar(Mid$(valor, i, 1)) Then Exit Function
-    Next i
-    ' Antes de Intro se comprueba que lo escrito esta en esa casilla. Si no,
-    ' ha caido en otro sitio y no se confirma: se para para revisarlo.
-    s = Replace(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, fila - 1), " ", ""), IIf(mSep = ",", ".", ","), "")
-    If Len(mMotivo) > 0 Then Exit Function
-    ' Si solo falta el ultimo digito es la lectura, no lo escrito.
-    If s <> valor And Not (Len(s) = Len(valor) - 1 And Len(s) >= 3 And Left$(valor, Len(s)) = s) Then
-        mMotivo = "lo escrito (" & valor & ") no ha caido en la casilla del ZNET (alli pone '" & s & _
-                  "'). NO se ha pulsado Intro: revisa esa posicion en SAP; si el numero esta bien, " & _
-                  "pulsa Intro en SAP y vuelve a darle a 'Hacer todas las posiciones'"
-        Exit Function
-    End If
-    EscribirEnFila = Pulsar("{ENTER}")
+    ' A veces el clic llega cuando SAP aun esta con la lectura anterior y no
+    ' pone el cursor en la casilla: lo tecleado no cae en ella. Se espera un
+    ' poco antes y despues del clic, y si al comprobar la casilla sigue igual,
+    ' se repite (hasta 3 veces) antes de parar.
+    For intento = 1 To 3
+        Sleep 150 + mPausaCampo
+        If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
+        Sleep 150 + mPausaCampo
+        If Not Pulsar("{END}") Then Exit Function
+        If Not Pulsar("+{HOME}") Then Exit Function
+        For i = 1 To Len(valor)
+            If Not Pulsar(Mid$(valor, i, 1)) Then Exit Function
+        Next i
+        ' Antes de Intro se comprueba que lo escrito esta en esa casilla.
+        s = Replace(Replace(LeerCasilla(CAL_IMP_I, CAL_IMP_D, fila - 1), " ", ""), IIf(mSep = ",", ".", ","), "")
+        If Len(mMotivo) > 0 Then Exit Function
+        ' Si solo falta el ultimo digito es la lectura, no lo escrito.
+        If s = valor Or (Len(s) = Len(valor) - 1 And Len(s) >= 3 And Left$(valor, Len(s)) = s) Then
+            EscribirEnFila = Pulsar("{ENTER}")
+            Exit Function
+        End If
+    Next intento
+    mMotivo = "lo escrito (" & valor & ") no ha caido en la casilla del ZNET (alli pone '" & s & _
+              "'), ni a la tercera. NO se ha pulsado Intro: revisa esa posicion en SAP; si el numero esta bien, " & _
+              "pulsa Intro en SAP y vuelve a darle a 'Hacer todas las posiciones'"
 End Function
 
 ' Clic en la 1a fila de la tabla para que el cursor este en ella (no escribe nada).
