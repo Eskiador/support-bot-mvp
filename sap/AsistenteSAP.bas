@@ -102,7 +102,7 @@ Private Const CAL_IMP_D As Long = 8
 Private Const CAL_IMP_2 As Long = 9
 Private Const CAL_N As Long = 10
 Private Const CAL_VERSION As Long = 10   ' "IMP3": puntos 5-7 en Importe, con Descripcion escondida
-Private Const VERSION_CAL As String = "IMP3"
+Private Const VERSION_CAL As String = "IMP4"
 
 ' Tabla de posiciones
 Private Const FILA_CAB As Long = 11
@@ -312,9 +312,9 @@ Public Sub Calibrar()
         "la casilla POSICION: su borde DERECHO, por dentro", _
         "la casilla NETO de arriba (la del 5,02): su borde IZQUIERDO, por dentro", _
         "la casilla NETO: su borde DERECHO, por dentro (antes de 'EUR')", _
-        "la columna IMPORTE de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro", _
-        "la columna IMPORTE de la 1a fila: borde DERECHO, por dentro", _
-        "la columna IMPORTE de la 2a fila (ZDC1): en el centro")
+        "la columna IMPORTE de la 1a fila de la tabla (ZTAR): borde IZQUIERDO, por dentro y a media altura de la fila", _
+        "la columna IMPORTE de la 1a fila: borde DERECHO, por dentro y a media altura de la fila", _
+        "la columna IMPORTE de la FILA 10 de la tabla (cuenta: ZTAR es la 1), en el centro de la casilla")
 
     For i = CAL_POS_I To CAL_IMP_2
         If Not CapturarPunto("Punto " & (i - 2) & " de 7:" & vbCrLf & vbCrLf & _
@@ -328,15 +328,15 @@ Public Sub Calibrar()
     Next i
 
     ' Comprobaciones de sentido comun
-    alto = p(CAL_IMP_2).y - p(CAL_IMP_I).y
+    alto = p(CAL_IMP_2).y - (p(CAL_IMP_I).y + p(CAL_IMP_D).y) \ 2
     If p(CAL_POS_D).x - p(CAL_POS_I).x < 10 Or p(CAL_NETO_D).x - p(CAL_NETO_I).x < 10 Or _
        p(CAL_IMP_D).x - p(CAL_IMP_I).x < 10 Then
         MsgBox "Algun borde derecho ha quedado a la izquierda del izquierdo. Repite la calibracion.", _
                vbExclamation, TITULO_MSG
         Exit Sub
     End If
-    If alto < 8 Or alto > 60 Then
-        MsgBox "La 2a fila de la tabla no ha quedado justo debajo de la 1a (" & alto & " px). " & _
+    If alto < 9 * 12 Or alto > 9 * 40 Then
+        MsgBox "La fila 10 no ha quedado 9 filas por debajo de la 1a (" & alto & " px). " & _
                "Repite la calibracion.", vbExclamation, TITULO_MSG
         Exit Sub
     End If
@@ -790,7 +790,7 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
 
     If conCalibracion Then
         If CStr(ws.Range(COL_CAL & CAL_VERSION).Value) <> VERSION_CAL Then
-            MsgBox "Hay que volver a calibrar (7 puntos, como antes). Los 5, 6 y 7 en la columna " & _
+            MsgBox "Hay que volver a calibrar: el punto 7 ahora va en la FILA 10 de la tabla. Los 5, 6 y 7 en la columna " & _
                    "IMPORTE, con la tabla como la deja la macro al poner el ZNET: con la columna " & _
                    "Descripcion escondida.", vbExclamation, TITULO_MSG
             Exit Function
@@ -814,15 +814,19 @@ End Function
 
 ' Punto calibrado n, en coordenadas de pantalla, bajando "filas" filas de la tabla
 Private Function PuntoCal(ByVal n As Long, ByVal filas As Long) As PUNTO
-    Dim partes() As String, ws As Worksheet, alto As Long
+    Dim partes() As String, ws As Worksheet, alto As Double
     Set ws = ThisWorkbook.Worksheets(HOJA)
     partes = Split(CStr(ws.Range(COL_CAL & n).Value), ";")
     PuntoCal.x = mRect.Izq + Val(partes(0))
     PuntoCal.y = mRect.Arr + Val(partes(1))
     If filas > 0 Then
-        alto = Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value), ";")(1)) - _
-               Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_I).Value), ";")(1))
-        PuntoCal.y = PuntoCal.y + filas * alto
+        ' Alto de fila medido sobre 9 filas (de la 1 a la 10): con una sola
+        ' fila, un pixel de error al calibrar se multiplicaba al bajar y la
+        ' lectura de la fila 10 caia en la de al lado.
+        alto = (Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_2).Value), ";")(1)) - _
+                (Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_I).Value), ";")(1)) + _
+                 Val(Split(CStr(ws.Range(COL_CAL & CAL_IMP_D).Value), ";")(1))) / 2) / 9
+        PuntoCal.y = PuntoCal.y + CLng(filas * alto)
     End If
 End Function
 

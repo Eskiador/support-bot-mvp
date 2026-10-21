@@ -1829,3 +1829,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - La búsqueda empieza siempre desde arriba. El ZNET va antes que los subtotales que repiten su valor.
 - Si lo tecleado no cae en la casilla, se prueba la siguiente fila con ese valor.
 - Cada fila se intenta 2 veces.
+
+## Asistente: el alto de fila se mide sobre 9 filas
+
+**Problema.** La macro leía todas las filas menos la del ZNET (la fila 10 en la posición 60). El alto de fila salía de la diferencia entre las filas 1 y 2 de la calibración, así que un error de 1 o 2 píxeles al marcar se multiplicaba por 9 al bajar. A la altura de la fila 10 se leía la de al lado.
+
+**Decisión.** El punto 7 de la calibración se marca en la fila 10 de la tabla, y el alto de fila se calcula como la distancia entre las filas 1 y 10 dividida entre 9. Para la fila 1 se usa la altura media de los puntos 5 y 6. La marca de versión pasa a IMP4, así que hay que recalibrar.
