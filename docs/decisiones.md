@@ -1835,3 +1835,12 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 **Problema.** La macro leía todas las filas menos la del ZNET (la fila 10 en la posición 60). El alto de fila salía de la diferencia entre las filas 1 y 2 de la calibración, así que un error de 1 o 2 píxeles al marcar se multiplicaba por 9 al bajar. A la altura de la fila 10 se leía la de al lado.
 
 **Decisión.** El punto 7 de la calibración se marca en la fila 10 de la tabla, y el alto de fila se calcula como la distancia entre las filas 1 y 10 dividida entre 9. Para la fila 1 se usa la altura media de los puntos 5 y 6. La marca de versión pasa a IMP4, así que hay que recalibrar.
+
+## Importes negativos en el asistente
+
+**Problema.** Un cargo llegó con los importes de las líneas en negativo (−97,78…) y el asistente se negaba a hacerlo.
+
+**Decisión.** Pablo quiere que se trate exactamente igual que uno en positivo:
+- El asistente pasa a positivo los importes de la lista antes de empezar.
+- «Copiar para el asistente» ya los copia en positivo desde la Calculadora.
+- Solo se para con importe cero.

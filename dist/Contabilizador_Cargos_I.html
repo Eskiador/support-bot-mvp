@@ -91140,7 +91140,7 @@ function textoAsistente(salida, total){
     const f = s.fila || {};
     const obj = f.objetivoForzado != null ? f.objetivoForzado : s.objetivo;
     if(!isFinite(obj) || Math.abs(obj) < 0.005){ sinObjetivo++; continue; }
-    lineas.push({pos: f.fac.pos, obj: r2(obj), desc: String(f.fac.desc || '').replace(/[\t\r\n]+/g, ' ')});
+    lineas.push({pos: f.fac.pos, obj: r2(Math.abs(obj)), desc: String(f.fac.desc || '').replace(/[\t\r\n]+/g, ' ')});
   }
   let ajusteTotal = 0;
   if(isFinite(total) && lineas.length){

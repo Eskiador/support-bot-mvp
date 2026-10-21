@@ -456,9 +456,11 @@ Public Sub HacerTodas()
                    vbExclamation, TITULO_MSG
             Exit Sub
         End If
-        If CDbl(ws.Cells(f, COL_OBJ).Value) <= 0 Then
-            MsgBox "La posicion " & ws.Cells(f, COL_POS).Value & " tiene un importe negativo o cero. " & _
-                   "Eso no lo hace el asistente.", vbExclamation, TITULO_MSG
+        ' El signo no importa: un cargo puede venir en negativo y el abono es
+        ' el mismo. Se trabaja siempre con el importe en positivo.
+        If CDbl(ws.Cells(f, COL_OBJ).Value) < 0 Then ws.Cells(f, COL_OBJ).Value = -CDbl(ws.Cells(f, COL_OBJ).Value)
+        If CDbl(ws.Cells(f, COL_OBJ).Value) = 0 Then
+            MsgBox "La posicion " & ws.Cells(f, COL_POS).Value & " tiene importe cero.", vbExclamation, TITULO_MSG
             Exit Sub
         End If
         If Left$(CStr(ws.Cells(f, COL_ESTADO).Value), 2) <> "OK" Then
