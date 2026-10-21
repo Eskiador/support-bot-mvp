@@ -671,7 +671,20 @@ Escribir:
         ' Se apunta antes de escribir: si se para a mitad, al seguir sabe que
         ' valor buscar en la casilla.
         ws.Cells(f, COL_ZNET).Value = znet
-        If Not EscribirEnFila(fila, ImporteTexto(znet)) Then GoTo Mal
+        ' Si no cae (era un subtotal con el mismo valor), se prueba la
+        ' siguiente fila que coincida.
+        Do
+            If EscribirEnFila(fila, ImporteTexto(znet)) Then Exit Do
+            If Left$(mMotivo, 10) <> "lo escrito" Then GoTo Mal
+            mMotivo = ""
+            fila = BuscarFilaZnet(ImporteTexto(actual), maxFilas, fila)
+            If Len(mMotivo) > 0 Then GoTo Mal
+            If fila = 0 Then
+                mMotivo = "el ZNET definitivo no ha caido en ninguna fila con " & ImporteTexto(actual) & _
+                          ". NO se ha pulsado Intro: revisa esa posicion en SAP"
+                GoTo Mal
+            End If
+        Loop
         actual = znet
 
         nFinal = EsperarNetoDistinto(nFinal, espera, ok)
@@ -913,22 +926,20 @@ Private Function EsperarPosicionDistinta(ByVal antes As String, ByVal espera As 
 End Function
 
 ' Sube la tabla y busca, fila a fila, la casilla Importe que dice exactamente el valor.
-Private Function BuscarFilaZnet(ByVal buscado As String, ByVal maxFilas As Long) As Long
+' Siempre desde arriba: el ZNET va antes que los subtotales que repiten su
+' valor (10,00). Empezar por la fila de la posicion anterior hacia coger un
+' subtotal cuando en esta posicion hay otro numero de filas de descuento.
+' "desde" salta las filas ya probadas sin exito.
+Private Function BuscarFilaZnet(ByVal buscado As String, ByVal maxFilas As Long, Optional ByVal desde As Long = 0) As Long
     Dim r As Long
     mLeidoTpCd = ""
-    If Not EnfocarTabla() Then Exit Function
-    If Not Pulsar("^{HOME}") Then Exit Function
-    ' Primero la fila donde estaba en la posicion anterior: dentro de un
-    ' mismo abono suele ser la misma, y asi no hay que leer fila a fila.
-    If mFilaZnet > 0 And mFilaZnet <= maxFilas Then
-        If FilaEsZnet(mFilaZnet, buscado) Then BuscarFilaZnet = mFilaZnet: Exit Function
-        If Len(mMotivo) > 0 Then Exit Function
+    If desde = 0 Then
+        If Not EnfocarTabla() Then Exit Function
+        If Not Pulsar("^{HOME}") Then Exit Function
     End If
-    For r = 1 To maxFilas
-        If r <> mFilaZnet Then
-            If FilaEsZnet(r, buscado) Then mFilaZnet = r: BuscarFilaZnet = r: Exit Function
-            If Len(mMotivo) > 0 Then Exit Function
-        End If
+    For r = desde + 1 To maxFilas
+        If FilaEsZnet(r, buscado) Then BuscarFilaZnet = r: Exit Function
+        If Len(mMotivo) > 0 Then Exit Function
     Next r
 End Function
 
@@ -955,7 +966,7 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
     ' pone el cursor en la casilla: lo tecleado no cae en ella. Se espera un
     ' poco antes y despues del clic, y si al comprobar la casilla sigue igual,
     ' se repite (hasta 3 veces) antes de parar.
-    For intento = 1 To 3
+    For intento = 1 To 2
         Sleep 150 + mPausaCampo
         If Not Clic((a.x + b.x) \ 2, a.y) Then Exit Function
         Sleep 150 + mPausaCampo
@@ -974,7 +985,7 @@ Private Function EscribirEnFila(ByVal fila As Long, ByVal valor As String) As Bo
         End If
     Next intento
     mMotivo = "lo escrito (" & valor & ") no ha caido en la casilla del ZNET (alli pone '" & s & _
-              "'), ni a la tercera. NO se ha pulsado Intro: revisa esa posicion en SAP; si el numero esta bien, " & _
+              "'), ni a la segunda. NO se ha pulsado Intro: revisa esa posicion en SAP; si el numero esta bien, " & _
               "pulsa Intro en SAP y vuelve a darle a 'Hacer todas las posiciones'"
 End Function
 

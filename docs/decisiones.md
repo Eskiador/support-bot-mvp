@@ -1820,3 +1820,12 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 **Problema.** En la posición 60, después de leer el neto y encontrar la fila del ZNET (10,00), lo tecleado (1,80) no llegó a la casilla: la comprobación de antes de Intro siguió leyendo 10,00. Lo más probable es que el clic llegara mientras SAP aún estaba con la lectura anterior, así que no puso el cursor en la casilla.
 
 **Decisión.** Se espera más antes y después del clic (150 ms más la pausa de F5). Si la casilla sigue sin el valor, se repite el clic y el tecleo hasta 3 veces antes de parar. Se trabaja sobre el .bas que mandó Pablo: es igual al del repositorio, solo cambian mayúsculas que pone el editor de VBA.
+
+## Asistente: cogía un subtotal en vez del ZNET
+
+**Problema.** En la posición 60 hay 8 filas de descuentos de tarifa (ZDC duplicados), así que el ZNET cae en la fila 10. La macro buscaba primero en la fila donde estaba el ZNET en la posición anterior. Ahí había un subtotal que también vale 10,00, lo daba por el ZNET y tecleaba en una casilla de solo lectura.
+
+**Decisión.**
+- La búsqueda empieza siempre desde arriba. El ZNET va antes que los subtotales que repiten su valor.
+- Si lo tecleado no cae en la casilla, se prueba la siguiente fila con ese valor.
+- Cada fila se intenta 2 veces.
