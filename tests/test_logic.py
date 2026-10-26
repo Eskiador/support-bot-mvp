@@ -246,3 +246,35 @@ def test_excel_resultado_se_abre_en_prov_ref(tmp_path: Path):
     wb = openpyxl.load_workbook(tmp_path / "out.xlsx")
     assert wb.active.title == "Prov-Ref"
     assert [h.title for h in wb.worksheets if h.sheet_view.tabSelected] == ["Prov-Ref"]
+
+
+def test_sap_con_cabeceras_de_motivo_con_otro_nombre(tmp_path: Path):
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H960", "X1", "1111111111111", 1)])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data"
+    ws.append(["Referencia cliente", "Material", "Un.medida venta", "Motivo rechazo", "Desc. motivo rechazo"])
+    ws.append(["H960", "1234567", "UC", "Z7", "AC Falta en la Carga"])
+    wb.save(tmp_path / "sap.xlsx")
+    _crear_cruce(tmp_path / "cruce.xlsx", [("1111111111111", "1234567", "p")])
+
+    procesar(tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx")
+
+    ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
+    assert ws.cell(row=2, column=11).value == "La mercancía salió completa del almacén"
+
+
+def test_sap_sin_columna_de_motivo_da_error_claro(tmp_path: Path):
+    import pytest
+
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H970", "X1", "1111111111111", 1)])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data"
+    ws.append(["Referencia de cliente", "Material", "Un.medida venta"])
+    ws.append(["H970", "1234567", "UC"])
+    wb.save(tmp_path / "sap.xlsx")
+    _crear_cruce(tmp_path / "cruce.xlsx", [("1111111111111", "1234567", "p")])
+
+    with pytest.raises(ValueError, match="motivo de rechazo"):
+        procesar(tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx")
