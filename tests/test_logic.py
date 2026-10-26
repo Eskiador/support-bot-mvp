@@ -185,3 +185,18 @@ def test_fila_no_servidas_cero_no_se_toca(tmp_path: Path):
     wb = openpyxl.load_workbook(tmp_path / "out.xlsx")
     ws = wb["Prov-Ref"]
     assert ws.cell(row=2, column=11).value is None
+
+
+def test_texto_sin_incidencia_y_ean_nuevo_en_cruce_real(tmp_path: Path):
+    cruce_real = Path(__file__).parent.parent / "data" / "cruce_ean_sap.xlsx"
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H800", "X1", "8410134026333", 2)])
+    _crear_sap(tmp_path / "sap.xlsx", [("H800", "2011483", "", "")])
+
+    resultado = procesar(tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", cruce_real, tmp_path / "out.xlsx")
+
+    assert resultado.sin_incidencia == 1
+    assert resultado.sin_codigo_sap == 0
+    ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
+    assert ws.cell(row=2, column=11).value == (
+        "No nos consta que esta referencia haya presentado ninguna incidencia en este pedido."
+    )
