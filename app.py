@@ -4,7 +4,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from logic import SIN_CODIGO_SAP, SIN_INCIDENCIA, procesar
+from logic import SIN_CODIGO_SAP, procesar
 
 CRUCE_PATH = Path(__file__).parent / "data" / "cruce_ean_sap.xlsx"
 
@@ -53,14 +53,14 @@ if st.button("Procesar", type="primary", disabled=not (comercial_file and sap_fi
 
     st.success(
         f"Proceso completado: {resultado.actualizadas} líneas actualizadas con motivo, "
-        f"{resultado.sin_incidencia} marcadas como '{SIN_INCIDENCIA}', "
+        f"{resultado.sin_incidencia} sin incidencia registrada en SAP, "
         f"{resultado.sin_codigo_sap} marcadas como '{SIN_CODIGO_SAP}'."
     )
 
     st.metric("Total líneas con incidencia procesadas", resultado.total_procesadas)
     m1, m2, m3 = st.columns(3)
     m1.metric("Con motivo SAP", resultado.actualizadas)
-    m2.metric(SIN_INCIDENCIA, resultado.sin_incidencia)
+    m2.metric("Sin incidencia en SAP", resultado.sin_incidencia)
     m3.metric(SIN_CODIGO_SAP, resultado.sin_codigo_sap)
 
     st.download_button(

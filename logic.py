@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 import openpyxl
 
-SIN_INCIDENCIA = "Sin incidencia registrada en SAP"
+SIN_INCIDENCIA = "No nos consta que esta referencia haya presentado ninguna incidencia en este pedido."
 SIN_CODIGO_SAP = "Código SAP no localizado"
 
 COMERCIAL_SHEET = "Prov-Ref"

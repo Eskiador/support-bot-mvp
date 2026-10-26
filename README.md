@@ -14,7 +14,7 @@ SAP y la tabla de correspondencia EAN ↔ Código SAP.
    - Si se encuentra el motivo en SAP, el texto según su código (tabla
      `TEXTOS_POR_CODIGO_MOTIVO` en `logic.py`: Z1, Z2, Z7). Para códigos
      que no estén en esa tabla, el texto literal de SAP.
-   - `"Sin incidencia registrada en SAP"` si no hay motivo para ese material.
+   - `"No nos consta que esta referencia haya presentado ninguna incidencia en este pedido."` si no hay motivo para ese material.
    - `"Código SAP no localizado"` si el EAN no está en la tabla de cruce.
 4. Descarga del excel del comercial ya actualizado, con un resumen de
    cuántas líneas se actualizaron en cada categoría.
