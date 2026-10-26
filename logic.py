@@ -195,5 +195,8 @@ def procesar(comercial_path, sap_path, cruce_path, salida_path) -> ResultadoCruc
                 {"fila": row[0].row, "pedido": pedido, "ean": ean, "observacion": SIN_INCIDENCIA}
             )
 
+    for hoja in wb.worksheets:
+        hoja.sheet_view.tabSelected = hoja is ws
+    wb.active = ws
     wb.save(salida_path)
     return resultado
