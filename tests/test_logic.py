@@ -234,3 +234,15 @@ def test_sap_con_columnas_en_otro_orden_y_ceros_a_la_izquierda(tmp_path: Path):
     assert resultado.actualizadas == 1
     ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
     assert ws.cell(row=2, column=11).value == "Cancelado por el cliente"
+
+
+def test_excel_resultado_se_abre_en_prov_ref(tmp_path: Path):
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H100", "X1", "1111111111111", 1)])
+    _crear_sap(tmp_path / "sap.xlsx", [("H100", "9999999", "Falta", "Z2")])
+    _crear_cruce(tmp_path / "cruce.xlsx", [("1111111111111", "9999999", "p")])
+
+    procesar(tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx")
+
+    wb = openpyxl.load_workbook(tmp_path / "out.xlsx")
+    assert wb.active.title == "Prov-Ref"
+    assert [h.title for h in wb.worksheets if h.sheet_view.tabSelected] == ["Prov-Ref"]
