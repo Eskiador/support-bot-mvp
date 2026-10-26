@@ -6,6 +6,7 @@ del excel del comercial in situ.
 """
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass, field
 
 import openpyxl
@@ -23,20 +24,17 @@ COMERCIAL_HEADER_ROW = 1
 COMERCIAL_DATA_START_ROW = 2
 
 SAP_SHEET = "Data"
-SAP_COL_PEDIDO = 1       # A
-SAP_COL_MATERIAL = 7     # G
-SAP_COL_MOTIVO_DESC = 12  # L
-SAP_COL_MOTIVO_COD = 13   # M
 SAP_HEADER_ROW = 1
 SAP_DATA_START_ROW = 2
 
-# Las columnas de SAP se buscan por su cabecera; la posición fija solo se usa
-# si la cabecera no aparece, por si el export cambia el orden de columnas.
+# Columnas de SAP buscadas por palabras de su cabecera (sin acentos ni
+# mayúsculas), porque los distintos exports de SAP las nombran algo distinto:
+# campo -> (palabras que debe contener, palabras que no debe contener).
 SAP_CABECERAS = {
-    "pedido": ("referencia de cliente", SAP_COL_PEDIDO),
-    "material": ("material", SAP_COL_MATERIAL),
-    "motivo_desc": ("descripción del motivo de rechazo", SAP_COL_MOTIVO_DESC),
-    "motivo_cod": ("motivo de rechazo", SAP_COL_MOTIVO_COD),
+    "pedido": (("referencia",), ()),
+    "material": (("material",), ("descrip", "texto", "denomin")),
+    "motivo_desc": (("descrip", "motivo"), ()),
+    "motivo_cod": (("motivo",), ("descrip", "texto", "denomin")),
 }
 
 CRUCE_SHEET = "Cruce_EAN_SAP"
@@ -86,7 +84,31 @@ def _normalizar_pedido(valor) -> str:
 
 
 def _clave_cabecera(valor) -> str:
-    return " ".join(_normalizar(valor).split()).casefold()
+    texto = unicodedata.normalize("NFKD", _normalizar(valor).casefold())
+    return " ".join("".join(c for c in texto if not unicodedata.combining(c)).split())
+
+
+def _columnas_sap(cabeceras: list[str]) -> dict[str, int | None]:
+    claves = [_clave_cabecera(c) for c in cabeceras]
+    columnas: dict[str, int | None] = {}
+    for campo, (incluye, excluye) in SAP_CABECERAS.items():
+        columnas[campo] = next(
+            (
+                i
+                for i, clave in enumerate(claves, start=1)
+                if all(p in clave for p in incluye) and not any(p in clave for p in excluye)
+            ),
+            None,
+        )
+    faltan = [c for c in ("pedido", "material") if columnas[c] is None]
+    if columnas["motivo_desc"] is None and columnas["motivo_cod"] is None:
+        faltan.append("motivo de rechazo")
+    if faltan:
+        raise ValueError(
+            f"En el excel de SAP no se encuentran las columnas: {', '.join(faltan)}. "
+            f"Cabeceras leídas: {', '.join(c for c in cabeceras if c)}"
+        )
+    return columnas
 
 
 def cargar_tabla_cruce(cruce_path) -> dict[str, set[str]]:
@@ -109,12 +131,12 @@ def cargar_incidencias_sap(sap_path):
     ws = wb[SAP_SHEET]
     fila_cabecera = next(ws.iter_rows(min_row=SAP_HEADER_ROW, max_row=SAP_HEADER_ROW), ())
     cabeceras = [_normalizar(c.value) for c in fila_cabecera]
-    posiciones = {_clave_cabecera(c): i for i, c in enumerate(cabeceras, start=1) if c}
-    col = {campo: posiciones.get(nombre, defecto) for campo, (nombre, defecto) in SAP_CABECERAS.items()}
+    col = _columnas_sap(cabeceras)
 
     def celda(row, campo):
-        indice = col[campo] - 1
-        return row[indice].value if indice < len(row) else None
+        if col[campo] is None or col[campo] > len(row):
+            return None
+        return row[col[campo] - 1].value
 
     incidencias: dict[str, dict[str, str]] = {}
     pedidos: set[str] = set()
