@@ -2,7 +2,7 @@ from pathlib import Path
 
 import openpyxl
 
-from logic import SIN_CODIGO_SAP, SIN_INCIDENCIA, procesar
+from logic import PEDIDO_NO_EN_SAP, SIN_CODIGO_SAP, SIN_INCIDENCIA, procesar
 
 
 def _crear_comercial(path: Path, filas: list[tuple]) -> None:
@@ -200,3 +200,37 @@ def test_texto_sin_incidencia_y_ean_nuevo_en_cruce_real(tmp_path: Path):
     assert ws.cell(row=2, column=11).value == (
         "No nos consta que esta referencia haya presentado ninguna incidencia en este pedido."
     )
+
+
+def test_pedido_que_no_esta_en_sap(tmp_path: Path):
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H900", "X1", "1111111111111", 3)])
+    _crear_sap(tmp_path / "sap.xlsx", [("H901", "1234567", "Falta", "Z2")])
+    _crear_cruce(tmp_path / "cruce.xlsx", [("1111111111111", "1234567", "p")])
+
+    resultado = procesar(
+        tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx"
+    )
+
+    assert resultado.pedido_no_en_sap == 1
+    assert resultado.pedidos_no_en_sap == {"H900"}
+    ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
+    assert ws.cell(row=2, column=11).value == PEDIDO_NO_EN_SAP
+
+
+def test_sap_con_columnas_en_otro_orden_y_ceros_a_la_izquierda(tmp_path: Path):
+    _crear_comercial(tmp_path / "comercial.xlsx", [("1", "H950", "X1", "1111111111111", 3)])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data"
+    ws.append(["Material", "Motivo de rechazo", "Referencia de cliente", "Descripción del motivo de rechazo"])
+    ws.append(["000000000001234567", "Z1", "h950", "AC  Cancelado por el cliente"])
+    wb.save(tmp_path / "sap.xlsx")
+    _crear_cruce(tmp_path / "cruce.xlsx", [("1111111111111", "1234567", "p")])
+
+    resultado = procesar(
+        tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx"
+    )
+
+    assert resultado.actualizadas == 1
+    ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
+    assert ws.cell(row=2, column=11).value == "Cancelado por el cliente"

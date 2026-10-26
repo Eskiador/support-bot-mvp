@@ -54,14 +54,26 @@ if st.button("Procesar", type="primary", disabled=not (comercial_file and sap_fi
     st.success(
         f"Proceso completado: {resultado.actualizadas} líneas actualizadas con motivo, "
         f"{resultado.sin_incidencia} sin incidencia registrada en SAP, "
-        f"{resultado.sin_codigo_sap} marcadas como '{SIN_CODIGO_SAP}'."
+        f"{resultado.sin_codigo_sap} marcadas como '{SIN_CODIGO_SAP}', "
+        f"{resultado.pedido_no_en_sap} de pedidos que no están en el excel de SAP."
     )
 
+    if resultado.pedidos_no_en_sap:
+        st.warning(
+            f"⚠️ {len(resultado.pedidos_no_en_sap)} pedido(s) del excel del comercial no aparecen "
+            "en el excel de SAP, así que sus líneas no se han podido revisar: "
+            f"{', '.join(sorted(resultado.pedidos_no_en_sap))}. "
+            "Comprueba que el export de SAP incluya esos pedidos (fechas, cliente) y vuelve a procesar."
+        )
+        with st.expander("Cabeceras leídas del excel de SAP"):
+            st.write(resultado.cabeceras_sap)
+
     st.metric("Total líneas con incidencia procesadas", resultado.total_procesadas)
-    m1, m2, m3 = st.columns(3)
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("Con motivo SAP", resultado.actualizadas)
     m2.metric("Sin incidencia en SAP", resultado.sin_incidencia)
     m3.metric(SIN_CODIGO_SAP, resultado.sin_codigo_sap)
+    m4.metric("Pedido no está en SAP", resultado.pedido_no_en_sap)
 
     st.download_button(
         "⬇️ Descargar excel actualizado",
