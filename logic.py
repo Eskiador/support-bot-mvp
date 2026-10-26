@@ -44,9 +44,9 @@ CRUCE_COL_SAP = 2
 # Texto a escribir en Observaciones según el código de motivo (columna M).
 # Códigos que no estén aquí usan el texto literal de la columna L.
 TEXTOS_POR_CODIGO_MOTIVO = {
-    "Z1": "Cancelado por el cliente",
-    "Z2": "Falta de disponibilidad informada",
-    "Z7": "La mercancía salió completa del almacén",
+    "Z1": "Esta parte del pedido fue cancelada por el cliente.",
+    "Z2": "Falta de disponibilidad comunicada el mismo día en que se recibió el pedido.",
+    "Z7": "Falta de disponibilidad en el momento de la carga.",
 }
 
 

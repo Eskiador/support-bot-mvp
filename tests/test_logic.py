@@ -87,7 +87,7 @@ def test_ean_multiples_codigos_sap_uno_con_incidencia(tmp_path: Path):
     assert resultado.actualizadas == 1
     wb = openpyxl.load_workbook(tmp_path / "out.xlsx")
     ws = wb["Prov-Ref"]
-    assert ws.cell(row=2, column=11).value == "Cancelado por el cliente"
+    assert ws.cell(row=2, column=11).value == "Esta parte del pedido fue cancelada por el cliente."
 
 
 def test_sin_incidencia_registrada(tmp_path: Path):
@@ -167,9 +167,9 @@ def test_texto_segun_codigo_de_motivo(tmp_path: Path):
 
     assert resultado.actualizadas == 3
     ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
-    assert ws.cell(row=2, column=11).value == "Falta de disponibilidad informada"
-    assert ws.cell(row=3, column=11).value == "Cancelado por el cliente"
-    assert ws.cell(row=4, column=11).value == "La mercancía salió completa del almacén"
+    assert ws.cell(row=2, column=11).value == "Falta de disponibilidad comunicada el mismo día en que se recibió el pedido."
+    assert ws.cell(row=3, column=11).value == "Esta parte del pedido fue cancelada por el cliente."
+    assert ws.cell(row=4, column=11).value == "Falta de disponibilidad en el momento de la carga."
 
 
 def test_fila_no_servidas_cero_no_se_toca(tmp_path: Path):
@@ -233,7 +233,7 @@ def test_sap_con_columnas_en_otro_orden_y_ceros_a_la_izquierda(tmp_path: Path):
 
     assert resultado.actualizadas == 1
     ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
-    assert ws.cell(row=2, column=11).value == "Cancelado por el cliente"
+    assert ws.cell(row=2, column=11).value == "Esta parte del pedido fue cancelada por el cliente."
 
 
 def test_excel_resultado_se_abre_en_prov_ref(tmp_path: Path):
@@ -261,7 +261,7 @@ def test_sap_con_cabeceras_de_motivo_con_otro_nombre(tmp_path: Path):
     procesar(tmp_path / "comercial.xlsx", tmp_path / "sap.xlsx", tmp_path / "cruce.xlsx", tmp_path / "out.xlsx")
 
     ws = openpyxl.load_workbook(tmp_path / "out.xlsx")["Prov-Ref"]
-    assert ws.cell(row=2, column=11).value == "La mercancía salió completa del almacén"
+    assert ws.cell(row=2, column=11).value == "Falta de disponibilidad en el momento de la carga."
 
 
 def test_sap_sin_columna_de_motivo_da_error_claro(tmp_path: Path):
