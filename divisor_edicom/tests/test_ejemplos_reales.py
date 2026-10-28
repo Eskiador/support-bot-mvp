@@ -323,3 +323,21 @@ def test_lote6_con_dia(cfg, descargar):
     for i, n in ((0, 8), (1, 9)):
         r = PdfReader(cfg.destino / (P + f"DIA {i + 1}.pdf"))
         assert [p.get_contents().get_data() for p in r.pages] == [lector.pages[n - 1].get_contents().get_data()]
+
+
+# Lote 7 (28/10/2026): 8 documentos de DIA seguidos. Su contador "Pág. N" es
+# del bloque y las dos primeras páginas dicen 1 (1, 1, 2, 3...). Cliente nuevo: UVESCO.
+COMBINADO_7 = EJEMPLOS / "lote7" / "report.pdf"
+DIA_LOTE7 = ["0225776", "0225747", "0225711", "0002971", "0386591", "0016187", "0461020", "0461600"]
+
+
+def test_lote7_varios_dia_seguidos(cfg, descargar):
+    a = analizar(COMBINADO_7, cfg)
+    assert a.total_paginas == 34 and len(a.documentos) == 26
+    dia = [d for d in a.documentos if d.plantilla.id == "C"]
+    assert [(d.num_doc, d.paginas) for d in dia] == [(n, [i]) for i, n in enumerate(DIA_LOTE7, 1)]
+    assert a.documentos[-1].nombre_cliente == "UVESCO" and a.documentos[-1].num_doc == "2026/143285"
+    res = procesar(descargar(COMBINADO_7), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert [f["archivo"] for f in res.filas if f["num_doc"] in DIA_LOTE7] == [P + f"DIA {i}.pdf" for i in range(1, 9)]
+    assert P + "UVESCO.pdf" in [f["archivo"] for f in res.filas]

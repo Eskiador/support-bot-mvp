@@ -27,11 +27,13 @@ class Plantilla:
     fecha_documento: re.Pattern
     pedido: re.Pattern
     archivo: str
-    # "combinado": el "Página N" cuenta páginas de todo el bloque del combinado.
-    # "documento": el contador vuelve a 1 en cada documento (formato DIA).
+    # "combinado": el "Página N" cuenta páginas de todo el bloque: 1, 2, 3...
+    # "combinado_desfasado": igual, pero las dos primeras páginas del bloque
+    # dicen 1: 1, 1, 2, 3... (formato DIA, verificado con 2 combinados reales).
     contador: str = "combinado"
-    # True: no hay línea de título propia; el documento empieza en la página
-    # cuya cabecera (con Nº) tiene contador 1. El tipo sale de "tipo_registro".
+    # True: no hay línea de título propia; la cabecera lleva el Nº y el
+    # documento empieza en la página que tiene además la línea de Nº en el
+    # cuerpo. El tipo sale de "tipo_registro".
     inicio_por_cabecera: bool = False
     tipo_registro: str = ""
 
@@ -81,8 +83,10 @@ def cargar_plantilla(ruta: Path) -> Plantilla:
     if "num" not in regex["cabecera"].groupindex or "fecha" not in regex["cabecera"].groupindex:
         raise ErrorConfiguracion(f"Plantilla {ruta.name}, campo 'cabecera': necesita los grupos num, fecha y pag")
     contador = datos.get("contador", "combinado")
-    if contador not in ("combinado", "documento"):
-        raise ErrorConfiguracion(f"Plantilla {ruta.name}: 'contador' debe ser \"combinado\" o \"documento\"")
+    if contador not in ("combinado", "combinado_desfasado"):
+        raise ErrorConfiguracion(
+            f"Plantilla {ruta.name}: 'contador' debe ser \"combinado\" o \"combinado_desfasado\""
+        )
     inicio_por_cabecera = bool(datos.get("inicio_por_cabecera", False))
     tipo_registro = str(datos.get("tipo_registro", "")).strip()
     titulos = datos["titulos"]
@@ -91,10 +95,10 @@ def cargar_plantilla(ruta: Path) -> Plantilla:
     ):
         raise ErrorConfiguracion(f"Plantilla {ruta.name}: la sección [titulos] debe tener líneas \"título\" = \"tipo\"")
     if inicio_por_cabecera:
-        if titulos or not tipo_registro or contador != "documento":
+        if titulos or not tipo_registro:
             raise ErrorConfiguracion(
-                f"Plantilla {ruta.name}: con inicio_por_cabecera = true, [titulos] va vacía, "
-                "hace falta 'tipo_registro' y contador = \"documento\""
+                f"Plantilla {ruta.name}: con inicio_por_cabecera = true, [titulos] va vacía "
+                "y hace falta 'tipo_registro'"
             )
     elif not titulos:
         raise ErrorConfiguracion(f"Plantilla {ruta.name}: la sección [titulos] está vacía")

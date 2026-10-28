@@ -1,10 +1,13 @@
 # Plantilla C: "Aviso de recepción Nº ..." de DIA (formato distinto a A y B).
-# Verificada con ejemplos/lote6 (13/10/2026): 2 documentos de DIA, 1 página cada uno.
+# Verificada con ejemplos/lote6 (2 documentos) y ejemplos/lote7 (8 documentos),
+# todos de 1 página.
 #
 # Diferencias con las otras plantillas:
 # - No hay línea de título propia: la primera línea es a la vez título y
 #   cabecera ("Aviso de recepción Nº 0224304 13/10/2026 06:16:04 Pág. 1").
-# - El contador "Pág. N" es de cada documento (vuelve a 1 en cada uno).
+# - La página de inicio tiene además la línea "Nº Confirmación ... Nº Albarán".
+# - El contador "Pág. N" es del bloque de DIA, pero las dos primeras páginas
+#   dicen 1: 1, 1, 2, 3, 4... (comprobado en los dos combinados reales).
 #
 # Las expresiones van entre comillas simples ('...') para que la barra
 # invertida \ se lea tal cual. Si algo no encaja EXACTAMENTE con estas reglas,
@@ -14,7 +17,7 @@ id = "C"
 nombre = "Aviso de recepción (DIA)"
 tipo_registro = "Aviso de recepción DIA"
 inicio_por_cabecera = true
-contador = "documento"
+contador = "combinado_desfasado"
 
 # Cabecera de cada página (línea completa). Los segundos de la hora no se
 # guardan, para poder comparar con la hora de las demás plantillas.
@@ -24,8 +27,8 @@ cabecera = '^Aviso de recepción Nº (?P<num>\S+) (?P<fecha>\d\d/\d\d/\d{4} \d\d
 numero_doc = '^Nº Confirmación (?P<num>\S+) Nº Albarán \S+$'
 
 # AÚN NO VERIFICADO: no hay ningún ejemplo de DIA de 2 o más páginas.
-# Mientras esté en false, una página "Pág. 2" (o siguiente) hace que el
-# programa se detenga. Cambiar a true SOLO tras verificarlo con un ejemplo real.
+# Mientras esté en false, una página de DIA sin su línea de Nº (es decir, la
+# continuación de un documento) hace que el programa se detenga. Cambiar a true SOLO tras verificarlo con un ejemplo real.
 permite_continuacion = false
 
 emisor = '^Emisor Mensaje\b'

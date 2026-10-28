@@ -123,21 +123,21 @@ def _clasificar(pag: Pagina, plantillas: tuple[Plantilla, ...]) -> None:
             )
         pag.es_inicio, pag.num_doc = True, nums[0]
     elif plantillas_con_num and plantillas_con_num[0].inicio_por_cabecera:
-        # Formato sin línea de título (DIA): la cabecera con "Pág. 1" es el inicio.
+        # Formato sin línea de título (DIA): la cabecera lleva el Nº; la página
+        # de inicio tiene además la línea de Nº en el cuerpo, con el mismo Nº.
         plantilla = plantillas_con_num[0]
         nums = {m.group("num") for m in con_num[plantilla.id]}
-        pags = {int(m.group("pag")) for m in con_num[plantilla.id]}
-        if len(nums) != 1 or len(pags) != 1:
-            raise ErrorDivision(f"Página {n}: las cabeceras de la página no coinciden entre sí.")
+        if len(nums) != 1:
+            raise ErrorDivision(f"Página {n}: la cabecera indica varios Nº de documento: {sorted(nums)}.")
         pag.num_doc = nums.pop()
-        if pags.pop() == 1:
-            cuerpo = [m.group("num") for l in pag.lineas if (m := plantilla.numero_doc.fullmatch(l))]
-            if cuerpo != [pag.num_doc]:
-                raise ErrorDivision(
-                    f"Página {n}: es el inicio de un '{plantilla.nombre}' Nº {pag.num_doc} pero la línea "
-                    f"del Nº de documento no coincide o no es única ({cuerpo})."
-                )
+        cuerpo = [m.group("num") for l in pag.lineas if (m := plantilla.numero_doc.fullmatch(l))]
+        if cuerpo == [pag.num_doc]:
             pag.es_inicio = True
+        elif cuerpo:
+            raise ErrorDivision(
+                f"Página {n}: la cabecera dice Nº {pag.num_doc} pero la línea del Nº de documento "
+                f"dice {cuerpo}."
+            )
     elif plantillas_con_num:
         plantilla = plantillas_con_num[0]
         if any(plantilla.numero_doc.fullmatch(l) for l in pag.lineas):
@@ -249,17 +249,20 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
 
     documentos: list[Documento] = []
     anterior: Pagina | None = None
+    posicion = 0  # posición de la página dentro del bloque de la misma plantilla
     for pag in paginas:
         n = pag.numero
         # Contador "Página N": consecutivo dentro de cada bloque de la misma
         # plantilla; vuelve a 1 cuando cambia la plantilla. En las plantillas
         # con contador por documento, vuelve a 1 en cada documento.
         if anterior is None or anterior.plantilla is not pag.plantilla:
-            esperado = 1
-        elif pag.plantilla.contador == "documento" and pag.es_inicio:
-            esperado = 1
+            posicion = 0
         else:
-            esperado = anterior.contador + 1
+            posicion += 1
+        if pag.plantilla.contador == "combinado_desfasado":
+            esperado = max(1, posicion)  # 1, 1, 2, 3...
+        else:
+            esperado = posicion + 1  # 1, 2, 3...
         if pag.contador != esperado:
             raise ErrorDivision(
                 f"Página {n}: el contador impreso dice 'Página {pag.contador}' y debería ser "

@@ -331,7 +331,7 @@ def _pagina_dia(num, pag, num_cuerpo=None):
 
 
 def test_dia_de_varias_paginas_avisa_para_actualizar(cfg):
-    cont = pdf_bytes([["Aviso de recepción Nº 0224304 13/10/2026 06:16:04 Pág. 2", "4 8413630021352 180,000"]])
+    cont = pdf_bytes([["Aviso de recepción Nº 0224304 13/10/2026 06:16:04 Pág. 1", "4 8413630021352 180,000"]])
     inicio = pdf_bytes([_pagina_dia("0224304", 1)])
     ruta = montar(cfg.descargas / "report.pdf", [(inicio, 0), (cont, 0)])
     error(cfg, ruta, "Página 2", "0224304", "aún no está verificado", "Envía este PDF")
