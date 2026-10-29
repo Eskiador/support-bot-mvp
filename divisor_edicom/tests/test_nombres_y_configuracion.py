@@ -77,3 +77,19 @@ def test_nunca_reutiliza_un_numero_aunque_muevan_el_archivo(cfg, descargar):
     res = procesar(descargar(ind / "report - 2026-10-05T120612.425.pdf"), cfg)  # otro Carrefour
     assert res.estado == "ok"
     assert contenido(cfg.destino) == [f"{B} 2.pdf"]
+
+
+def test_numeros_puestos_a_mano_no_cuentan():
+    """29/10: un archivo renombrado a mano con el Nº de entrega
+    ('… 0080399765') hizo que la numeración siguiera por 80399766."""
+    D = "Confirmación Recepción_DESARROLLO DE MARCAS"
+    existentes = [f"{D} 0080399765.pdf", f"{D} 80399766.pdf", f"{D} 3.pdf", f"{D} 012.pdf"]
+    assert asignar_nombres([D, D], existentes) == [f"{D} 4.pdf", f"{D} 5.pdf"]
+    assert asignar_nombres([D], [f"{D} 0080399765.pdf"]) == [f"{D}.pdf"]
+
+
+def test_numeracion_maxima_10000():
+    D = "Confirmación Recepción_DESARROLLO DE MARCAS"
+    assert asignar_nombres([D], [f"{D} 9999.pdf"]) == [f"{D} 10000.pdf"]
+    with pytest.raises(ValueError, match="10000"):
+        asignar_nombres([D], [f"{D} 10000.pdf"])

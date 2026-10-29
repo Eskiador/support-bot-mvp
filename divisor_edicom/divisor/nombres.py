@@ -29,12 +29,20 @@ def _clave(texto: str) -> str:
     return unicodedata.normalize("NFC", texto).casefold()
 
 
+# La numeración de la herramienta va de 1 a NUMERO_MAXIMO. Un número con
+# ceros a la izquierda o mayor que el máximo (p. ej. un Nº de entrega puesto
+# a mano: "... 0080399765") no es de la numeración y se ignora.
+NUMERO_MAXIMO = 10000
+
+
 def numero_usado(archivo: str, base: str) -> int | None:
-    """Si `archivo` es '<base>.pdf' devuelve 1; si es '<base> N.pdf', N; si no, None."""
-    m = re.fullmatch(re.escape(_clave(base)) + r"(?: (\d+))?\.pdf", _clave(archivo))
+    """Si `archivo` es '<base>.pdf' devuelve 1; si es '<base> N.pdf' con N de
+    la numeración (1..NUMERO_MAXIMO, sin ceros delante), N; si no, None."""
+    m = re.fullmatch(re.escape(_clave(base)) + r"(?: ([1-9]\d*))?\.pdf", _clave(archivo))
     if not m:
         return None
-    return int(m.group(1)) if m.group(1) else 1
+    n = int(m.group(1)) if m.group(1) else 1
+    return n if n <= NUMERO_MAXIMO else None
 
 
 def asignar_nombres(bases: list[str], existentes: Iterable[str]) -> list[str]:
@@ -66,6 +74,8 @@ def asignar_nombres(bases: list[str], existentes: Iterable[str]) -> list[str]:
             nombres.append(f"{b}.pdf")
             continue
         n = siguiente.get(k, maximo[k] + 1)
+        if n > NUMERO_MAXIMO:
+            raise ValueError(f"La numeración de '{b}' ha llegado a {NUMERO_MAXIMO}: no quedan números libres.")
         siguiente[k] = n + 1
         nombres.append(f"{b} {n}.pdf")
     if len({_clave(n) for n in nombres}) != len(nombres):
