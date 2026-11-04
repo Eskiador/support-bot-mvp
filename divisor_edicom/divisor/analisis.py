@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -172,6 +173,18 @@ def _clasificar(pag: Pagina, plantillas: tuple[Plantilla, ...]) -> None:
     pag.contador, pag.fecha_generacion = contadores.pop(), fechas.pop()
 
 
+def _misma_generacion(a: str, b: str) -> bool:
+    """¿Son de la misma generación del combinado? Las cabeceras traen la hora
+    solo con minutos (o con segundos, que se descartan); si el combinado se
+    genera justo al cambiar de minuto, unas páginas dicen 07:23 y otras 07:24.
+    Se admite como máximo 1 minuto de diferencia."""
+    try:
+        fa, fb = (datetime.strptime(x, "%d/%m/%Y %H:%M") for x in (a, b))
+    except ValueError:
+        return a == b
+    return abs(fa - fb) <= timedelta(minutes=1)
+
+
 def _campo_unico(patron: re.Pattern, grupo: str, lineas: list[str]) -> list[str]:
     return [m.group(grupo) for l in lineas for m in patron.finditer(l)]
 
@@ -268,7 +281,7 @@ def analizar(archivo: Path, cfg: Configuracion) -> Analisis:
                 f"Página {n}: el contador impreso dice 'Página {pag.contador}' y debería ser "
                 f"'Página {esperado}'. Puede faltar o sobrar una página, o estar desordenadas."
             )
-        if anterior is not None and pag.fecha_generacion != anterior.fecha_generacion:
+        if anterior is not None and not _misma_generacion(pag.fecha_generacion, anterior.fecha_generacion):
             raise ErrorDivision(
                 f"Página {n}: hora de generación {pag.fecha_generacion} distinta de la página anterior "
                 f"({anterior.fecha_generacion}). ¿Se han mezclado PDFs distintos?"

@@ -341,3 +341,16 @@ def test_lote7_varios_dia_seguidos(cfg, descargar):
     assert res.estado == "ok", res.mensaje
     assert [f["archivo"] for f in res.filas if f["num_doc"] in DIA_LOTE7] == [P + f"DIA {i}.pdf" for i in range(1, 9)]
     assert P + "UVESCO.pdf" in [f["archivo"] for f in res.filas]
+
+
+# Lote 8 (04/11/2026): combinado generado justo al cambiar de minuto
+# (DIA dice 07:23:59 y el resto 07:24).
+COMBINADO_8 = EJEMPLOS / "lote8" / "report.pdf"
+
+
+def test_lote8_cambio_de_minuto(cfg, descargar):
+    a = analizar(COMBINADO_8, cfg)
+    assert a.total_paginas == 26
+    res = procesar(descargar(COMBINADO_8), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert len(res.filas) == len(a.documentos) == 23

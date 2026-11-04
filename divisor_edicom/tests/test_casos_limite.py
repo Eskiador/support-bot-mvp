@@ -352,3 +352,20 @@ def test_dia_dos_documentos_sinteticos(cfg):
 def test_dia_empezando_por_pag_2(cfg):
     ruta = escribir_pdf(cfg.descargas / "report.pdf", [_pagina_dia("111", 2)])
     error(cfg, ruta, "Página 1")
+
+
+def test_combinado_generado_al_cambiar_de_minuto(cfg):
+    """04/11: unas páginas dicen 07:23 (DIA, con segundos) y otras 07:24."""
+    dia = _pagina_dia("111", 1)
+    dia[0] = "Aviso de recepción Nº 111 04/11/2026 07:23:59 Pág. 1"
+    merc = pagina_mercadona("222", 1, fecha_gen="04/11/2026 07:24")
+    ruta = escribir_pdf(cfg.descargas / "report.pdf", [merc, dia])
+    res = procesar(ruta, cfg)
+    assert res.estado == "ok", res.mensaje
+    assert [f["num_doc"] for f in res.filas] == ["222", "111"]
+
+
+def test_horas_muy_distintas_siguen_parando(cfg):
+    merc = pagina_mercadona("222", 1, fecha_gen="04/11/2026 07:24")
+    otra = pagina_mercadona("333", 2, fecha_gen="04/11/2026 07:26")
+    error(cfg, escribir_pdf(cfg.descargas / "r.pdf", [merc, otra]), "Página 2", "hora de generación")
