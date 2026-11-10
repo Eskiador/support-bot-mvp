@@ -45,6 +45,7 @@ Private Type RECTANGULO
 End Type
 
 Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
+Private Declare PtrSafe Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWndParent As LongPtr, ByVal hWndChildAfter As LongPtr, ByVal lpszClass As String, ByVal lpszWindow As String) As LongPtr
 Private Declare PtrSafe Function SetForegroundWindow Lib "user32" (ByVal hWnd As LongPtr) As Long
 Private Declare PtrSafe Function GetForegroundWindow Lib "user32" () As LongPtr
 Private Declare PtrSafe Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hWnd As LongPtr, ByVal lpString As String, ByVal cch As Long) As Long
@@ -755,13 +756,23 @@ Private Function Preparar(ws As Worksheet, ByVal conCalibracion As Boolean) As B
     mFilaZnet = 0
     mUltimoRaton.x = 0
     mUltimoRaton.y = 0
-    mVentana = FindWindow(SAP_CLASE, vbNullString)
-    If mVentana = 0 Then MsgBox "No encuentro ninguna ventana de SAP abierta.", vbExclamation, TITULO_MSG: Exit Function
-    titulo = TituloVentana(mVentana)
     mRequisitos = CStr(ws.Range(C_TITULO).Value)
-    If Not TituloValido(titulo, mRequisitos) Then
-        MsgBox "La ventana de SAP es:" & vbCrLf & "   " & titulo & vbCrLf & vbCrLf & _
-               "y tiene que contener: " & mRequisitos & vbCrLf & _
+    ' Con varias ventanas de SAP abiertas (el abono a un lado y la factura al
+    ' otro) se busca la que esta en Datos de posicion del Sol.abono, no la
+    ' ultima que se toco.
+    Dim h As LongPtr, vistas As String
+    mVentana = 0
+    h = FindWindowEx(0, 0, SAP_CLASE, vbNullString)
+    Do While h <> 0
+        If TituloValido(TituloVentana(h), mRequisitos) Then mVentana = h: Exit Do
+        If Len(vistas) < 400 Then vistas = vistas & vbCrLf & "   " & TituloVentana(h)
+        h = FindWindowEx(0, h, SAP_CLASE, vbNullString)
+    Loop
+    If mVentana = 0 And Len(vistas) = 0 Then MsgBox "No encuentro ninguna ventana de SAP abierta.", vbExclamation, TITULO_MSG: Exit Function
+    titulo = TituloVentana(mVentana)
+    If mVentana = 0 Then
+        MsgBox "Ninguna ventana de SAP esta en Datos de posicion del abono. Las que hay:" & vistas & vbCrLf & vbCrLf & _
+               "Tiene que contener: " & mRequisitos & vbCrLf & _
                "Entra en una posicion del abono (Datos de posicion, pestana Condiciones).", _
                vbExclamation, TITULO_MSG
         Exit Function

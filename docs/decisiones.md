@@ -1850,3 +1850,9 @@ Pablo pidió el botón «Registrar en el archivo de cargos» centrado, no en la 
 - Solo se para con un ZNET de 0.
 - Al seguir después de una parada también se reconoce un ZNET negativo.
 - La Calculadora copia los importes con su signo, y el ajuste al total del cargo se hace en negativo cuando las líneas lo son.
+
+## Asistente: con dos ventanas de SAP abiertas
+
+**Problema.** Pablo trabaja con el abono en la mitad izquierda de la pantalla y la factura (VF03) en la derecha. La macro cogía la última ventana de SAP que se había tocado, que era la de la factura, y se paraba con «La ventana de SAP es: Factura GAC…».
+
+**Decisión.** Se recorren todas las ventanas de SAP abiertas y se elige la que está en Datos de posición del Sol.abono. Si no hay ninguna, el aviso enseña la lista de ventanas abiertas.
