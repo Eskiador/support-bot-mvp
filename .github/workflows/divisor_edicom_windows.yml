@@ -1,0 +1,78 @@
+name: Divisor EDICOM (Windows)
+
+on:
+  push:
+    paths:
+      - "divisor_edicom/**"
+      - ".github/workflows/divisor_edicom_windows.yml"
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Construir el ZIP portable (Python oficial de python.org)
+        run: python divisor_edicom/herramientas/construir_portable.py dist
+
+      - name: Firma digital de todos los ejecutables del ZIP
+        run: |
+          $bins = Get-ChildItem dist\DivisorEDICOM -Recurse -Include *.exe,*.dll,*.pyd
+          $mal = @()
+          foreach ($b in $bins) {
+            $s = Get-AuthenticodeSignature $b.FullName
+            $firmante = if ($s.SignerCertificate) { ($s.SignerCertificate.Subject -split ',')[0] } else { '-' }
+            "{0,-9} {1,-28} {2}" -f $s.Status, $b.Name, $firmante
+            if ($s.Status -ne 'Valid') { $mal += $b.FullName }
+          }
+          "Total: $($bins.Count) binarios"
+          if ($mal) { "SIN FIRMA VALIDA:"; $mal; exit 1 }
+
+      - name: Tests con el Python del ZIP
+        working-directory: divisor_edicom
+        run: |
+          python -m pip install --quiet --target ..\dist\DivisorEDICOM\python\Lib\site-packages pytest
+          ..\dist\DivisorEDICOM\python\python.exe -m pytest tests -v -p no:cacheprovider
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Prueba de la herramienta tal cual se entrega (simulación)
+        working-directory: dist/DivisorEDICOM
+        run: |
+          .\python\python.exe -m divisor --simular "..\..\divisor_edicom\ejemplos\lote1\report - 2026-10-05T120721.750.pdf"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DivisorEDICOM
+          path: dist/DivisorEDICOM.zip
+
+      # Solo si todo lo anterior ha pasado: deja el ZIP en una rama aparte
+      # (una sola versión, la última probada) para poder entregarlo.
+      - name: Dejar el ZIP probado en la rama divisor-edicom-entrega
+        if: github.event_name == 'push' && github.ref == 'refs/heads/claude/sleepy-mayer-jbxkbo'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $huella = (Get-FileHash dist\DivisorEDICOM.zip -Algorithm SHA256).Hash
+          $tmp = Join-Path $env:RUNNER_TEMP "entrega"
+          New-Item -ItemType Directory $tmp | Out-Null
+          Copy-Item dist\DivisorEDICOM.zip $tmp
+          Set-Location $tmp
+          git init -q
+          git checkout -q -b divisor-edicom-entrega
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add DivisorEDICOM.zip
+          git commit -q -m "DivisorEDICOM.zip probado en Windows (commit ${{ github.sha }}) SHA256 $huella"
+          git push -q -f "https://x-access-token:$env:GH_TOKEN@github.com/${{ github.repository }}.git" divisor-edicom-entrega
+          "Publicado. SHA256: $huella"
