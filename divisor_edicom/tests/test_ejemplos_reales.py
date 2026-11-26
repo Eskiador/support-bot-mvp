@@ -354,3 +354,21 @@ def test_lote8_cambio_de_minuto(cfg, descargar):
     res = procesar(descargar(COMBINADO_8), cfg)
     assert res.estado == "ok", res.mensaje
     assert len(res.filas) == len(a.documentos) == 23
+
+
+# Lote 9 (26/11/2026): segundo almacén de UVESCO (ALMACEN VES, GLN 8428227000016).
+COMBINADO_9 = EJEMPLOS / "lote9" / "report.pdf"
+
+
+def test_lote9_segundo_almacen_de_uvesco(cfg, descargar):
+    a = analizar(COMBINADO_9, cfg)
+    assert a.total_paginas == 30 and len(a.documentos) == 23
+    ultimo = a.documentos[-1]
+    assert (ultimo.num_doc, ultimo.gln, ultimo.nombre_cliente, ultimo.paginas) == (
+        "2026/536376", "8428227000016", "UVESCO", [30],
+    )
+    res = procesar(descargar(COMBINADO_9), cfg)
+    assert res.estado == "ok", res.mensaje
+    assert len(res.filas) == 23
+    assert len({f["archivo"] for f in res.filas}) == 23
+    assert P + "UVESCO.pdf" in [f["archivo"] for f in res.filas]
